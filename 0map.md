@@ -2,6 +2,6 @@
 
 ## Requirements
 
-- [bussiness-requirements]
+- [[business-requirements]]
 
 - [technical-requirements]
