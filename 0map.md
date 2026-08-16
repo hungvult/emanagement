@@ -5,3 +5,9 @@
 - [[business-requirements]]
 
 - [technical-requirements]
+
+## Architecture
+
+- [[tech-stack]]
+
+- [[system-architecture-diagram]]
