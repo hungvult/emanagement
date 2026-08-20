@@ -11,3 +11,5 @@
 - [[tech-stack]]
 
 - [[system-architecture-diagram]]
+
+- [[project-structure]]
