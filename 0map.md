@@ -2,17 +2,17 @@
 
 ## Requirements
 
-- [[business-requirements]]
+- [[business_requirements]]
 
-- [technical-requirements]
+- [technical_requirements]
 
 ## Architecture
 
-- [[tech-stack]]
+- [[tech_stack]]
 
-- [[system-architecture-diagram]]
+- [[system_architecture_diagram]]
 
-- [[project-structure]]
+- [[project_structure]]
 
 ## Database
 
