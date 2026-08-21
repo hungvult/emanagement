@@ -13,3 +13,7 @@
 - [[system-architecture-diagram]]
 
 - [[project-structure]]
+
+## Database
+
+- [[database_schema]]
