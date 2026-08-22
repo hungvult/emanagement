@@ -1,0 +1,49 @@
+server:
+  port: 2504
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:emanagement_db}
+    username: ${DB_USER:dung}
+    password: ${DB_PASSWORD:dung123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      data-source-properties:
+        options: "-c TimeZone=Asia/Ho_Chi_Minh"
+        
+
+  jpa:
+    hibernate:
+      ddl-auto: update # Tự động tạo/cập nhật bảng khi dev
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        
+
+  # H2 Console (tùy chọn khi test nhanh local)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket-name: ${MINIO_BUCKET:attendance-images}
+
+ai-service:
+  base-url: ${AI_SERVICE_URL:http://localhost:8000}
+  extract-embeddings-endpoint: /api/v1/cv/extract-embeddings
+  match-face-endpoint: /api/v1/cv/match
+  confidence-threshold: 85.0
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration-ms: 86400000 # 24 giờ
