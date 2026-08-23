@@ -13,7 +13,7 @@ import com.emanagement.backend.modules.attendance.dto.AttendanceHistoryDto;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/attendance")
+@RequestMapping("/api/v1/attendances")
 @RequiredArgsConstructor
 public class AttendanceController {
     private final AttendanceServiceImpl attendanceServiceImpl;

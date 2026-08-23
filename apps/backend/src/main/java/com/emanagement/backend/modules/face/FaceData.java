@@ -41,7 +41,7 @@ public class FaceData {
     @Column(name = "image_snapshot_url", length = 500)
     private String imageSnapshotUrl;
 
-    @Column(name = "create_at", updatable = false)
+    @Column(name = "created_at", updatable = false)
     @Builder.Default
-    private LocalDateTime createAt = LocalDateTime.now();
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

@@ -1,9 +1,9 @@
-package com.emanagement.backend.modules.attendance;
+package com.emanagement.backend.modules.shift;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.emanagement.backend.modules.employee.User;
-import com.emanagement.backend.modules.kiosk.Kiosk;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,12 +20,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "attendance_records")
+@Table(name = "employee_shifts")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AttendanceRecord {
+public class EmployeeShift {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,21 +35,12 @@ public class AttendanceRecord {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "kiosk_id")
-    private Kiosk kiosk;
+    @JoinColumn(name = "shift_id", nullable = false)
+    private Shift shift;
 
-    @Column(name = "check_in_time")
-    private LocalDateTime checkInTime;
+    @Column(name = "assigned_date", nullable = false)
+    private LocalDate assignedDate;
 
-    @Column(name = "check_out_time")
-    private LocalDateTime checkOutTime;
-
-    @Column(length = 20)
-    private String status = "ON_TIME";
-
-    @Column(name = "snapshot_url", length = 500)
-    private String snapshotUrl;
-
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

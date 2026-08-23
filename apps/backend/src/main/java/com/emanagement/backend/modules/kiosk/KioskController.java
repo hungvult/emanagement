@@ -16,7 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("api/v1/kiosk")
+@RequestMapping("api/v1/kiosks")
 @RequiredArgsConstructor
 public class KioskController {
     private final KioskServiceImpl kioskServiceImpl;

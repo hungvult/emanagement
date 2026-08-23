@@ -39,7 +39,7 @@ public class Kiosk {
     @Builder.Default
     private String status = "ACTIVE";
 
-    @Column(name = "create_at", updatable = false)
+    @Column(name = "created_at", updatable = false)
     @Builder.Default
-    private LocalDateTime createAt = LocalDateTime.now();
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

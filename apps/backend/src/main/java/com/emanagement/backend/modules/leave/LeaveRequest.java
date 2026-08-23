@@ -1,9 +1,9 @@
-package com.emanagement.backend.modules.attendance;
+package com.emanagement.backend.modules.leave;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.emanagement.backend.modules.employee.User;
-import com.emanagement.backend.modules.kiosk.Kiosk;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,12 +20,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "attendance_records")
+@Table(name = "leave_requests")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AttendanceRecord {
+public class LeaveRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -34,22 +34,25 @@ public class AttendanceRecord {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "kiosk_id")
-    private Kiosk kiosk;
+    @Column(name = "start_date", nullable = false)
+    private LocalDate startDate;
 
-    @Column(name = "check_in_time")
-    private LocalDateTime checkInTime;
+    @Column(name = "end_date", nullable = false)
+    private LocalDate endDate;
 
-    @Column(name = "check_out_time")
-    private LocalDateTime checkOutTime;
+    @Column(columnDefinition = "TEXT")
+    private String reason;
 
     @Column(length = 20)
-    private String status = "ON_TIME";
+    private String status = "PENDING";
 
-    @Column(name = "snapshot_url", length = 500)
-    private String snapshotUrl;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private User approvedBy;
 
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "create_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "update_at")
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }

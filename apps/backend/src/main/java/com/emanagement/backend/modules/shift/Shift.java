@@ -43,7 +43,7 @@ public class Shift {
     @Builder.Default
     private Integer gracePeriodMinutes = 15;
 
-    @Column(name = "create_at", updatable = false)
+    @Column(name = "created_at", updatable = false)
     @Builder.Default
-    private LocalDateTime createAt = LocalDateTime.now();
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

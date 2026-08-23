@@ -1,7 +1,7 @@
-package com.emanagement.backend.modules.employee.dto;
+package com.emanagement.backend.modules.leave.dto;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Set;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,18 +9,18 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class EmployeeResponseDto {
+public class LeaveRequestResponseDto {
     private Long id;
+    private Long userId;
     private String employeeCode;
     private String fullName;
-    private String email;
-    private String phone;
-    private String avatarUrl;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private String reason;
     private String status;
-    private Set<String> roles;
-    private boolean hasRegisteredFace;
+    private String approvedByName;
     private LocalDateTime createdAt;
 }

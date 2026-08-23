@@ -166,7 +166,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .status(user.getStatus())
                 .roles(roleNames)
                 .hasRegisteredFace(hasFace)
-                .createAt(user.getCreateAt())
+                .createdAt(user.getCreatedAt())
                 .build();
     }
 }
