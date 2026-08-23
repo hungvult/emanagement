@@ -36,8 +36,10 @@ public class Kiosk {
     private String deviceToken;
 
     @Column(length = 20)
+    @Builder.Default
     private String status = "ACTIVE";
 
     @Column(name = "create_at", updatable = false)
+    @Builder.Default
     private LocalDateTime createAt = LocalDateTime.now();
 }

@@ -1,13 +1,17 @@
-package com.emanagement.backend.modules.shift;
+package com.emanagement.backend.modules.face;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+
+import com.emanagement.backend.modules.employee.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,32 +20,26 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "shifts")
+@Table(name = "face_data")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Shift {
+public class FaceData {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "shift_code", nullable = false, unique = true, length = 50)
-    private String shiftCode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(nullable = false, length = 100)
-    private String name;
+    @Column(name = "face_vector", nullable = false, columnDefinition = "TEXT")
+    private String faceVector;
 
-    @Column(name = "start_time", nullable = false)
-    private LocalTime startTime;
-
-    @Column(name = "end_time", nullable = false)
-    private LocalTime endTime;
-
-    @Column(name = "grace_peroid_minutes")
-    @Builder.Default
-    private Integer gracePeriodMinutes = 15;
+    @Column(name = "image_snapshot_url", length = 500)
+    private String imageSnapshotUrl;
 
     @Column(name = "create_at", updatable = false)
     @Builder.Default

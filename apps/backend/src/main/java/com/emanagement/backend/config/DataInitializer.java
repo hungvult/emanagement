@@ -1,6 +1,5 @@
 package com.emanagement.backend.config;
 
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Set;
 
@@ -47,8 +46,6 @@ public class DataInitializer implements CommandLineRunner {
                     .passwordHash(passwordEncoder.encode("admin123"))
                     .status("ACTIVE")
                     .roles(Set.of(adminRole))
-                    .createAt(LocalDateTime.now())
-                    .updateAt(LocalDateTime.now())
                     .build();
 
             userRepository.save(admin);
@@ -58,7 +55,7 @@ public class DataInitializer implements CommandLineRunner {
             User admin = User.builder()
                     .employeeCode("NV002")
                     .fullName("Pham Danh Pho Nhan Vien")
-                    .email("admin@emanagement.com")
+                    .email("nhanvien@emanagement.com")
                     .passwordHash(passwordEncoder.encode("nhanvien123"))
                     .status("ACTIVE")
                     .roles(Set.of(userRole))

@@ -54,15 +54,19 @@ public class User {
     private String avatarUrl;
 
     @Column(length = 20)
+    @Builder.Default
     private String status = "ACTIVE";
 
     @ManyToAny(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
+    @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
     @Column(name = "create_at", updatable = false)
+    @Builder.Default
     private LocalDateTime createAt = LocalDateTime.now();
 
     @Column(name = "update_at")
+    @Builder.Default
     private LocalDateTime updateAt = LocalDateTime.now();
 }
