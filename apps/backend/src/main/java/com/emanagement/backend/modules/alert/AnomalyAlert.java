@@ -15,6 +15,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,6 +26,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class AnomalyAlert {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,9 +43,10 @@ public class AnomalyAlert {
     private LocalDate alertDate;
 
     @Column(columnDefinition = "TEXT")
-    private String desciption;
+    private String description;
 
     @Column(name = "is_resolved")
+    @Builder.Default
     private Boolean isResolved = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -51,5 +54,6 @@ public class AnomalyAlert {
     private User resolvedBy;
 
     @Column(name = "created_at", updatable = false)
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 }

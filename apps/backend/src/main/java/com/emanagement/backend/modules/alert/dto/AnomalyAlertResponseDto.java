@@ -19,7 +19,7 @@ public class AnomalyAlertResponseDto {
     private String fullName;
     private String alertType;
     private LocalDate alertDate;
-    private String desciption;
+    private String description;
     private Boolean isResolved;
     private String resolvedByName;
     private LocalDateTime createdAt;

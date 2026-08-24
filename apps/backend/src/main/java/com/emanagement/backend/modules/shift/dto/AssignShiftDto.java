@@ -2,7 +2,6 @@ package com.emanagement.backend.modules.shift.dto;
 
 import java.time.LocalDate;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -14,12 +13,13 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AssignShiftDto {
-    @NotNull(message = "ID nhan vien khong duoc de trong")
+
+    @NotNull(message = "ID nhân viên không được để trống")
     private Long userId;
 
-    @NotNull(message = "ID ca lam viec khong duoc de trong")
+    @NotNull(message = "ID ca làm việc không được để trống")
     private Long shiftId;
 
-    @NotNull(message = "Ngay phan ca khong duoc de trong")
+    @NotNull(message = "Ngày phân ca không được để trống")
     private LocalDate assignedDate;
 }

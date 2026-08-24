@@ -9,5 +9,5 @@ public interface KioskService {
 
     Kiosk registerKiosk(KioskRegisterDto dto);
 
-    Kiosk getKisokByToken(String deviceToken);
+    Kiosk getKioskByToken(String deviceToken);
 }

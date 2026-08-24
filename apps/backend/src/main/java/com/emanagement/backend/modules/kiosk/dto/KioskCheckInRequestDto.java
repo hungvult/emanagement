@@ -11,6 +11,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class KioskCheckInRequestDto {
-    @NotBlank(message = "Khung hinh anh khong duoc de trong")
+
+    @NotBlank(message = "Khung hình ảnh không được để trống")
     private String imageFrameBase64;
 }

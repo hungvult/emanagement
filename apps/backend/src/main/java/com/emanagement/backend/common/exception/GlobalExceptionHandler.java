@@ -14,9 +14,10 @@ import com.emanagement.backend.common.dto.ApiResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleResourceNotFoundException(ResourceNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
@@ -36,7 +37,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.<Map<String, String>>builder()
                         .status("VALIDATION_ERROR")
-                        .message("Du lieu dau vao khong hop le")
+                        .message("Dữ liệu đầu vào không hợp lệ")
                         .data(errors)
                         .build());
     }
@@ -44,6 +45,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGlobalException(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Loi he thong: " + ex.getMessage()));
+                .body(ApiResponse.error("Lỗi hệ thống: " + ex.getMessage()));
     }
 }

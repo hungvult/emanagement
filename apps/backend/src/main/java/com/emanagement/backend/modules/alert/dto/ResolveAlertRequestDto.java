@@ -11,6 +11,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ResolveAlertRequestDto {
-    @NotNull(message = "ID nguoi xu ly khong duoc de trong")
+
+    @NotNull(message = "ID người xử lý không được để trống")
     private Long resolvedByUserId;
 }

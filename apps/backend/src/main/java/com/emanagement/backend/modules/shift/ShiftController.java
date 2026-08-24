@@ -15,31 +15,37 @@ import com.emanagement.backend.modules.shift.dto.AssignShiftDto;
 import com.emanagement.backend.modules.shift.dto.ShiftCreateDto;
 import com.emanagement.backend.modules.shift.dto.ShiftResponseDto;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/shifts")
 @RequiredArgsConstructor
+@Tag(name = "Ca Làm Việc & Phân Ca", description = "Các API quản lý danh mục ca làm việc và phân ca cho nhân viên")
 public class ShiftController {
-    private final ShiftServiceImpl shiftServiceImpl;
+    private final ShiftService shiftService;
 
     @PostMapping
+    @Operation(summary = "Tạo ca làm việc mới", description = "Tạo mới một ca làm việc với khung giờ bắt đầu, kết thúc và số phút gia hạn")
     public ResponseEntity<ApiResponse<ShiftResponseDto>> createShift(@Valid @RequestBody ShiftCreateDto dto) {
-        ShiftResponseDto response = shiftServiceImpl.createShift(dto);
+        ShiftResponseDto response = shiftService.createShift(dto);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Tao moi ca lam viec thanh cong", response));
+                .body(ApiResponse.success("Tạo mới ca làm việc thành công", response));
     }
 
     @GetMapping
+    @Operation(summary = "Danh sách ca làm việc", description = "Lấy danh sách tất cả các ca làm việc trong hệ thống")
     public ResponseEntity<ApiResponse<List<ShiftResponseDto>>> getAllShifts() {
-        List<ShiftResponseDto> response = shiftServiceImpl.getAllShifts();
+        List<ShiftResponseDto> response = shiftService.getAllShifts();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PostMapping("/assign")
+    @Operation(summary = "Phân ca cho nhân viên", description = "Gán một ca làm việc cụ thể cho nhân viên vào ngày làm việc")
     public ResponseEntity<ApiResponse<Void>> assignShift(@Valid @RequestBody AssignShiftDto dto) {
-        shiftServiceImpl.assignShift(dto);
-        return ResponseEntity.ok(ApiResponse.success("Phan ca thanh cong cho nhan vien", null));
+        shiftService.assignShift(dto);
+        return ResponseEntity.ok(ApiResponse.success("Phân ca thành công cho nhân viên", null));
     }
 }

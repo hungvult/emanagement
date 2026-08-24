@@ -1,9 +1,5 @@
 package com.emanagement.backend.modules.leave;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -20,6 +16,10 @@ import com.emanagement.backend.modules.leave.dto.LeaveRequestResponseDto;
 
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class LeaveRequestServiceImpl implements LeaveRequestService {
@@ -27,18 +27,18 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final UserRepository userRepository;
 
     @Override
+    @Transactional
     public LeaveRequestResponseDto approveLeaveRequest(Long id, LeaveAprrovalDto dto) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay don xin nghi phep voi ID: " + id));
-        User manager = userRepository.findById(dto.getApprovedByUserId())
-                .orElseThrow(
-                        () -> new ResourceNotFoundException(
-                                "Khong tim thay quan ly voi ID: " + dto.getApprovedByUserId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn xin nghỉ phép với ID: " + id));
+
+        User user = userRepository.findById(dto.getApprovedByUserId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy quản lý với ID: " + dto.getApprovedByUserId()));
 
         leaveRequest.setStatus(dto.getStatus());
-        leaveRequest.setApprovedBy(manager);
+        leaveRequest.setApprovedBy(user);
         leaveRequest.setUpdatedAt(LocalDateTime.now());
-
         LeaveRequest updated = leaveRequestRepository.save(leaveRequest);
         return mapToDto(updated);
     }
@@ -46,20 +46,21 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     @Override
     @Transactional
     public LeaveRequestResponseDto createLeaveRequest(LeaveRequestCreateDto dto) {
-        User user = userRepository.findById(dto.getUserId()).orElseThrow(
-                () -> new ResourceNotFoundException("Khong tim thay nhan vien voi ID: " + dto.getUserId()));
+        User user = userRepository.findById(dto.getUserId())
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
 
-        if (dto.getStartDate().isAfter(dto.getEndDate())) {
-            throw new BusinessException("Ngay ket thuc nghi khong duoc nho hon ngay bat dau nghi");
+        if (dto.getEndDate().isBefore(dto.getStartDate())) {
+            throw new BusinessException("Ngày kết thúc nghỉ không được trước ngày bắt đầu");
         }
 
-        LeaveRequest leaveRequest = new LeaveRequest();
-        leaveRequest.setUser(user);
-        leaveRequest.setStartDate(dto.getStartDate());
-        leaveRequest.setEndDate(dto.getEndDate());
-        leaveRequest.setReason(dto.getReason());
-        leaveRequest.setStatus("PENDING");
-
+        LeaveRequest leaveRequest = LeaveRequest.builder()
+                .user(user)
+                .startDate(dto.getStartDate())
+                .endDate(dto.getEndDate())
+                .reason(dto.getReason())
+                .status("PENDING")
+                .build();
         LeaveRequest created = leaveRequestRepository.save(leaveRequest);
         return mapToDto(created);
     }
@@ -68,13 +69,15 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     @Transactional(readOnly = true)
     public PageResponse<LeaveRequestResponseDto> getAllLeaveRequests(int page, int size, String status) {
         PageRequest pageRequest = PageRequest.of(page, size);
-        Page<LeaveRequest> pageResult;
+        Page<LeaveRequest> leavePage;
+
         if (status != null && !status.isBlank()) {
-            pageResult = leaveRequestRepository.findByStatusOrderByCreatedAtDesc(status, pageRequest);
+            leavePage = leaveRequestRepository.findByStatusOrderByCreatedAtDesc(status, pageRequest);
         } else {
-            pageResult = leaveRequestRepository.findAll(pageRequest);
+            leavePage = leaveRequestRepository.findAll(pageRequest);
         }
-        return PageResponse.from(pageResult.map(this::mapToDto));
+
+        return PageResponse.from(leavePage.map(this::mapToDto));
     }
 
     @Override

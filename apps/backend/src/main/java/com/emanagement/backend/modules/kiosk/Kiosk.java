@@ -32,7 +32,7 @@ public class Kiosk {
     @Column(nullable = false, length = 150)
     private String name;
 
-    @Column(name = "device_token", nullable = false, unique = true, length = 255)
+    @Column(name = "device_token", nullable = false, unique = true, columnDefinition = "TEXT")
     private String deviceToken;
 
     @Column(length = 20)

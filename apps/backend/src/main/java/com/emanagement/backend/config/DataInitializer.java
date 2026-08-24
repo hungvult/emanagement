@@ -16,6 +16,7 @@ import com.emanagement.backend.modules.kiosk.Kiosk;
 import com.emanagement.backend.modules.kiosk.KioskRepository;
 import com.emanagement.backend.modules.shift.Shift;
 import com.emanagement.backend.modules.shift.ShiftRepository;
+import com.emanagement.backend.security.JwtTokenProvider;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,19 +29,20 @@ public class DataInitializer implements CommandLineRunner {
     private final ShiftRepository shiftRepository;
     private final KioskRepository kioskRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Override
     public void run(String... args) throws Exception {
         Role adminRole = roleRepository.findByName("ROLE_ADMIN")
-                .orElseGet(() -> roleRepository.save(new Role(null, "ROLE_ADMIN", "Quan ly")));
+                .orElseGet(() -> roleRepository.save(new Role(null, "ROLE_ADMIN", "Quản lý")));
 
         Role userRole = roleRepository.findByName("ROLE_USER")
-                .orElseGet(() -> roleRepository.save(new Role(null, "ROLE_USER", "Nhan vien")));
+                .orElseGet(() -> roleRepository.save(new Role(null, "ROLE_USER", "Nhân viên")));
 
         if (userRepository.findByEmail("admin@emanagement.com").isEmpty()) {
             User admin = User.builder()
-                    .employeeCode("NV001")
-                    .fullName("Ngo Van Dung Quan Ly")
+                    .employeeCode("EMP260001")
+                    .fullName("Ngô Văn Dũng Quản Lý")
                     .email("admin@emanagement.com")
                     .phone("0123456789")
                     .passwordHash(passwordEncoder.encode("admin123"))
@@ -52,22 +54,23 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         if (userRepository.findByEmail("nhanvien@emanagement.com").isEmpty()) {
-            User admin = User.builder()
-                    .employeeCode("NV002")
-                    .fullName("Pham Danh Pho Nhan Vien")
+            User emp = User.builder()
+                    .employeeCode("EMP260002")
+                    .fullName("Phạm Danh Phố Nhân Viên")
                     .email("nhanvien@emanagement.com")
+                    .phone("0987654321")
                     .passwordHash(passwordEncoder.encode("nhanvien123"))
                     .status("ACTIVE")
                     .roles(Set.of(userRole))
                     .build();
 
-            userRepository.save(admin);
+            userRepository.save(emp);
         }
 
-        if (shiftRepository.findByShiftCode("OFFICE_HOURS").isEmpty()) {
+        if (shiftRepository.findByShiftCode("SHIFT-001").isEmpty()) {
             Shift shift = Shift.builder()
-                    .shiftCode("OFFICE_HOURS")
-                    .name("Ca hanh chinh")
+                    .shiftCode("SHIFT-001")
+                    .name("Ca hành chính")
                     .startTime(LocalTime.of(8, 0))
                     .endTime(LocalTime.of(17, 0))
                     .gracePeriodMinutes(15)
@@ -76,17 +79,18 @@ public class DataInitializer implements CommandLineRunner {
             shiftRepository.save(shift);
         }
 
-        if (kioskRepository.findByKioskCode("KIOSK_DEMO_LAPTOP_01").isEmpty()) {
+        if (kioskRepository.findByKioskCode("KSK-2608-001").isEmpty()) {
+            String signedToken = jwtTokenProvider.generateKioskDeviceToken("KSK-2608-001", "Trạm Kiosk Demo WebCam Laptop");
             Kiosk kiosk = Kiosk.builder()
-                    .kioskCode("KIOSK_DEMO_LAPTOP_01")
-                    .name("Tram Kiosk cham cong Demo (WebCam Laptop)")
-                    .deviceToken("kiosk_token_demo_laptop_sec_12345")
+                    .kioskCode("KSK-2608-001")
+                    .name("Trạm Kiosk Demo WebCam Laptop")
+                    .deviceToken(signedToken)
                     .status("ACTIVE")
                     .build();
 
             kioskRepository.save(kiosk);
         }
 
-        System.out.println("DataInitializer: Nap du lieu thanh cong");
+        System.out.println("DataInitializer: Nạp dữ liệu mẫu ban đầu thành công.");
     }
 }
