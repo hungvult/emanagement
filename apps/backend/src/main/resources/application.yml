@@ -1,0 +1,19 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:prod} # Mặc định là môi trường dev
+
+  application:
+    name: backend
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# Swagger / OpenAPI Metadata
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
