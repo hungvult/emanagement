@@ -21,7 +21,7 @@ import com.emanagement.backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@Profile("dev")
+@Profile("prod")
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
     private final RoleRepository roleRepository;
@@ -80,7 +80,8 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         if (kioskRepository.findByKioskCode("KSK-2608-001").isEmpty()) {
-            String signedToken = jwtTokenProvider.generateKioskDeviceToken("KSK-2608-001", "Trạm Kiosk Demo WebCam Laptop");
+            String signedToken = jwtTokenProvider.generateKioskDeviceToken("KSK-2608-001",
+                    "Trạm Kiosk Demo WebCam Laptop");
             Kiosk kiosk = Kiosk.builder()
                     .kioskCode("KSK-2608-001")
                     .name("Trạm Kiosk Demo WebCam Laptop")
