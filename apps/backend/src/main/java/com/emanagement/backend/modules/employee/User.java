@@ -41,10 +41,10 @@ public class User {
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
-    @Column(nullable = false, unique = true, length = 150)
+    @Column(nullable = true, unique = true, length = 150)
     private String email;
 
-    @Column(length = 20)
+    @Column(length = 20, unique = true)
     private String phone;
 
     @Column(name = "password_hash", nullable = false)

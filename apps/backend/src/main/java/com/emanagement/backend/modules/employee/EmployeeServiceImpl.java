@@ -49,18 +49,21 @@ public class EmployeeServiceImpl implements EmployeeService {
         String generatedEmployeeCode = CodeGeneratorUtils.generateEmployeeCode(
                 code -> userRepository.findByEmployeeCode(code).isPresent());
 
+        String email = (dto.getEmail() != null && !dto.getEmail().isBlank()) ? dto.getEmail().trim() : null;
+        String phone = (dto.getPhone() != null && !dto.getPhone().isBlank()) ? dto.getPhone().trim() : null;
+
         // 2. Nếu có điền email, kiểm tra trùng lặp và kiểm tra DNS domain
-        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
-            if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+        if (email != null) {
+            if (userRepository.findByEmail(email).isPresent()) {
                 throw new BusinessException("Email đã tồn tại trên hệ thống");
             }
-            if (!emailService.verifyEmailDomainExists(dto.getEmail())) {
-                throw new BusinessException("Tên miền của email (" + dto.getEmail() + ") không tồn tại trên thực tế hoặc không thể nhận mail.");
+            if (!emailService.verifyEmailDomainExists(email)) {
+                throw new BusinessException("Tên miền của email (" + email + ") không tồn tại trên thực tế hoặc không thể nhận mail.");
             }
         }
 
         // 3. Nếu có điền số điện thoại, kiểm tra trùng lặp
-        if (dto.getPhone() != null && !dto.getPhone().isBlank() && userRepository.findByPhone(dto.getPhone()).isPresent()) {
+        if (phone != null && userRepository.findByPhone(phone).isPresent()) {
             throw new BusinessException("Số điện thoại đã tồn tại trên hệ thống");
         }
 
@@ -70,8 +73,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         User user = User.builder()
                 .employeeCode(generatedEmployeeCode)
                 .fullName(dto.getFullName())
-                .email(dto.getEmail())
-                .phone(dto.getPhone())
+                .email(email)
+                .phone(phone)
                 .passwordHash(passwordEncoder.encode(dto.getPassword()))
                 .status("ACTIVE")
                 .roles(Set.of(role))
@@ -108,21 +111,30 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional(readOnly = true)
-    public EmployeeResponseDto getEmployeeById(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
-
-        return mapToDto(user);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public PageResponse<EmployeeResponseDto> getAllEmployees(int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
         Page<User> usersPage = userRepository.findAll(pageRequest);
 
-        Page<EmployeeResponseDto> dtoPage = usersPage.map(this::mapToDto);
-        return PageResponse.from(dtoPage);
+        List<EmployeeResponseDto> dtoList = usersPage.getContent().stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+
+        return PageResponse.<EmployeeResponseDto>builder()
+                .content(dtoList)
+                .pageNumber(usersPage.getNumber())
+                .pageSize(usersPage.getSize())
+                .totalElement(usersPage.getTotalElements())
+                .totalPages(usersPage.getTotalPages())
+                .last(usersPage.isLast())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EmployeeResponseDto getEmployeeById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+        return mapToDto(user);
     }
 
     @Override
@@ -130,57 +142,54 @@ public class EmployeeServiceImpl implements EmployeeService {
     public void deleteEmployee(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
-        user.setStatus("INACTIVE");
-        userRepository.save(user);
+        userRepository.delete(user);
     }
 
     @Override
     @Transactional
     public LiveEkycEnrollResponseDto enrollEkycLive(LiveEkycEnrollDto dto) {
         User user = userRepository.findById(dto.getUserId())
-                .orElseThrow(
-                        () -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
 
-        faceDataRepository.deleteByUserId(dto.getUserId());
-
-        int count = 0;
-        for (String base64Image : dto.getFaceImagesBase64()) {
-            try {
-                String cleanBase64 = base64Image != null ? base64Image.trim() : "";
-                if (cleanBase64.contains(",")) {
-                    cleanBase64 = cleanBase64.split(",")[1];
-                }
-                cleanBase64 = cleanBase64.replaceAll("[^a-zA-Z0-9+/=]", "");
-                byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
-
-                List<Double> vector = aiFaceService.extractEmbedding(imageBytes);
-
-                FaceData faceData = FaceData.builder()
-                        .user(user)
-                        .faceVector(vector.toString())
-                        .imageSnapshotUrl(
-                                "minio://mock/snapshot_" + user.getEmployeeCode() + "_" + (count + 1) + ".jpg")
-                        .build();
-
-                faceDataRepository.save(faceData);
-                count++;
-            } catch (Exception ex) {
-                throw new BusinessException("Lỗi giải mã khuôn mặt Base64 thứ " + (count + 1));
-            }
+        if (dto.getFaceImagesBase64() == null || dto.getFaceImagesBase64().isEmpty()) {
+            throw new BusinessException("Danh sách ảnh khuôn mặt quét eKYC không được để trống");
         }
+
+        // Xóa vector cũ
+        faceDataRepository.deleteByUserId(user.getId());
+
+        int totalSaved = 0;
+        for (int i = 0; i < dto.getFaceImagesBase64().size(); i++) {
+            String base64Img = dto.getFaceImagesBase64().get(i);
+            String cleanBase64 = base64Img != null ? base64Img.trim() : "";
+            if (cleanBase64.contains(",")) {
+                cleanBase64 = cleanBase64.split(",")[1];
+            }
+            cleanBase64 = cleanBase64.replaceAll("[^a-zA-Z0-9+/=]", "");
+            byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
+
+            List<Double> vector = aiFaceService.extractEmbedding(imageBytes);
+
+            FaceData faceData = FaceData.builder()
+                    .user(user)
+                    .imageSnapshotUrl("minio://ekyc/" + user.getEmployeeCode() + "_angle_" + (i + 1) + ".jpg")
+                    .faceVector(vector.toString())
+                    .build();
+            faceDataRepository.save(faceData);
+            totalSaved++;
+        }
+
         return LiveEkycEnrollResponseDto.builder()
                 .userId(user.getId())
                 .employeeCode(user.getEmployeeCode())
-                .vectorCounterSaved(count)
-                .message("Khởi tạo dữ liệu eKYC Live thành công (" + count + " vectors)")
+                .vectorCounterSaved(totalSaved)
+                .message("Đăng ký dữ liệu khuôn mặt Live eKYC thành công với " + totalSaved + " góc mặt")
                 .build();
     }
 
     private EmployeeResponseDto mapToDto(User user) {
         boolean hasFace = !faceDataRepository.findByUserId(user.getId()).isEmpty();
-        Set<String> roleNames = user.getRoles().stream()
-                .map(role -> role.getName())
-                .collect(Collectors.toSet());
+        Set<String> roles = user.getRoles().stream().map(Role::getName).collect(Collectors.toSet());
 
         return EmployeeResponseDto.builder()
                 .id(user.getId())
@@ -190,7 +199,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())
                 .status(user.getStatus())
-                .roles(roleNames)
+                .roles(roles)
                 .hasRegisteredFace(hasFace)
                 .createdAt(user.getCreatedAt())
                 .build();

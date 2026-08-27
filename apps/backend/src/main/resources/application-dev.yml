@@ -14,7 +14,6 @@ spring:
     hikari:
       data-source-properties:
         options: "-c TimeZone=Asia/Ho_Chi_Minh"
-        
 
   jpa:
     hibernate:
@@ -24,7 +23,20 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        
+
+  # Cấu hình SMTP gửi Email thật qua Gmail
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:vandunglc2005pro@gmail.com}
+    password: ${MAIL_PASSWORD:nact oolc fsww xnto}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
 
   # H2 Console (tùy chọn khi test nhanh local)
   h2:

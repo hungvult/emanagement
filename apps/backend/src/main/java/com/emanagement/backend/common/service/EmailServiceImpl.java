@@ -3,6 +3,7 @@ package com.emanagement.backend.common.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,9 @@ public class EmailServiceImpl implements EmailService {
     @Autowired(required = false)
     private JavaMailSender mailSender;
 
+    @Value("${spring.mail.username:noreply@emanagement.com}")
+    private String fromEmail;
+
     @Override
     public void sendOtpEmail(String toEmail, String otpCode, String type) {
         log.info("[OTP EMAIL]: Email = {}, OTP = {}, Loai = {}", toEmail, otpCode, type);
@@ -29,12 +33,15 @@ public class EmailServiceImpl implements EmailService {
         if (mailSender != null) {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
+                message.setFrom(fromEmail);
                 message.setTo(toEmail);
                 message.setSubject("Mã OTP Xác Thực E-Management: " + otpCode);
-                message.setText("Mã OTP của bạn là: " + otpCode + ". Mã có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này cho ai.");
+                message.setText("Xin chào,\n\nMã OTP xác thực của bạn trên hệ thống eManagement là: " + otpCode + 
+                        "\n\nMã này có hiệu lực trong vòng 5 phút. Vui lòng tuyệt đối không chia sẻ mã này cho bất kỳ ai.\n\nTrân trọng,\nBan Quản Trị eManagement");
                 mailSender.send(message);
+                log.info("Đã gửi thành công email OTP tới: {}", toEmail);
             } catch (Exception e) {
-                log.error("Không thể gửi email qua SMTP server: {}", e.getMessage());
+                log.error("Không thể gửi email qua SMTP server: {}", e.getMessage(), e);
             }
         }
     }
@@ -46,6 +53,7 @@ public class EmailServiceImpl implements EmailService {
         if (mailSender != null) {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
+                message.setFrom(fromEmail);
                 message.setTo(toEmail);
                 message.setSubject("Chào Mừng Đến Với Hệ Thống E-Management - Thông Tin Tài Khoản");
                 message.setText(String.format(
@@ -61,8 +69,9 @@ public class EmailServiceImpl implements EmailService {
                         fullName, employeeCode, toEmail, rawPassword
                 ));
                 mailSender.send(message);
+                log.info("Đã gửi thành công email chào mừng tới: {}", toEmail);
             } catch (Exception e) {
-                log.error("Không thể gửi email chào mừng qua SMTP server: {}", e.getMessage());
+                log.error("Không thể gửi email chào mừng qua SMTP server: {}", e.getMessage(), e);
             }
         }
     }
@@ -75,13 +84,8 @@ public class EmailServiceImpl implements EmailService {
 
         String domain = email.substring(email.indexOf("@") + 1).trim();
 
-        // Cho phép các domain thử nghiệm nội bộ
-        if (domain.equalsIgnoreCase("emanagement.com") || domain.equalsIgnoreCase("localhost") || domain.equalsIgnoreCase("test.com")) {
-            return true;
-        }
-
+        // 1. Kiểm tra bản ghi MX (Mail Exchange) qua DNS
         try {
-            // Kiểm tra MX Record (Mail Exchange Server) của Domain qua DNS
             Hashtable<String, String> env = new Hashtable<>();
             env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
             DirContext ictx = new InitialDirContext(env);
@@ -91,12 +95,16 @@ public class EmailServiceImpl implements EmailService {
             if (attr != null && attr.size() > 0) {
                 return true;
             }
+        } catch (Exception ignored) {
+            // DNS MX check fallback
+        }
 
-            // Fallback: Kiểm tra Host Address DNS resolution
+        // 2. Fallback kiểm tra DNS A record của Domain
+        try {
             InetAddress address = InetAddress.getByName(domain);
             return address != null;
-        } catch (Exception ex) {
-            log.warn("Tên miền email [{}] không tồn tại trên hệ thống DNS toàn cầu", domain);
+        } catch (Exception e) {
+            log.warn("Tên miền email {} không phân giải được DNS: {}", domain, e.getMessage());
             return false;
         }
     }
