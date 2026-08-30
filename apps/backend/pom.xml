@@ -58,7 +58,7 @@
 			<artifactId>bcprov-jdk18on</artifactId>
 			<version>1.77</version>
 		</dependency>
-		
+
 		<!-- DevTools & H2 Database (Hỗ trợ Dev & Test) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
