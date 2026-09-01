@@ -16,9 +16,11 @@ FROM eclipse-temurin:21-jre-alpine AS runner
 
 WORKDIR /app
 
-# Create non-root system user
+# Create non-root system user and log directory
 RUN addgroup --system --gid 1001 spring && \
-    adduser --system --uid 1001 --ingroup spring spring
+    adduser --system --uid 1001 --ingroup spring spring && \
+    mkdir -p /app/logs && \
+    chown -R spring:spring /app
 
 # Copy JAR artifact from builder stage
 COPY --from=builder --chown=spring:spring /app/target/*.jar app.jar
