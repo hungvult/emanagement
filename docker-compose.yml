@@ -6,8 +6,8 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-emanagement_db}
       POSTGRES_USER: ${DB_USER:-dung}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-dung123}
-      TZ: Asia/Ho_Chi_Minh
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
     ports:
       - "5432:5432"
     volumes:
@@ -27,8 +27,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -51,14 +51,15 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin};
-      /usr/bin/mc mb --ignore-existing local/attendance-images-prod;
-      /usr/bin/mc anonymous set download local/attendance-images-prod;
+      /usr/bin/mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET:-attendance-images-prod};
+      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET:-attendance-images-prod};
       exit 0;
       "
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-attendance-images-prod}
     networks:
       - emanagement-net
 
@@ -89,18 +90,18 @@ services:
     container_name: emanagement-backend
     restart: unless-stopped
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-emanagement_db}
       DB_USER: ${DB_USER:-dung}
-      DB_PASSWORD: ${DB_PASSWORD:-dung123}
+      DB_PASSWORD: ${DB_PASSWORD}
       AI_SERVICE_URL: http://cv-service:8000
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      MINIO_BUCKET: attendance-images-prod
-      PORT: 8080
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-attendance-images-prod}
+      PORT: ${PORT:-8080}
     ports:
       - "8080:8080"
     depends_on:
@@ -125,7 +126,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api}
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 15s
