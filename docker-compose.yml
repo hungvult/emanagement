@@ -1,4 +1,26 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: emanagement-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-emanagement_db}
+      POSTGRES_USER: ${DB_USER:-dung}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dung123}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dung} -d ${DB_NAME:-emanagement_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - emanagement-net
+
   frontend:
     build:
       context: ./apps/frontend
@@ -18,3 +40,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - emanagement-net
+
+networks:
+  emanagement-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
