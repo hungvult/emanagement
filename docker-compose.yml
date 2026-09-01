@@ -21,6 +21,28 @@ services:
     networks:
       - emanagement-net
 
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: emanagement-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-emanagement_db}
+      DB_USER: ${DB_USER:-dung}
+      DB_PASSWORD: ${DB_PASSWORD:-dung123}
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - emanagement-net
+
   frontend:
     build:
       context: ./apps/frontend
