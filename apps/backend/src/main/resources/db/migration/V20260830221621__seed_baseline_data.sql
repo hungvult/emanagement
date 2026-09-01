@@ -45,6 +45,6 @@ WHERE u.email = 'nhanvien@emanagement.com' AND r.name = 'ROLE_USER'
 ON CONFLICT DO NOTHING;
 
 -- 4. Default Shift
-INSERT INTO shifts (shift_code, name, start_time, end_time, grace_peroid_minutes)
+INSERT INTO shifts (shift_code, name, start_time, end_time, grace_period_minutes)
 VALUES ('SHIFT-001', 'Ca hành chính', '08:00:00', '17:00:00', 15)
 ON CONFLICT (shift_code) DO NOTHING;

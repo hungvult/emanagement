@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS shifts (
     name VARCHAR(100) NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
-    grace_peroid_minutes INT DEFAULT 15,
+    grace_period_minutes INT DEFAULT 15,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
