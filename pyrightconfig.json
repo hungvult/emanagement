@@ -1,0 +1,14 @@
+{
+  "extraPaths": [
+    "apps/cv-service",
+    "."
+  ],
+  "executionEnvironments": [
+    {
+      "root": "apps/cv-service",
+      "extraPaths": [
+        "."
+      ]
+    }
+  ]
+}

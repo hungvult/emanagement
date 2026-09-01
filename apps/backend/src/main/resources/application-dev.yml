@@ -8,8 +8,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:emanagement_db}
-    username: ${DB_USER:dung}
-    password: ${DB_PASSWORD:dung123}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:root}
     driver-class-name: org.postgresql.Driver
     hikari:
       data-source-properties:
@@ -52,9 +52,11 @@ minio:
 
 ai-service:
   base-url: ${AI_SERVICE_URL:http://localhost:8000}
-  extract-embeddings-endpoint: /api/v1/cv/extract-embeddings
-  match-face-endpoint: /api/v1/cv/match
+  validate-frame-endpoint: /api/v1/cv/validate-frame
+  enroll-endpoint: /api/v1/cv/enroll
+  recognize-endpoint: /api/v1/cv/recognize
   confidence-threshold: 85.0
+  mock-enabled: ${AI_SERVICE_MOCK:false}
 
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
