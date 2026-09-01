@@ -21,6 +21,26 @@ services:
     networks:
       - emanagement-net
 
+  cv-service:
+    build:
+      context: ./apps/cv-service
+      dockerfile: Dockerfile
+    container_name: emanagement-cv-service
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - emanagement-net
+
   backend:
     build:
       context: ./apps/backend
@@ -34,11 +54,14 @@ services:
       DB_NAME: ${DB_NAME:-emanagement_db}
       DB_USER: ${DB_USER:-dung}
       DB_PASSWORD: ${DB_PASSWORD:-dung123}
+      AI_SERVICE_URL: http://cv-service:8000
       PORT: 8080
     ports:
       - "8080:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      cv-service:
         condition: service_healthy
     networks:
       - emanagement-net
