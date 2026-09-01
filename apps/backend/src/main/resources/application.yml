@@ -6,9 +6,7 @@ spring:
     name: backend
 
   flyway:
-    enabled: true
-    baseline-on-migrate: true
-    locations: classpath:db/migration
+    enabled: false # Vô hiệu hóa auto-config mặc định để FlywayConfig tự quản lý chạy duy nhất 1 lần
 
   servlet:
     multipart:
