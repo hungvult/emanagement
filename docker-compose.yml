@@ -1,0 +1,145 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: emanagement-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-emanagement_db}
+      POSTGRES_USER: ${DB_USER:-dung}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dung} -d ${DB_NAME:-emanagement_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - emanagement-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: emanagement-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - emanagement-net
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: emanagement-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET:-attendance-images-prod};
+      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET:-attendance-images-prod};
+      exit 0;
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-attendance-images-prod}
+    networks:
+      - emanagement-net
+
+  cv-service:
+    build:
+      context: ./apps/cv-service
+      dockerfile: Dockerfile
+    container_name: emanagement-cv-service
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - emanagement-net
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: emanagement-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-emanagement_db}
+      DB_USER: ${DB_USER:-dung}
+      DB_PASSWORD: ${DB_PASSWORD}
+      AI_SERVICE_URL: http://cv-service:8000
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-attendance-images-prod}
+      PORT: ${PORT:-8080}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      cv-service:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - emanagement-net
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: emanagement-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - emanagement-net
+
+networks:
+  emanagement-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:

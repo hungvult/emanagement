@@ -39,7 +39,7 @@ public class Shift {
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
 
-    @Column(name = "grace_peroid_minutes")
+    @Column(name = "grace_period_minutes")
     @Builder.Default
     private Integer gracePeriodMinutes = 15;
 
