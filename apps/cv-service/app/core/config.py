@@ -3,37 +3,63 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     APP_NAME: str = "cv-service"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
 
-    # Recognition & Matching Thresholds
-    FACE_MATCH_THRESHOLD: float = 0.85
+    # Bảo vệ API: backend phải gửi header X-CV-API-Key trùng giá trị này.
+    # Để trống = tắt xác thực (chỉ dùng khi chạy local).
+    API_KEY: str = ""
+
+    # Danh sách origin được phép gọi trực tiếp (mặc định: không cho phép browser gọi,
+    # cv-service chỉ được backend gọi từ mạng nội bộ).
+    CORS_ORIGINS: list[str] = []
+
+    # Đường dẫn model ONNX (OpenCV Zoo). Tải bằng: python scripts/download_models.py
+    DETECTOR_MODEL_PATH: str = "weights/face_detection_yunet_2023mar.onnx"
+    RECOGNIZER_MODEL_PATH: str = "weights/face_recognition_sface_2021dec.onnx"
+
+    # YuNet detector
+    DETECTOR_SCORE_THRESHOLD: float = 0.8
+    DETECTOR_NMS_THRESHOLD: float = 0.3
+    DETECTOR_TOP_K: int = 500
+
+    # Recognition & Matching. SFace dùng cosine similarity, ngưỡng chuẩn của
+    # OpenCV Zoo là 0.363; ta đặt cao hơn một chút để giảm false accept.
+    EMBEDDING_DIMENSION: int = 128
+    FACE_MATCH_THRESHOLD: float = 0.40
     FACE_AMBIGUITY_MARGIN: float = 0.05
 
-    # Face Validation Thresholds
-    MIN_FACE_SIZE: int = 160
-    MAX_YAW: float = 15.0
-    MAX_PITCH: float = 10.0
-    MAX_ROLL: float = 10.0
-    MIN_QUALITY_SCORE: float = 0.75
+    # Face Validation
+    MIN_FACE_SIZE: int = 80
+    MAX_YAW: float = 30.0
+    MAX_PITCH: float = 25.0
+    MAX_ROLL: float = 25.0
+    MIN_QUALITY_SCORE: float = 0.25
 
-    # Image Quality Thresholds
-    BLUR_THRESHOLD: float = 100.0
+    # Image Quality
+    BLUR_THRESHOLD: float = 40.0
     BRIGHTNESS_MIN: float = 40.0
-    BRIGHTNESS_MAX: float = 220.0
+    BRIGHTNESS_MAX: float = 225.0
 
-    # Stability & Liveness Thresholds
-    MIN_STABLE_FRAMES: int = 5
-    LIVENESS_THRESHOLD: float = 0.80
+    # Vùng quét hợp lệ: tâm khuôn mặt phải nằm trong vùng giữa khung hình,
+    # cách mỗi cạnh CENTER_MARGIN_RATIO * chiều tương ứng.
+    CENTER_MARGIN_RATIO: float = 0.2
 
-    # Model Settings
-    EMBEDDING_DIMENSION: int = 128
-    MODEL_PATH: str = "app/models/face_recognition/facenet.h5"
+    # Liveness (passive, heuristic - xem docstring liveness_service)
+    LIVENESS_THRESHOLD: float = 0.55
+    LIVENESS_ENABLED: bool = True
+
+    # Enrollment
+    MIN_ENROLL_IMAGES: int = 3
+    MAX_ENROLL_IMAGES: int = 10
+
+    # Giới hạn kích thước ảnh base64 nhận vào (bytes sau khi giải mã)
+    MAX_IMAGE_BYTES: int = 8 * 1024 * 1024
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
 
 

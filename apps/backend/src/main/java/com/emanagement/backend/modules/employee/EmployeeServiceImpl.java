@@ -147,6 +147,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional
+    public void deleteFaceData(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+        faceDataRepository.deleteByUserId(user.getId());
+    }
+
+    @Override
+    @Transactional
     public LiveEkycEnrollResponseDto enrollEkycLive(LiveEkycEnrollDto dto) {
         User user = userRepository.findById(dto.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
@@ -161,7 +169,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         FaceData faceData = FaceData.builder()
                 .user(user)
                 .faceVector(enrollRes.getEmbedding().toString())
-                .imageSnapshotUrl("minio://attendance-images/face_template_" + user.getEmployeeCode() + ".jpg")
+                .imageSnapshotUrl(dto.getFaceImagesBase64() != null && !dto.getFaceImagesBase64().isEmpty() ? dto.getFaceImagesBase64().get(0) : null)
                 .build();
 
         faceDataRepository.save(faceData);

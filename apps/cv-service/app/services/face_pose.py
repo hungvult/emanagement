@@ -1,52 +1,71 @@
-from typing import Tuple, Dict, Any
-import cv2
+"""Ước tính tư thế đầu (yaw / pitch / roll) từ 5 landmark của YuNet.
+
+Bản trước dùng Haar eye cascade: khi không tìm được 2 mắt (rất thường xuyên với
+mặt hơi nghiêng) thì trả về yaw = pitch = roll = 0 và kết luận "tư thế hợp lệ" -
+tức là fail-open. Bản này dùng landmark luôn có sẵn từ bước phát hiện, và nếu
+landmark suy biến (2 mắt trùng nhau) thì trả FACE_POSE_INVALID - fail-closed.
+
+Các hằng số hiệu chuẩn được đặt theo tỉ lệ khuôn mặt chính diện trung bình:
+mũi nằm trên đường giữa 2 mắt, và cách đường mắt khoảng 0.62 lần khoảng cách
+từ đường mắt xuống đường miệng.
+"""
+
+from typing import Any, Dict, Tuple
+
 import numpy as np
+
 from app.core.config import settings
 from app.core.constants import CvStatus
+from app.services.face_detector import DetectedFace
+
+# Tỉ lệ dọc mũi/(mắt->miệng) của mặt chính diện; lệch khỏi giá trị này là gật/ngửa.
+NOMINAL_NOSE_RATIO = 0.62
+# Hệ số quy đổi tỉ lệ hình học sang độ, hiệu chuẩn thô trên ảnh webcam chính diện.
+YAW_SCALE_DEG = 90.0
+PITCH_SCALE_DEG = 90.0
+EPSILON = 1e-6
 
 
 class FacePoseEstimator:
-    def __init__(self) -> None:
-        eye_cascade_path = cv2.data.haarcascades + "haarcascade_eye.xml"
-        self.eye_cascade = cv2.CascadeClassifier(eye_cascade_path)
+    def estimate_pose(self, face: DetectedFace) -> Tuple[CvStatus, bool, Dict[str, Any]]:
+        """Trả về (status, is_valid, {yaw, pitch, roll, is_valid})."""
+        right_eye = np.array(face.right_eye, dtype=np.float64)
+        left_eye = np.array(face.left_eye, dtype=np.float64)
+        nose = np.array(face.nose, dtype=np.float64)
+        mouth_mid = (
+            np.array(face.mouth_right, dtype=np.float64)
+            + np.array(face.mouth_left, dtype=np.float64)
+        ) / 2.0
 
-    def estimate_pose(
-        self, img: np.ndarray, bbox: Tuple[int, int, int, int]
-    ) -> Tuple[CvStatus, bool, Dict[str, Any]]:
-        """
-        Ước tính góc nghiêng của đầu (Yaw, Pitch, Roll) dựa trên vị trí đối xứng của mắt và tỷ lệ hình học.
-        """
-        x, y, w, h = bbox
-        face_crop = img[y : y + h, x : x + w]
-        gray_face = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY) if len(face_crop.shape) == 3 else face_crop
+        eye_mid = (right_eye + left_eye) / 2.0
+        interocular = float(np.linalg.norm(left_eye - right_eye))
 
-        eyes = self.eye_cascade.detectMultiScale(gray_face, scaleFactor=1.1, minNeighbors=3, minSize=(20, 20))
+        if interocular < EPSILON:
+            # Landmark suy biến -> không kết luận được tư thế, từ chối khung hình.
+            return CvStatus.FACE_POSE_INVALID, False, {
+                "yaw": 0.0,
+                "pitch": 0.0,
+                "roll": 0.0,
+                "is_valid": False,
+                "landmarks_degenerate": True,
+            }
 
-        yaw, pitch, roll = 0.0, 0.0, 0.0
+        # Roll: độ dốc của đường nối 2 mắt.
+        delta = left_eye - right_eye
+        roll = float(np.round(np.degrees(np.arctan2(delta[1], delta[0])), 1))
 
-        if len(eyes) >= 2:
-            # Sắp xếp 2 mắt theo trục X (mắt trái, mắt phải)
-            sorted_eyes = sorted(eyes, key=lambda e: e[0])
-            ex1, ey1, ew1, eh1 = sorted_eyes[0]
-            ex2, ey2, ew2, eh2 = sorted_eyes[1]
+        # Yaw: mũi lệch ngang so với trung điểm 2 mắt, chuẩn hoá theo khoảng cách 2 mắt.
+        # Dương = mặt quay về phía bên phải của ảnh.
+        yaw = float(np.round(((nose[0] - eye_mid[0]) / interocular) * YAW_SCALE_DEG, 1))
 
-            eye1_center = (ex1 + ew1 / 2.0, ey1 + eh1 / 2.0)
-            eye2_center = (ex2 + ew2 / 2.0, ey2 + eh2 / 2.0)
-
-            # Tính độ nghiêng mặt (Roll angle) dựa trên góc dốc giữa 2 mắt
-            dx = eye2_center[0] - eye1_center[0]
-            dy = eye2_center[1] - eye1_center[1]
-            if dx != 0:
-                roll = float(np.round(np.degrees(np.arctan2(dy, dx)), 1))
-
-            # Tính độ lệch trái/phải (Yaw angle) dựa trên tâm giữa 2 mắt so với trung điểm khuôn mặt
-            eye_mid_x = (eye1_center[0] + eye2_center[0]) / 2.0
-            face_mid_x = w / 2.0
-            yaw = float(np.round(((eye_mid_x - face_mid_x) / w) * 60.0, 1))
-
-            # Tính độ gật/ngửa (Pitch angle) dựa trên vị trí trung tâm mắt theo chiều đứng
-            eye_mid_y = (eye1_center[1] + eye2_center[1]) / 2.0
-            pitch = float(np.round(((eye_mid_y - (h * 0.35)) / h) * 45.0, 1))
+        # Pitch: vị trí dọc của mũi trong khoảng mắt -> miệng.
+        # Dương = cúi xuống, âm = ngẩng lên.
+        eye_to_mouth = float(mouth_mid[1] - eye_mid[1])
+        if abs(eye_to_mouth) < EPSILON:
+            pitch = 0.0
+        else:
+            nose_ratio = float(nose[1] - eye_mid[1]) / eye_to_mouth
+            pitch = float(np.round((nose_ratio - NOMINAL_NOSE_RATIO) * PITCH_SCALE_DEG, 1))
 
         is_valid = (
             abs(yaw) <= settings.MAX_YAW
@@ -54,11 +73,11 @@ class FacePoseEstimator:
             and abs(roll) <= settings.MAX_ROLL
         )
 
-        pose_data = {
+        pose_data: Dict[str, Any] = {
             "yaw": yaw,
             "pitch": pitch,
             "roll": roll,
-            "is_valid": is_valid
+            "is_valid": is_valid,
         }
 
         if not is_valid:

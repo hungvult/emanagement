@@ -8,8 +8,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:emanagement_db}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:root}
+    username: ${DB_USER:PHO}
+    password: ${DB_PASSWORD:3110}
     driver-class-name: org.postgresql.Driver
     hikari:
       data-source-properties:

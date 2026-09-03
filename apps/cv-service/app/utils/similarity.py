@@ -6,19 +6,26 @@ def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     """
     Tính độ tương đồng Cosine (Cosine Similarity) giữa 2 vector đặc trưng khuôn mặt.
     Trả về giá trị trong khoảng từ 0.0 (hoàn toàn khác) đến 1.0 (trùng khớp hoàn toàn).
+
+    Cosine gốc nằm trong [-1, 1]; với embedding khuôn mặt, mọi giá trị <= 0 đều
+    nghĩa là "không phải cùng người", nên được kẹp về 0.0. Tuyệt đối không map
+    dải âm sang [0, 0.5] - làm vậy khiến hàm không còn đơn điệu (sim = -0.01 sẽ
+    cho điểm 0.495, cao hơn sim = +0.001).
     """
     a = np.array(vec1, dtype=np.float32)
     b = np.array(vec2, dtype=np.float32)
 
-    norm_a = np.linalg.norm(a)
-    norm_b = np.linalg.norm(b)
+    if a.size == 0 or b.size == 0 or a.size != b.size:
+        return 0.0
+
+    norm_a = float(np.linalg.norm(a))
+    norm_b = float(np.linalg.norm(b))
 
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
 
     sim = float(np.dot(a, b) / (norm_a * norm_b))
-    # Chuẩn hóa về dải [0.0, 1.0]
-    return max(0.0, min(1.0, float((sim + 1.0) / 2.0))) if sim < 0 else float(min(1.0, sim))
+    return max(0.0, min(1.0, sim))
 
 
 def find_top2_matches(

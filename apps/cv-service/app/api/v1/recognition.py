@@ -1,17 +1,22 @@
-import time
-from typing import Dict, Any
-from fastapi import APIRouter
+"""Endpoint nhận diện khuôn mặt cho luồng chấm công kiosk."""
 
-from app.core.constants import CvStatus
+import time
+
+from fastapi import APIRouter, Depends
+
+from app.core.constants import STATUS_MESSAGES, CvStatus
 from app.core.logging import log_inference_metrics
+from app.core.security import require_api_key
 from app.schemas.common import ApiResponse
 from app.schemas.recognition import RecognizeRequest, RecognizeResponse
+from app.services.embedding_service import ModelNotReadyError
 from app.services.face_detector import face_detector
 from app.services.face_quality import face_quality_assessor
+from app.services.liveness_service import liveness_detector
 from app.services.recognition_service import recognition_service
-from app.utils.image_utils import base64_to_cv2
+from app.utils.image_utils import InvalidImageError, base64_to_cv2
 
-router = APIRouter(prefix="/cv", tags=["Recognition"])
+router = APIRouter(prefix="/cv", tags=["Recognition"], dependencies=[Depends(require_api_key)])
 
 
 @router.post("/recognize", response_model=ApiResponse[RecognizeResponse])
@@ -19,56 +24,48 @@ def recognize_face(request: RecognizeRequest) -> ApiResponse[RecognizeResponse]:
     start_time = time.time()
     request_id = f"req_{int(start_time * 1000)}"
 
+    def respond_fail(status: CvStatus, message: str | None = None, score: float = 0.0):
+        proc_time = (time.time() - start_time) * 1000
+        log_inference_metrics(request_id, "/recognize", status.value, proc_time)
+        return ApiResponse.fail(
+            status=status,
+            message=message,
+            data=RecognizeResponse(
+                matched=False,
+                matchedUserId=None,
+                similarityScore=score,
+                status=status.value,
+            ),
+        )
+
     try:
-        # 1. Giải mã Base64 sang ma trận ảnh OpenCV
         img = base64_to_cv2(request.imageFrameBase64)
-    except Exception as e:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/recognize", CvStatus.INTERNAL_ERROR.value, proc_time)
-        return ApiResponse.fail(
-            status=CvStatus.INTERNAL_ERROR,
-            message=f"Lỗi giải mã hình ảnh Base64: {str(e)}"
-        )
+    except InvalidImageError as exc:
+        return respond_fail(CvStatus.INVALID_IMAGE, str(exc))
 
-    # 2. Kiểm tra phát hiện khuôn mặt
-    detect_status, faces = face_detector.detect_faces(img)
-    if detect_status != CvStatus.VALID or len(faces) == 0:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/recognize", detect_status.value, proc_time)
-        return ApiResponse.fail(
-            status=detect_status,
-            data=RecognizeResponse(
-                matched=False,
-                matchedUserId=None,
-                similarityScore=0.0,
-                status=detect_status.value
-            )
-        )
+    detect_status, _faces = face_detector.detect_faces(img)
+    if detect_status != CvStatus.VALID:
+        return respond_fail(detect_status)
 
-    primary_bbox = faces[0]
+    face = _faces[0]
 
-    # 3. Kiểm tra chất lượng khuôn mặt
-    quality_status, _, _ = face_quality_assessor.evaluate_quality(img, primary_bbox)
+    quality_status, _, _ = face_quality_assessor.evaluate_quality(img, face.bbox)
     if quality_status != CvStatus.VALID:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/recognize", quality_status.value, proc_time)
-        return ApiResponse.fail(
-            status=quality_status,
-            data=RecognizeResponse(
-                matched=False,
-                matchedUserId=None,
-                similarityScore=0.0,
-                status=quality_status.value
-            )
-        )
+        return respond_fail(quality_status)
 
-    # 4. Chuyển đổi danh sách candidates DTO thành Dict
+    # Chống giả mạo trước khi so khớp: ảnh in / màn hình không được phép chấm công.
+    spoof_status, _, _, _ = liveness_detector.check_liveness(img, face.bbox)
+    if spoof_status != CvStatus.VALID:
+        return respond_fail(spoof_status)
+
     candidate_dicts = [cand.model_dump() for cand in request.candidates]
 
-    # 5. Thực hiện Matching khuôn mặt với danh sách ứng viên
-    rec_status, matched, matched_user_id, score, _ = recognition_service.recognize_face(
-        img, primary_bbox, candidate_dicts
-    )
+    try:
+        rec_status, matched, matched_user_id, score, _ = recognition_service.recognize_face(
+            img, face, candidate_dicts
+        )
+    except ModelNotReadyError:
+        return respond_fail(CvStatus.MODEL_NOT_READY, STATUS_MESSAGES[CvStatus.MODEL_NOT_READY])
 
     proc_time = (time.time() - start_time) * 1000
     log_inference_metrics(request_id, "/recognize", rec_status.value, proc_time, face_count=1)
@@ -81,28 +78,29 @@ def recognize_face(request: RecognizeRequest) -> ApiResponse[RecognizeResponse]:
                 matched=True,
                 matchedUserId=matched_user_id,
                 similarityScore=score,
-                status=rec_status.value
-            )
+                status=rec_status.value,
+            ),
         )
-    elif rec_status == CvStatus.AMBIGUOUS_MATCH:
+
+    if rec_status == CvStatus.AMBIGUOUS_MATCH:
         return ApiResponse.fail(
             status=CvStatus.AMBIGUOUS_MATCH,
-            message="Phát hiện tranh chấp nhận diện (khoảng cách điểm giữa 2 ứng viên quá gần)",
+            message="Độ tương đồng giữa hai nhân viên quá gần nhau, không thể xác định chính xác.",
             data=RecognizeResponse(
                 matched=False,
                 matchedUserId=matched_user_id,
                 similarityScore=score,
-                status=rec_status.value
-            )
+                status=rec_status.value,
+            ),
         )
-    else:
-        return ApiResponse.fail(
-            status=CvStatus.UNKNOWN_FACE,
-            message="Không tìm thấy khuôn mặt trùng khớp trong danh sách ca làm việc",
-            data=RecognizeResponse(
-                matched=False,
-                matchedUserId=None,
-                similarityScore=score,
-                status=rec_status.value
-            )
-        )
+
+    return ApiResponse.fail(
+        status=CvStatus.UNKNOWN_FACE,
+        message="Không tìm thấy khuôn mặt trùng khớp trong danh sách ca làm việc.",
+        data=RecognizeResponse(
+            matched=False,
+            matchedUserId=None,
+            similarityScore=score,
+            status=rec_status.value,
+        ),
+    )

@@ -1,8 +1,18 @@
+"""Endpoint kiểm tra khung hình trực tiếp cho UI eKYC / kiosk.
+
+Thứ tự kiểm tra đi từ rẻ đến đắt và từ tổng quát đến chi tiết: phát hiện mặt ->
+chất lượng -> vị trí -> tư thế -> chống giả mạo. Mỗi bước thất bại trả về ngay
+kèm mã CvStatus để frontend hiển thị hướng dẫn tương ứng.
+"""
+
 import time
-from fastapi import APIRouter
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends
 
 from app.core.constants import CvStatus
 from app.core.logging import log_inference_metrics
+from app.core.security import require_api_key
 from app.schemas.common import ApiResponse
 from app.schemas.validation import PoseDto, ValidateFrameRequest, ValidateFrameResponse
 from app.services.face_detector import face_detector
@@ -10,9 +20,40 @@ from app.services.face_position import face_position_validator
 from app.services.face_pose import face_pose_estimator
 from app.services.face_quality import face_quality_assessor
 from app.services.liveness_service import liveness_detector
-from app.utils.image_utils import base64_to_cv2
+from app.utils.image_utils import InvalidImageError, base64_to_cv2
 
-router = APIRouter(prefix="/cv", tags=["Validation"])
+router = APIRouter(prefix="/cv", tags=["Validation"], dependencies=[Depends(require_api_key)])
+
+EMPTY_POSE = PoseDto(yaw=0.0, pitch=0.0, roll=0.0, is_valid=False)
+
+
+def _fail(
+    request_id: str,
+    start_time: float,
+    status: CvStatus,
+    *,
+    face_count: int = 0,
+    quality_score: float = 0.0,
+    position_valid: bool = False,
+    pose: PoseDto = EMPTY_POSE,
+    details: Dict[str, Any] | None = None,
+    message: str | None = None,
+) -> ApiResponse[ValidateFrameResponse]:
+    proc_time = (time.time() - start_time) * 1000
+    log_inference_metrics(
+        request_id, "/validate-frame", status.value, proc_time, face_count=face_count
+    )
+    return ApiResponse.fail(
+        status=status,
+        message=message,
+        data=ValidateFrameResponse(
+            face_count=face_count,
+            quality_score=quality_score,
+            position_valid=position_valid,
+            pose=pose,
+            details=details or {},
+        ),
+    )
 
 
 @router.post("/validate-frame", response_model=ApiResponse[ValidateFrameResponse])
@@ -21,105 +62,73 @@ def validate_frame(request: ValidateFrameRequest) -> ApiResponse[ValidateFrameRe
     request_id = f"req_{int(start_time * 1000)}"
 
     try:
-        # 1. Giải mã Base64 sang ma trận ảnh OpenCV
         img = base64_to_cv2(request.image)
-    except Exception as e:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/validate-frame", CvStatus.INTERNAL_ERROR.value, proc_time)
-        return ApiResponse.fail(
-            status=CvStatus.INTERNAL_ERROR,
-            message=f"Lỗi giải mã hình ảnh Base64: {str(e)}"
-        )
+    except InvalidImageError as exc:
+        return _fail(request_id, start_time, CvStatus.INVALID_IMAGE, message=str(exc))
 
-    # 2. Kiểm tra phát hiện mặt & đếm số lượng mặt
     detect_status, faces = face_detector.detect_faces(img)
-    face_count = len(faces)
-
     if detect_status != CvStatus.VALID:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/validate-frame", detect_status.value, proc_time, face_count=face_count)
-        empty_pose = PoseDto(yaw=0.0, pitch=0.0, roll=0.0, is_valid=False)
-        return ApiResponse.fail(
-            status=detect_status,
-            data=ValidateFrameResponse(
-                face_count=face_count,
-                quality_score=0.0,
-                position_valid=False,
-                pose=empty_pose
-            )
-        )
+        return _fail(request_id, start_time, detect_status, face_count=len(faces))
 
-    primary_bbox = faces[0]
+    face = faces[0]
 
-    # 3. Kiểm tra chất lượng khuôn mặt (Blur, Brightness, Size)
-    quality_status, quality_score, quality_details = face_quality_assessor.evaluate_quality(img, primary_bbox)
+    quality_status, quality_score, quality_details = face_quality_assessor.evaluate_quality(
+        img, face.bbox
+    )
+    quality_details["detector_score"] = round(face.score, 3)
     if quality_status != CvStatus.VALID:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/validate-frame", quality_status.value, proc_time, face_count=1)
-        empty_pose = PoseDto(yaw=0.0, pitch=0.0, roll=0.0, is_valid=False)
-        return ApiResponse.fail(
-            status=quality_status,
-            data=ValidateFrameResponse(
-                face_count=1,
-                quality_score=quality_score,
-                position_valid=False,
-                pose=empty_pose,
-                details=quality_details
-            )
+        return _fail(
+            request_id,
+            start_time,
+            quality_status,
+            face_count=1,
+            quality_score=quality_score,
+            details=quality_details,
         )
 
-    # 4. Kiểm tra vị trí khuôn mặt trong vùng Scan Zone
-    pos_status, _, pos_details = face_position_validator.validate_position(img, primary_bbox)
+    pos_status, _, pos_details = face_position_validator.validate_position(img, face.bbox)
     if pos_status != CvStatus.VALID:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/validate-frame", pos_status.value, proc_time, face_count=1)
-        empty_pose = PoseDto(yaw=0.0, pitch=0.0, roll=0.0, is_valid=False)
-        return ApiResponse.fail(
-            status=pos_status,
-            data=ValidateFrameResponse(
-                face_count=1,
-                quality_score=quality_score,
-                position_valid=False,
-                pose=empty_pose,
-                details=pos_details
-            )
+        return _fail(
+            request_id,
+            start_time,
+            pos_status,
+            face_count=1,
+            quality_score=quality_score,
+            details={**quality_details, **pos_details},
         )
 
-    # 5. Kiểm tra tư thế nghiêng của đầu (Head Pose - Yaw, Pitch, Roll)
-    pose_status, _, pose_data = face_pose_estimator.estimate_pose(img, primary_bbox)
-    pose_dto = PoseDto(**pose_data)
-
+    pose_status, _, pose_data = face_pose_estimator.estimate_pose(face)
+    pose_dto = PoseDto(
+        yaw=pose_data["yaw"],
+        pitch=pose_data["pitch"],
+        roll=pose_data["roll"],
+        is_valid=pose_data["is_valid"],
+    )
     if pose_status != CvStatus.VALID:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/validate-frame", pose_status.value, proc_time, face_count=1)
-        return ApiResponse.fail(
-            status=pose_status,
-            data=ValidateFrameResponse(
-                face_count=1,
-                quality_score=quality_score,
-                position_valid=True,
-                pose=pose_dto,
-                details=quality_details
-            )
+        return _fail(
+            request_id,
+            start_time,
+            pose_status,
+            face_count=1,
+            quality_score=quality_score,
+            position_valid=True,
+            pose=pose_dto,
+            details={**quality_details, **pos_details, **pose_data},
         )
 
-    # 6. Kiểm tra chống giả mạo khuôn mặt (Anti-Spoofing / Liveness Check)
-    spoof_status, is_real, liveness_score, liveness_details = liveness_detector.check_liveness(img, primary_bbox)
+    spoof_status, _, _, liveness_details = liveness_detector.check_liveness(img, face.bbox)
     if spoof_status != CvStatus.VALID:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/validate-frame", spoof_status.value, proc_time, face_count=1)
-        return ApiResponse.fail(
-            status=spoof_status,
-            data=ValidateFrameResponse(
-                face_count=1,
-                quality_score=quality_score,
-                position_valid=True,
-                pose=pose_dto,
-                details={**quality_details, **liveness_details}
-            )
+        return _fail(
+            request_id,
+            start_time,
+            spoof_status,
+            face_count=1,
+            quality_score=quality_score,
+            position_valid=True,
+            pose=pose_dto,
+            details={**quality_details, **pos_details, **liveness_details},
         )
 
-    # Tất cả kiểm tra thành công -> Hợp lệ
     proc_time = (time.time() - start_time) * 1000
     log_inference_metrics(request_id, "/validate-frame", CvStatus.VALID.value, proc_time, face_count=1)
 
@@ -130,6 +139,6 @@ def validate_frame(request: ValidateFrameRequest) -> ApiResponse[ValidateFrameRe
             quality_score=quality_score,
             position_valid=True,
             pose=pose_dto,
-            details={**quality_details, **pos_details, **liveness_details}
-        )
+            details={**quality_details, **pos_details, **pose_data, **liveness_details},
+        ),
     )
