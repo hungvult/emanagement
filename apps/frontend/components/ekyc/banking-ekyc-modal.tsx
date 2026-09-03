@@ -27,32 +27,32 @@ export interface EkycStep {
 const EKYC_STEPS: EkycStep[] = [
   {
     id: "front",
-    title: "Nhìn thẳng vào khung hình",
+    title: "Nhìn thẳng vào khung hình (1/5)",
     voicePrompt: "Vui lòng nhìn thẳng vào vòng tròn",
     direction: "center",
   },
   {
-    id: "left",
-    title: "Quay mặt sang bên trái từ từ",
-    voicePrompt: "Vui lòng quay mặt sang bên trái",
-    direction: "left",
+    id: "front",
+    title: "Giữ nguyên tư thế (2/5)",
+    voicePrompt: "Tốt lắm, giữ nguyên tư thế",
+    direction: "center",
   },
   {
-    id: "right",
-    title: "Quay mặt sang bên phải từ từ",
-    voicePrompt: "Vui lòng quay mặt sang bên phải",
-    direction: "right",
+    id: "front",
+    title: "Tiếp tục giữ nguyên (3/5)",
+    voicePrompt: "Tiếp tục giữ nguyên",
+    direction: "center",
   },
   {
-    id: "up",
-    title: "Ngẩng cằm lên một chút",
-    voicePrompt: "Vui lòng ngẩng cằm lên một chút",
-    direction: "up",
+    id: "front",
+    title: "Sắp xong rồi (4/5)",
+    voicePrompt: "Sắp xong rồi",
+    direction: "center",
   },
   {
-    id: "smile",
-    title: "Mỉm cười nhẹ",
-    voicePrompt: "Vui lòng mỉm cười nhẹ",
+    id: "front",
+    title: "Lần cuối cùng (5/5)",
+    voicePrompt: "Một lần nữa",
     direction: "center",
   },
 ];
@@ -62,8 +62,8 @@ interface BankingEkycModalProps {
   onClose: () => void;
   employeeName: string;
   employeeCode: string;
-  onComplete: (imagesBase64: string[]) => Promise<void>;
-  isSubmitting?: boolean;
+  onCaptureFrame: (imageBase64: string, index: number) => Promise<void>;
+  onCompleteAll: () => void;
 }
 
 export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
@@ -71,8 +71,8 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
   onClose,
   employeeName,
   employeeCode,
-  onComplete,
-  isSubmitting = false,
+  onCaptureFrame,
+  onCompleteAll,
 }) => {
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
@@ -209,24 +209,38 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
   }, []);
 
   // Step success transition
-  const handleStepSuccess = useCallback(() => {
+  const handleStepSuccess = useCallback(async () => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
 
-    // Flash + audio
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 200);
-
-    ekycAudio.playShutterSound();
-    ekycAudio.playSuccessChime();
-
     const frameBase64 = captureCurrentFrame();
     if (frameBase64) {
-      // 1. Cập nhật ảnh
+      setPromptMessage("Đang gửi dữ liệu...");
+      try {
+        await onCaptureFrame(frameBase64, currentStepIdx);
+      } catch (error: any) {
+        setPromptMessage(error.message || "Gửi ảnh thất bại, vui lòng thử lại");
+        // Giữ trạng thái lỗi 2.5 giây để tránh việc camera chụp lại liên tục (gây nháy nháy)
+        setTimeout(() => {
+          isTransitioningRef.current = false;
+          setIsHoldingPose(false);
+          poseHoldTimeRef.current = 0;
+          setStepProgress(0);
+        }, 2500);
+        return;
+      }
+
+      // 1. Chỉ chớp sáng và phát âm thanh khi server báo thành công
+      setIsFlashing(true);
+      setTimeout(() => setIsFlashing(false), 200);
+      ekycAudio.playShutterSound();
+      ekycAudio.playSuccessChime();
+
+      // 2. Cập nhật ảnh
       const nextList = [...capturedImages, frameBase64];
       setCapturedImages(nextList);
 
-      // 2. Xử lý chuyển bước ở ngoài
+      // 3. Xử lý chuyển bước ở ngoài
       if (currentStepIdx + 1 < EKYC_STEPS.length) {
         setTimeout(() => {
           setCurrentStepIdx((s) => s + 1);
@@ -244,13 +258,13 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
         // Chờ 1.1s để user thấy UI hoàn tất rồi mới submit
         setTimeout(() => {
-          onComplete(nextList);
+          onCompleteAll();
         }, 1100);
       }
     } else {
       isTransitioningRef.current = false;
     }
-  }, [captureCurrentFrame, currentStepIdx, onComplete, capturedImages]);
+  }, [captureCurrentFrame, currentStepIdx, onCaptureFrame, capturedImages, onCompleteAll]);
 
   // Real-time 3D Biometric AI Loop
   useEffect(() => {
@@ -325,7 +339,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [isOpen, isCameraActive, isDoneAll, currentStep.id, handleStepSuccess]);
+  }, [isOpen, isCameraActive, isDoneAll, currentStep.id, handleStepSuccess, currentStepIdx]);
 
   // Restart scan
   const handleRestart = () => {
@@ -389,7 +403,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             const isCur = idx === currentStepIdx && !isDoneAll;
             return (
               <div
-                key={step.id}
+                key={`${step.id}-${idx}`}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   isDone
                     ? "w-8 bg-emerald-400"
@@ -404,10 +418,6 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
         {/* Scanner Center Area */}
         <div className="relative px-6 py-5 flex flex-col items-center justify-center">
-          {/* Shutter Flash Animation */}
-          {isFlashing && (
-            <div className="absolute inset-0 bg-white z-40 pointer-events-none animate-out fade-out duration-200" />
-          )}
 
           {/* Clean Floating Prompt Pill */}
           <div className="mb-4 text-center">
@@ -495,6 +505,11 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
                   : "border-white/15"
               }`}
             >
+              {/* Shutter Flash Animation */}
+              {isFlashing && (
+                <div className="absolute inset-0 bg-white z-40 pointer-events-none animate-out fade-out duration-200" />
+              )}
+
               {/* Clean Video */}
               <video
                 ref={videoRef}
@@ -577,7 +592,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             variant="ghost"
             size="sm"
             onClick={handleRestart}
-            disabled={capturedImages.length === 0 || isSubmitting}
+            disabled={capturedImages.length === 0}
             className="text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1.5"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Quét lại
@@ -586,13 +601,12 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
           <Button
             type="button"
             size="sm"
-            onClick={() => onComplete(capturedImages)}
-            isLoading={isSubmitting}
-            disabled={capturedImages.length === 0}
+            onClick={onCompleteAll}
+            disabled={capturedImages.length < EKYC_STEPS.length}
             className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-4 text-xs shadow-lg shadow-emerald-500/20"
           >
             <Sparkles className="h-3.5 w-3.5 mr-1" />
-            Lưu dữ liệu ({capturedImages.length}/5)
+            Hoàn tất ({capturedImages.length}/5)
           </Button>
         </div>
       </div>

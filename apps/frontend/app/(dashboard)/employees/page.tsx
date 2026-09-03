@@ -171,32 +171,43 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleEnrollSubmit = async (faceImagesBase64: string[]) => {
+  const handleCaptureFrame = async (base64: string, idx: number) => {
     if (!ekycEmployee) return;
-    if (faceImagesBase64.length === 0) {
-      error("Vui lòng chụp ít nhất 1 khung hình khuôn mặt");
-      return;
-    }
 
-    setIsEnrolling(true);
-    try {
-      const res = await employeeService.enrollEkyc({
-        userId: ekycEmployee.id,
-        faceImagesBase64,
-      });
-
-      if (res.status === "SUCCESS") {
-        success(res.message || "Đăng ký khuôn mặt eKYC thành công!");
-        setIsEkycOpen(false);
-        fetchEmployees(page);
-      } else {
-        error(res.message || "Đăng ký khuôn mặt thất bại");
+    if (idx === 0) {
+      try {
+        await employeeService.deleteFaceData(ekycEmployee.id);
+      } catch (err) {
+        // ignore error if face data doesn't exist
       }
-    } catch (err: any) {
-      error(err.response?.data?.message || err.message || "Lỗi trong quá trình trích xuất eKYC");
-    } finally {
-      setIsEnrolling(false);
     }
+
+    const token = localStorage.getItem("access_token");
+
+    // Gọi trực tiếp CV-Service (Python) ở port 8000 để xử lý ảnh
+    const response = await fetch("http://localhost:8000/api/v1/cv/enroll", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        userId: ekycEmployee.id,
+        images: [base64],
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.status !== "ENROLLMENT_SUCCESS") {
+      throw new Error(data.message || "Lỗi khi xử lý khuôn mặt từ AI");
+    }
+  };
+
+  const handleEnrollComplete = () => {
+    success("Đăng ký khuôn mặt eKYC thành công!");
+    setIsEkycOpen(false);
+    fetchEmployees(page);
   };
 
   const filteredEmployees = employees.filter((emp) => {
@@ -459,8 +470,8 @@ export default function EmployeesPage() {
           onClose={() => setIsEkycOpen(false)}
           employeeName={ekycEmployee?.fullName || ""}
           employeeCode={ekycEmployee?.employeeCode || ""}
-          onComplete={handleEnrollSubmit}
-          isSubmitting={isEnrolling}
+          onCaptureFrame={handleCaptureFrame}
+          onCompleteAll={handleEnrollComplete}
         />
       </div>
     </RoleGuard>

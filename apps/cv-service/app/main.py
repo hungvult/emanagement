@@ -57,7 +57,7 @@ if settings.CORS_ORIGINS:
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["POST", "GET"],
-        allow_headers=["Content-Type", "X-CV-API-Key"],
+        allow_headers=["Content-Type", "X-CV-API-Key", "Authorization"],
     )
 
 

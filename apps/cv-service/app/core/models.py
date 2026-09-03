@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import cv2
+import numpy as np
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -29,6 +30,38 @@ SERVICE_ROOT = Path(__file__).resolve().parents[2]
 def resolve_model_path(raw_path: str) -> Path:
     path = Path(raw_path)
     return path if path.is_absolute() else SERVICE_ROOT / path
+
+
+class ArcFaceRecognizer:
+    def __init__(self, path: str):
+        self.net = cv2.dnn.readNetFromONNX(path)
+        # 5 landmark chuẩn của ArcFace trên ảnh 112x112
+        self.src_pts = np.array([
+            [38.2946, 51.6963],
+            [73.5318, 51.5014],
+            [56.0252, 71.7366],
+            [41.5493, 92.3655],
+            [70.7299, 92.2041]
+        ], dtype=np.float32)
+
+    def alignCrop(self, img: Any, face_row: Any) -> Any:
+        # face_row: landmarks 4..13 từ YuNet
+        pts = np.array([
+            [face_row[4], face_row[5]],
+            [face_row[6], face_row[7]],
+            [face_row[8], face_row[9]],
+            [face_row[10], face_row[11]],
+            [face_row[12], face_row[13]]
+        ], dtype=np.float32)
+        M, _ = cv2.estimateAffinePartial2D(pts, self.src_pts, method=cv2.LMEDS)
+        return cv2.warpAffine(img, M, (112, 112), borderValue=0.0)
+
+    def feature(self, aligned_face: Any) -> Any:
+        blob = cv2.dnn.blobFromImage(
+            aligned_face, 1.0/127.5, (112, 112), (127.5, 127.5, 127.5), swapRB=True
+        )
+        self.net.setInput(blob)
+        return self.net.forward()
 
 
 
@@ -97,6 +130,8 @@ class ModelRegistry:
 
     def _create_recognizer(self, path: Path) -> Any:
         self._require_file(path)
+        if "arcface" in str(path).lower():
+            return ArcFaceRecognizer(str(path))
         return cv2.FaceRecognizerSF.create(str(path), "")
 
     @staticmethod

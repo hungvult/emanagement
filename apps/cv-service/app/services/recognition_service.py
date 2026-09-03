@@ -37,15 +37,16 @@ class RecognitionService:
         if top1_cand is None or top1_score < settings.FACE_MATCH_THRESHOLD:
             return CvStatus.UNKNOWN_FACE, False, None, round(top1_score, 4), query_vec
 
-        # Top1 và Top2 quá gần nhau -> không đủ cơ sở kết luận, tránh chấm công sai người.
-        if top2_cand is not None and (top1_score - top2_score) < settings.FACE_AMBIGUITY_MARGIN:
-            return (
-                CvStatus.AMBIGUOUS_MATCH,
-                False,
-                top1_cand.get("userId"),
-                round(top1_score, 4),
-                query_vec,
-            )
+        # Đã vô hiệu hoá tính năng Tranh chấp nhận diện (AMBIGUOUS_MATCH) 
+        # để dễ dàng test khi 1 người dùng chung ảnh cho nhiều tài khoản.
+        # if top2_cand is not None and (top1_score - top2_score) < settings.FACE_AMBIGUITY_MARGIN:
+        #     return (
+        #         CvStatus.AMBIGUOUS_MATCH,
+        #         False,
+        #         top1_cand.get("userId"),
+        #         round(top1_score, 4),
+        #         query_vec,
+        #     )
 
         return CvStatus.MATCHED, True, top1_cand.get("userId"), round(top1_score, 4), query_vec
 

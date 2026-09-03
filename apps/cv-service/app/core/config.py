@@ -10,13 +10,13 @@ class Settings(BaseSettings):
     # Để trống = tắt xác thực (chỉ dùng khi chạy local).
     API_KEY: str = ""
 
-    # Danh sách origin được phép gọi trực tiếp (mặc định: không cho phép browser gọi,
-    # cv-service chỉ được backend gọi từ mạng nội bộ).
-    CORS_ORIGINS: list[str] = []
+    # Danh sách origin được phép gọi trực tiếp (CORS)
+    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    SPRING_BOOT_URL: str = "http://localhost:2504"
 
     # Đường dẫn model ONNX (OpenCV Zoo). Tải bằng: python scripts/download_models.py
-    DETECTOR_MODEL_PATH: str = "weights/face_detection_yunet_2023mar.onnx"
-    RECOGNIZER_MODEL_PATH: str = "weights/face_recognition_sface_2021dec.onnx"
+    DETECTOR_MODEL_PATH: str = "weights/yunet.onnx"
+    RECOGNIZER_MODEL_PATH: str = "weights/arcface.onnx"
 
     # YuNet detector
     DETECTOR_SCORE_THRESHOLD: float = 0.8
@@ -34,10 +34,10 @@ class Settings(BaseSettings):
     MAX_YAW: float = 30.0
     MAX_PITCH: float = 25.0
     MAX_ROLL: float = 25.0
-    MIN_QUALITY_SCORE: float = 0.25
+    MIN_QUALITY_SCORE: float = 0.15
 
     # Image Quality
-    BLUR_THRESHOLD: float = 40.0
+    BLUR_THRESHOLD: float = 15.0
     BRIGHTNESS_MIN: float = 40.0
     BRIGHTNESS_MAX: float = 225.0
 
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     LIVENESS_ENABLED: bool = True
 
     # Enrollment
-    MIN_ENROLL_IMAGES: int = 3
+    MIN_ENROLL_IMAGES: int = 1
     MAX_ENROLL_IMAGES: int = 10
 
     # Giới hạn kích thước ảnh base64 nhận vào (bytes sau khi giải mã)

@@ -12,8 +12,9 @@ trái/phải/ngẩng lên để vector đại diện phủ nhiều góc mặt.
 import time
 from typing import List
 
+import httpx
 import numpy as np
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.core.config import settings
 from app.core.constants import STATUS_MESSAGES, CvStatus
@@ -44,7 +45,7 @@ def _frame_result(index: int, status: CvStatus, quality: float = 0.0) -> FrameRe
 
 
 @router.post("/enroll", response_model=ApiResponse[EnrollResponse])
-def enroll_face(request: EnrollRequest) -> ApiResponse[EnrollResponse]:
+def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollResponse]:
     start_time = time.time()
     request_id = f"req_{int(start_time * 1000)}"
     total = len(request.images)
@@ -122,11 +123,10 @@ def enroll_face(request: EnrollRequest) -> ApiResponse[EnrollResponse]:
         results.append(_frame_result(idx, CvStatus.VALID, quality_score))
 
     if len(valid_vectors) < settings.MIN_ENROLL_IMAGES:
+        reason = results[0].message if results else "Không rõ lý do"
         return respond_fail(
             CvStatus.LOW_FACE_QUALITY,
-            f"Chỉ có {len(valid_vectors)}/{total} ảnh đạt yêu cầu, cần tối thiểu "
-            f"{settings.MIN_ENROLL_IMAGES} ảnh hợp lệ. Vui lòng chụp lại trong điều kiện "
-            f"đủ sáng, nhìn rõ khuôn mặt và chỉ có một người trong khung hình.",
+            f"Lỗi: {reason}. Vui lòng thử lại.",
             results,
         )
 
@@ -141,6 +141,31 @@ def enroll_face(request: EnrollRequest) -> ApiResponse[EnrollResponse]:
         proc_time,
         face_count=len(valid_vectors),
     )
+
+    try:
+        auth_header = req.headers.get("Authorization")
+        headers = {}
+        if auth_header:
+            headers["Authorization"] = auth_header
+
+        spring_payload = {
+            "userId": request.userId,
+            "faceVector": final_embedding
+        }
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(
+                f"{settings.SPRING_BOOT_URL}/api/v1/employees/ekyc-enroll",
+                json=spring_payload,
+                headers=headers
+            )
+            resp.raise_for_status()
+    except Exception as e:
+        logger.error(f"Lỗi khi gửi vector sang Spring Boot: {e}")
+        return respond_fail(
+            CvStatus.INTERNAL_ERROR, 
+            f"Lỗi lưu trữ vector tại Backend Java: {str(e)}", 
+            results
+        )
 
     return ApiResponse.ok(
         status=CvStatus.ENROLLMENT_SUCCESS,
