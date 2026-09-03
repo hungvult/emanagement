@@ -19,7 +19,6 @@ public class LiveEkycEnrollDto {
     @NotNull(message = "ID nhân viên không được để trống")
     private Long userId;
 
-    @NotEmpty(message = "Danh sách ảnh khuôn mặt không được để trống")
-    @Size(min = 1, max = 10, message = "Danh sách quét khuôn mặt phải từ 1 đến 10 khung hình")
-    private List<String> faceImagesBase64;
+    @NotEmpty(message = "Vector khuôn mặt không được để trống")
+    private List<Double> faceVector;
 }

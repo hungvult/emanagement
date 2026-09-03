@@ -47,7 +47,7 @@ public class AttendanceRecord {
     @Column(length = 20)
     private String status = "ON_TIME";
 
-    @Column(name = "snapshot_url", length = 500)
+    @Column(name = "snapshot_url", columnDefinition = "TEXT")
     private String snapshotUrl;
 
     @Column(name = "created_at", updatable = false)

@@ -147,24 +147,30 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional
+    public void deleteFaceData(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+        faceDataRepository.deleteByUserId(user.getId());
+    }
+
+    @Override
+    @Transactional
     public LiveEkycEnrollResponseDto enrollEkycLive(LiveEkycEnrollDto dto) {
         User user = userRepository.findById(dto.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
+                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
 
-        // 1. Gọi AI CV Service để trích xuất vector khuôn mặt mẫu
-        AiEnrollResponseDto enrollRes = aiFaceService.enrollFace(user.getId(), dto.getFaceImagesBase64());
+        if (!"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException("Nhân viên này không ở trạng thái ACTIVE, không thể đăng ký khuôn mặt.");
+        }
 
-        // 2. Xóa dữ liệu khuôn mặt cũ của nhân viên
-        faceDataRepository.deleteByUserId(dto.getUserId());
+        if (dto.getFaceVector() == null || dto.getFaceVector().isEmpty()) {
+            throw new BusinessException("Dữ liệu vector khuôn mặt không hợp lệ.");
+        }
 
-        // 3. Lưu Vector mẫu 128 chiều mới vào PostgreSQL database
-        FaceData faceData = FaceData.builder()
-                .user(user)
-                .faceVector(enrollRes.getEmbedding().toString())
-                .imageSnapshotUrl("minio://attendance-images/face_template_" + user.getEmployeeCode() + ".jpg")
-                .build();
-
-        faceDataRepository.save(faceData);
+        FaceData newFace = new FaceData();
+        newFace.setUser(user);
+        newFace.setFaceVector(dto.getFaceVector().toString());
+        faceDataRepository.save(newFace);
 
         return LiveEkycEnrollResponseDto.builder()
                 .userId(user.getId())

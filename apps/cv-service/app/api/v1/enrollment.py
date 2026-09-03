@@ -1,82 +1,183 @@
+"""Endpoint đăng ký khuôn mặt: nhiều ảnh -> một vector đại diện.
+
+Nguyên tắc: chỉ ảnh thật sự phát hiện được đúng một khuôn mặt và đạt ngưỡng chất
+lượng mới được đưa vào vector đại diện. Bản trước bịa bounding box giữa khung hình
+khi không thấy mặt và nâng điểm chất lượng lên sàn 0.6, nên có thể đăng ký thành
+công bằng ảnh không có người - dẫn tới vector rác nằm trong cơ sở dữ liệu.
+
+Không kiểm tra tư thế chính diện ở đây: luồng eKYC cố tình yêu cầu nhân viên quay
+trái/phải/ngẩng lên để vector đại diện phủ nhiều góc mặt.
+"""
+
 import time
 from typing import List
-import numpy as np
-from fastapi import APIRouter
 
-from app.core.constants import CvStatus
-from app.core.logging import log_inference_metrics
+import httpx
+import numpy as np
+from fastapi import APIRouter, Depends, Request
+
+from app.core.config import settings
+from app.core.constants import STATUS_MESSAGES, CvStatus
+from app.core.logging import log_inference_metrics, logger
+from app.core.security import require_api_key
 from app.schemas.common import ApiResponse
-from app.schemas.enrollment import EnrollRequest, EnrollResponse
-from app.services.embedding_service import embedding_service
+from app.schemas.enrollment import EnrollRequest, EnrollResponse, FrameResultDto
+from app.services.embedding_service import (
+    ModelNotReadyError,
+    average_embeddings,
+    embedding_service,
+)
 from app.services.face_detector import face_detector
 from app.services.face_quality import face_quality_assessor
-from app.utils.image_utils import base64_to_cv2
+from app.utils.image_utils import InvalidImageError, base64_to_cv2
 
-router = APIRouter(prefix="/cv", tags=["Enrollment"])
+router = APIRouter(prefix="/cv", tags=["Enrollment"], dependencies=[Depends(require_api_key)])
+
+
+def _frame_result(index: int, status: CvStatus, quality: float = 0.0) -> FrameResultDto:
+    return FrameResultDto(
+        index=index,
+        accepted=status == CvStatus.VALID,
+        status=status.value,
+        message=STATUS_MESSAGES.get(status, ""),
+        qualityScore=round(quality, 2),
+    )
 
 
 @router.post("/enroll", response_model=ApiResponse[EnrollResponse])
-def enroll_face(request: EnrollRequest) -> ApiResponse[EnrollResponse]:
+def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollResponse]:
     start_time = time.time()
     request_id = f"req_{int(start_time * 1000)}"
+    total = len(request.images)
 
-    if not request.images:
+    def respond_fail(status: CvStatus, message: str, results: List[FrameResultDto]):
+        proc_time = (time.time() - start_time) * 1000
+        log_inference_metrics(request_id, "/enroll", status.value, proc_time)
         return ApiResponse.fail(
-            status=CvStatus.LOW_FACE_QUALITY,
-            message="Danh sách ảnh đăng ký không được để trống"
+            status=status,
+            message=message,
+            data=EnrollResponse(
+                userId=request.userId,
+                processedFrames=0,
+                totalFrames=total,
+                frameResults=results,
+            ),
         )
 
+    if total < settings.MIN_ENROLL_IMAGES:
+        return respond_fail(
+            CvStatus.LOW_FACE_QUALITY,
+            f"Cần tối thiểu {settings.MIN_ENROLL_IMAGES} ảnh để đăng ký khuôn mặt "
+            f"(nhận được {total}).",
+            [],
+        )
+
+    if total > settings.MAX_ENROLL_IMAGES:
+        return respond_fail(
+            CvStatus.LOW_FACE_QUALITY,
+            f"Chỉ chấp nhận tối đa {settings.MAX_ENROLL_IMAGES} ảnh mỗi lần đăng ký "
+            f"(nhận được {total}).",
+            [],
+        )
+
+    if not embedding_service.is_ready:
+        return respond_fail(
+            CvStatus.MODEL_NOT_READY, STATUS_MESSAGES[CvStatus.MODEL_NOT_READY], []
+        )
+
+    results: List[FrameResultDto] = []
     valid_vectors: List[List[float]] = []
     quality_scores: List[float] = []
 
     for idx, img_b64 in enumerate(request.images):
         try:
             img = base64_to_cv2(img_b64)
-        except Exception:
+        except InvalidImageError:
+            results.append(_frame_result(idx, CvStatus.INVALID_IMAGE))
             continue
 
-        status, faces = face_detector.detect_faces(img)
-        if status != CvStatus.VALID or len(faces) == 0:
+        detect_status, faces = face_detector.detect_faces(img)
+        if detect_status != CvStatus.VALID:
+            results.append(_frame_result(idx, detect_status))
             continue
 
-        primary_bbox = faces[0]
-        q_status, q_score, _ = face_quality_assessor.evaluate_quality(img, primary_bbox)
-        if q_status != CvStatus.VALID:
+        face = faces[0]
+        quality_status, quality_score, _ = face_quality_assessor.evaluate_quality(img, face.bbox)
+        if quality_status != CvStatus.VALID:
+            results.append(_frame_result(idx, quality_status, quality_score))
             continue
 
-        vec = embedding_service.extract_embedding(img, primary_bbox)
-        valid_vectors.append(vec)
-        quality_scores.append(q_score)
+        try:
+            vector = embedding_service.extract_embedding(img, face)
+        except ModelNotReadyError:
+            return respond_fail(
+                CvStatus.MODEL_NOT_READY, STATUS_MESSAGES[CvStatus.MODEL_NOT_READY], results
+            )
+        except Exception:  # noqa: BLE001 - ảnh lỗi riêng lẻ không được làm sập cả lượt đăng ký
+            logger.exception(f"Lỗi trích xuất embedding ảnh #{idx}")
+            results.append(_frame_result(idx, CvStatus.INTERNAL_ERROR, quality_score))
+            continue
 
-    if not valid_vectors:
-        proc_time = (time.time() - start_time) * 1000
-        log_inference_metrics(request_id, "/enroll", CvStatus.LOW_FACE_QUALITY.value, proc_time)
-        return ApiResponse.fail(
-            status=CvStatus.LOW_FACE_QUALITY,
-            message="Không có ảnh nào trong danh sách đạt đủ tiêu chuẩn chất lượng để đăng ký"
+        valid_vectors.append(vector)
+        quality_scores.append(quality_score)
+        results.append(_frame_result(idx, CvStatus.VALID, quality_score))
+
+    if len(valid_vectors) < settings.MIN_ENROLL_IMAGES:
+        reason = results[0].message if results else "Không rõ lý do"
+        return respond_fail(
+            CvStatus.LOW_FACE_QUALITY,
+            f"Lỗi: {reason}. Vui lòng thử lại.",
+            results,
         )
 
-    # Tổng hợp các vector đặc trưng bằng cách lấy trung bình (Mean Vector)
-    avg_vec = np.mean(valid_vectors, axis=0)
-    norm = np.linalg.norm(avg_vec)
-    if norm > 0.0:
-        final_embedding = (avg_vec / norm).tolist()
-    else:
-        final_embedding = avg_vec.tolist()
-
-    final_embedding = [float(np.round(v, 6)) for v in final_embedding]
-    avg_quality = float(np.round(np.mean(quality_scores), 2))
+    final_embedding = average_embeddings(valid_vectors)
+    avg_quality = float(np.round(float(np.mean(quality_scores)), 2))
 
     proc_time = (time.time() - start_time) * 1000
-    log_inference_metrics(request_id, "/enroll", CvStatus.VALID.value, proc_time, face_count=len(valid_vectors))
+    log_inference_metrics(
+        request_id,
+        "/enroll",
+        CvStatus.ENROLLMENT_SUCCESS.value,
+        proc_time,
+        face_count=len(valid_vectors),
+    )
+
+    try:
+        auth_header = req.headers.get("Authorization")
+        headers = {}
+        if auth_header:
+            headers["Authorization"] = auth_header
+
+        spring_payload = {
+            "userId": request.userId,
+            "faceVector": final_embedding
+        }
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(
+                f"{settings.SPRING_BOOT_URL}/api/v1/employees/ekyc-enroll",
+                json=spring_payload,
+                headers=headers
+            )
+            resp.raise_for_status()
+    except Exception as e:
+        logger.error(f"Lỗi khi gửi vector sang Spring Boot: {e}")
+        return respond_fail(
+            CvStatus.INTERNAL_ERROR, 
+            f"Lỗi lưu trữ vector tại Backend Java: {str(e)}", 
+            results
+        )
 
     return ApiResponse.ok(
-        status=CvStatus.VALID,
-        message=f"Đăng ký khuôn mặt cho nhân viên #{request.userId} thành công",
+        status=CvStatus.ENROLLMENT_SUCCESS,
+        message=f"Đăng ký khuôn mặt cho nhân viên #{request.userId} thành công "
+        f"({len(valid_vectors)}/{total} ảnh hợp lệ).",
         data=EnrollResponse(
             userId=request.userId,
             embedding=final_embedding,
             qualityScore=avg_quality,
-            processedFrames=len(valid_vectors)
-        )
+            processedFrames=len(valid_vectors),
+            totalFrames=total,
+            embeddingDimension=len(final_embedding),
+            frameResults=results,
+        ),
     )

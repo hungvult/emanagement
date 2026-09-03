@@ -41,7 +41,7 @@ public class KioskServiceImpl implements KioskService {
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final ShiftRepository shiftRepository;
     private final AiFaceService aiFaceService;
-    private final AnomalyAlertRepository anomalyAlertRepository;
+    private final com.emanagement.backend.modules.alert.AlertService alertService;
     private final JwtTokenProvider jwtTokenProvider;
 
     @Override
@@ -72,7 +72,7 @@ public class KioskServiceImpl implements KioskService {
         if (!recognizeRes.isMatched() || recognizeRes.getMatchedUserId() == null) {
             String status = recognizeRes.getStatus() != null ? recognizeRes.getStatus() : "UNKNOWN_FACE";
             
-            if ("UNKNOWN_FACE".equals(status) || "AMBIGUOUS_MATCH".equals(status)) {
+            if ("UNKNOWN_FACE".equals(status) || "AMBIGUOUS_MATCH".equals(status) || "SPOOF_DETECTED".equals(status)) {
                 // Tự động tạo cảnh báo bất thường trong cơ sở dữ liệu
                 AnomalyAlert alert = new AnomalyAlert();
                 alert.setUser(null);
@@ -80,11 +80,13 @@ public class KioskServiceImpl implements KioskService {
                 alert.setAlertDate(LocalDate.now());
                 alert.setDescription("Cảnh báo " + status + " xuất hiện tại trạm " + kiosk.getName());
                 alert.setIsResolved(false);
-                anomalyAlertRepository.save(alert);
+                alertService.createAlert(alert);
 
-                String msg = "UNKNOWN_FACE".equals(status)
-                        ? "Không nhận diện được khuôn mặt nhân viên trong danh sách ca làm việc."
-                        : "Phát hiện tranh chấp nhận diện (kết quả các ứng viên quá giống nhau).";
+                String msg = "SPOOF_DETECTED".equals(status) 
+                        ? "Phát hiện giả mạo khuôn mặt. Hành vi bất thường đã được hệ thống ghi nhận!"
+                        : ("UNKNOWN_FACE".equals(status)
+                                ? "Không nhận diện được khuôn mặt nhân viên trong danh sách ca làm việc."
+                                : "Phát hiện tranh chấp nhận diện (kết quả các ứng viên quá giống nhau).");
                 throw new BusinessException(msg);
             } else if ("NO_FACE".equals(status)) {
                 throw new BusinessException("Không phát hiện khuôn mặt trong vùng camera.");
@@ -138,10 +140,20 @@ public class KioskServiceImpl implements KioskService {
             record.setKiosk(kiosk);
             record.setCheckInTime(now);
             record.setStatus(status);
-            record.setSnapshotUrl("minio://attendance-images/checkin_" + user.getEmployeeCode() + "_" + System.currentTimeMillis() + ".jpg");
+            record.setSnapshotUrl(cleanBase64);
         } else {
-            checkType = "CHECK_OUT";
             record = todayRecords.get(todayRecords.size() - 1);
+            
+            if (record.getCheckOutTime() != null) {
+                throw new BusinessException("Bạn đã hoàn thành việc chấm công hôm nay (vào & ra ca). Không thể chấm công thêm.");
+            }
+            
+            // Tránh trường hợp vừa check-in xong đứng nán lại bị máy tự quét nhầm thành check-out
+            if (record.getCheckInTime() != null && java.time.Duration.between(record.getCheckInTime(), now).toMinutes() < 1) {
+                throw new BusinessException("Bạn vừa mới chấm công vào ca thành công! Vui lòng quay lại sau để chấm công ra ca.");
+            }
+
+            checkType = "CHECK_OUT";
             record.setCheckOutTime(now);
             status = record.getStatus();
         }
@@ -178,18 +190,24 @@ public class KioskServiceImpl implements KioskService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public Kiosk getKioskByToken(String deviceToken) {
-        if (deviceToken == null || deviceToken.isBlank()) {
-            throw new ResourceNotFoundException("Thiếu Device Token xác thực trạm Kiosk (X-Kiosk-Token header)");
+        if (deviceToken != null && !deviceToken.isBlank() && !"WEB_KIOSK_DEFAULT".equals(deviceToken)) {
+            if (jwtTokenProvider.validateToken(deviceToken)) {
+                return kioskRepository.findByDeviceToken(deviceToken)
+                        .orElseThrow(() -> new ResourceNotFoundException("Xác thực Kiosk thất bại: Trạm Kiosk không tồn tại trên hệ thống"));
+            }
         }
 
-        if (!jwtTokenProvider.validateToken(deviceToken)) {
-            throw new ResourceNotFoundException("Xác thực Kiosk thất bại: Chữ ký số JWT Device Token không hợp lệ hoặc đã bị chỉnh sửa");
-        }
-
-        return kioskRepository.findByDeviceToken(deviceToken)
-                .orElseThrow(() -> new ResourceNotFoundException("Xác thực Kiosk thất bại: Trạm Kiosk không tồn tại trên hệ thống"));
+        // Fallback: Tìm hoặc tạo Kiosk mặc định cho Web Homepage Check-in
+        return kioskRepository.findAll().stream().findFirst().orElseGet(() -> {
+            Kiosk defaultKiosk = new Kiosk();
+            defaultKiosk.setKioskCode("KIOSK-MAIN");
+            defaultKiosk.setName("Trạm Chấm Công Trụ Sở Chính");
+            defaultKiosk.setDeviceToken("WEB_KIOSK_DEFAULT");
+            defaultKiosk.setStatus("ACTIVE");
+            return kioskRepository.save(defaultKiosk);
+        });
     }
 
     private List<Double> parseVectorString(String vectorStr) {

@@ -17,6 +17,8 @@ class CvStatus(str, Enum):
     AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH"
     MATCHED = "MATCHED"
     ENROLLMENT_SUCCESS = "ENROLLMENT_SUCCESS"
+    INVALID_IMAGE = "INVALID_IMAGE"
+    MODEL_NOT_READY = "MODEL_NOT_READY"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
@@ -36,5 +38,7 @@ STATUS_MESSAGES: dict[CvStatus, str] = {
     CvStatus.AMBIGUOUS_MATCH: "Độ tương đồng giữa các ứng viên quá gần nhau. Không thể xác định chính xác.",
     CvStatus.MATCHED: "Nhận diện thành công.",
     CvStatus.ENROLLMENT_SUCCESS: "Đăng ký dữ liệu khuôn mặt thành công.",
+    CvStatus.INVALID_IMAGE: "Không đọc được dữ liệu hình ảnh gửi lên.",
+    CvStatus.MODEL_NOT_READY: "Mô hình AI chưa được nạp. Vui lòng liên hệ quản trị hệ thống.",
     CvStatus.INTERNAL_ERROR: "Lỗi xử lý nội bộ dịch vụ AI.",
 }

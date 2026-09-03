@@ -1,82 +1,76 @@
-from typing import List, Tuple, Optional, Any
-import cv2
+"""Trích xuất vector đặc trưng khuôn mặt bằng SFace (OpenCV Zoo).
+
+Đặc điểm quan trọng cho hệ thống chấm công:
+
+* **Tất định (deterministic).** Model là file ONNX đã huấn luyện sẵn, cùng một ảnh
+  luôn cho ra cùng một vector kể cả sau khi restart service. Vector đã lưu trong
+  cơ sở dữ liệu vì thế dùng lại được lâu dài.
+* **Có căn chỉnh (alignment).** Ảnh mặt được `alignCrop` về 112x112 theo 5 landmark
+  do YuNet trả về trước khi đưa vào model, nên vector ít bị ảnh hưởng bởi vị trí,
+  kích thước và độ nghiêng của mặt trong khung hình.
+* **Không có đường dự phòng âm thầm.** Nếu model chưa nạp được, hàm raise
+  ModelNotReadyError để tầng API trả về MODEL_NOT_READY, thay vì tạo ra vector
+  bằng một thuật toán khác (histogram, ...) không so sánh được với dữ liệu cũ.
+"""
+
+from typing import List
+
 import numpy as np
 
-try:
-    import tensorflow as tf  # type: ignore
-except ImportError:
-    tf = None
-
+from app.core.config import settings
 from app.core.logging import logger
-from app.utils.image_utils import crop_face
+from app.core.models import model_registry
+from app.services.face_detector import DetectedFace
+
+
+class ModelNotReadyError(RuntimeError):
+    """Model nhận diện chưa sẵn sàng."""
 
 
 class EmbeddingService:
-    def __init__(self) -> None:
-        self.model: Optional[Any] = None
-        self.target_size = (128, 128)
-        self.embedding_dim = 128
-
     def load_model(self) -> None:
-        """
-        Nạp mô hình TensorFlow Feature Extractor 1 lần duy nhất khi ứng dụng khởi động.
-        """
-        logger.info("Đang nạp mô hình TensorFlow Face Feature Extractor...")
-        try:
-            if tf is not None:
-                # Sử dụng mô hình MobileNetV2 làm Feature Extractor chuẩn 128 chiều
-                base_model = tf.keras.applications.MobileNetV2(
-                    input_shape=(128, 128, 3),
-                    include_top=False,
-                    weights="imagenet",
-                    pooling="avg"
-                )
-                
-                # Chiếu không gian đặc trưng về 128 chiều L2-Normalized
-                inputs = tf.keras.Input(shape=(128, 128, 3))
-                x = base_model(inputs)
-                outputs = tf.keras.layers.Dense(128, activation=None)(x)
-                
-                self.model = tf.keras.Model(inputs=inputs, outputs=outputs)
-                logger.info("Nạp mô hình TensorFlow Face Feature Extractor THÀNH CÔNG!")
-            else:
-                logger.warning("TensorFlow chưa sẵn sàng, mô hình sẽ sử dụng fallback extractor.")
-        except Exception as e:
-            logger.error(f"Lỗi nạp mô hình AI: {e}. Đang dùng Fallback Feature Extractor.")
-            self.model = None
+        model_registry.load()
 
-    def extract_embedding(self, img: np.ndarray, bbox: Tuple[int, int, int, int]) -> List[float]:
-        """
-        Cắt vùng mặt từ Bounding Box, tiền xử lý và trích xuất vector đặc trưng 128 chiều.
-        """
-        face_crop = crop_face(img, bbox, margin_ratio=0.2)
-        if face_crop.size == 0:
-            face_crop = img
+    @property
+    def is_ready(self) -> bool:
+        return model_registry.is_ready
 
-        resized_face = cv2.resize(face_crop, self.target_size)
-        rgb_face = cv2.cvtColor(resized_face, cv2.COLOR_BGR2RGB)
+    def extract_embedding(self, img: np.ndarray, face: DetectedFace) -> List[float]:
+        """Trả về vector đặc trưng 128 chiều đã L2-normalize."""
+        if not model_registry.recognizer_ready:
+            raise ModelNotReadyError("Face recognizer chưa được nạp")
 
-        if self.model is not None and tf is not None:
-            # Tiền xử lý chuẩn hóa dải pixel [-1.0, 1.0]
-            input_tensor = (rgb_face.astype(np.float32) / 127.5) - 1.0
-            input_tensor = np.expand_dims(input_tensor, axis=0)
+        aligned = model_registry.align_crop(img, face.raw)
+        raw_vector = np.asarray(model_registry.feature(aligned), dtype=np.float32).flatten()
 
-            # Dự đoán vector đặc trưng (Inference)
-            raw_vector = self.model.predict(input_tensor, verbose=0)[0]
-        else:
-            # Fallback nhẹ nhàng bằng OpenCV Color Histogram & Edge features nếu không có TF model
-            gray = cv2.cvtColor(resized_face, cv2.COLOR_RGB2GRAY)
-            hist = cv2.calcHist([gray], [0], None, [128], [0, 256]).flatten()
-            raw_vector = hist.astype(np.float32)
+        if raw_vector.size != settings.EMBEDDING_DIMENSION:
+            logger.warning(
+                f"Model trả về vector {raw_vector.size} chiều, cấu hình mong đợi "
+                f"{settings.EMBEDDING_DIMENSION} chiều."
+            )
 
-        # L2-Normalize vector đặc trưng
-        norm = np.linalg.norm(raw_vector)
-        if norm > 0.0:
-            normalized_vector = raw_vector / norm
-        else:
-            normalized_vector = raw_vector
+        return normalize_vector(raw_vector)
 
-        return [float(np.round(v, 6)) for v in normalized_vector]
+
+def normalize_vector(vector: np.ndarray) -> List[float]:
+    """L2-normalize và làm tròn 6 chữ số thập phân để vector lưu DB ngắn gọn."""
+    array = np.asarray(vector, dtype=np.float32).flatten()
+    norm = float(np.linalg.norm(array))
+    if norm > 0.0:
+        array = array / norm
+    return [float(np.round(value, 6)) for value in array]
+
+
+def average_embeddings(vectors: List[List[float]]) -> List[float]:
+    """Gộp nhiều vector của cùng một người thành một vector đại diện.
+
+    Lấy trung bình rồi L2-normalize lại - cách gộp chuẩn cho embedding đã normalize,
+    giúp vector đại diện bớt phụ thuộc vào một góc mặt cụ thể.
+    """
+    if not vectors:
+        raise ValueError("Danh sách vector rỗng")
+    mean_vector = np.mean(np.asarray(vectors, dtype=np.float32), axis=0)
+    return normalize_vector(mean_vector)
 
 
 embedding_service = EmbeddingService()

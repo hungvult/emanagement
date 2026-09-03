@@ -38,7 +38,7 @@ public class FaceData {
     @Column(name = "face_vector", nullable = false, columnDefinition = "TEXT")
     private String faceVector;
 
-    @Column(name = "image_snapshot_url", length = 500)
+    @Column(name = "image_snapshot_url", columnDefinition = "TEXT")
     private String imageSnapshotUrl;
 
     @Column(name = "created_at", updatable = false)
