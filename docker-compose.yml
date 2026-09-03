@@ -75,7 +75,19 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import urllib.request, urllib.error
+          try:
+              urllib.request.urlopen('http://localhost:8000/api/v1/cv/health', timeout=3)
+              exit(0)
+          except urllib.error.HTTPError as e:
+              exit(0 if e.code == 503 else 1)
+          except Exception:
+              exit(1)
       interval: 15s
       timeout: 5s
       retries: 3
@@ -108,7 +120,7 @@ services:
       postgres:
         condition: service_healthy
       cv-service:
-        condition: service_healthy
+        condition: service_started
       minio:
         condition: service_healthy
     networks:
@@ -118,6 +130,8 @@ services:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
     container_name: emanagement-frontend
     restart: unless-stopped
     ports:
@@ -126,9 +140,9 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
