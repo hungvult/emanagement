@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     SPRING_BOOT_URL: str = "http://localhost:2504"
 
     # Đường dẫn model ONNX (OpenCV Zoo). Tải bằng: python scripts/download_models.py
-    DETECTOR_MODEL_PATH: str = "weights/yunet.onnx"
-    RECOGNIZER_MODEL_PATH: str = "weights/arcface.onnx"
+    DETECTOR_MODEL_PATH: str = "weights/face_detection_yunet_2023mar.onnx"
+    RECOGNIZER_MODEL_PATH: str = "weights/face_recognition_sface_2021dec.onnx"
 
     # YuNet detector
     DETECTOR_SCORE_THRESHOLD: float = 0.8
