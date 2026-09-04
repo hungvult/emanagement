@@ -12,9 +12,13 @@ import sys
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
 
-from app.core.models import MODEL_CHECKSUMS, SERVICE_ROOT  # noqa: E402
+# Checksum SHA-256 của model chuẩn từ OpenCV Zoo, dùng để phát hiện file tải lỗi.
+MODEL_CHECKSUMS: dict[str, str] = {
+    "face_detection_yunet_2023mar.onnx": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+    "face_recognition_sface_2021dec.onnx": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+}
 
 BASE_URL = "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models"
 MODELS = {
