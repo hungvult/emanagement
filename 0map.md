@@ -6,6 +6,8 @@
 
 - [technical_requirements]
 
+- [[functional_decomposition_diagram]]
+
 ## Architecture
 
 - [[tech_stack]]
