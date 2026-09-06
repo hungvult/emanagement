@@ -13,7 +13,6 @@
 - Quản lý nhân viên — thêm/sửa/xóa nhân viên, đăng ký khuôn mặt (chụp ảnh mẫu
   lúc onboard)
 - Dashboard tổng quan — xem ai đã chấm công hôm nay, ai chưa, ai đi trễ
-- Báo cáo chấm công — lọc theo ngày/tuần/tháng/phòng ban, xuất file Excel/PDF
+- Báo cáo chấm công — lọc theo ngày/tuần/tháng, xuất file Excel/PDF
 - Quản lý ca làm việc — thiết lập giờ vào/ra chuẩn, tính đi trễ/về sớm/tăng ca
 - Cảnh báo bất thường — nhân viên quên chấm công
-- Phân quyền tài khoản — admin, HR, quản lý phòng ban có quyền xem khác nhau
