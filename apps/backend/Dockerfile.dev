@@ -1,0 +1,14 @@
+FROM maven:3.9-eclipse-temurin-21-alpine
+
+WORKDIR /app
+
+# Copy dependency descriptor and pre-fetch dependencies
+COPY pom.xml ./
+RUN mvn dependency:go-offline -B || true
+
+# Copy source code
+COPY src ./src
+
+EXPOSE 8080
+
+CMD ["mvn", "spring-boot:run"]
