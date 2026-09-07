@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ekycAudio } from "../../lib/ekyc-audio";
 import { ekycMediaPipe, BiometricAnalysisResult } from "../../lib/ekyc-mediapipe";
+import { captureOptimizedFrame } from "../../lib/camera-utils";
 import { Button } from "../ui/button";
 
 export interface EkycStep {
@@ -194,18 +195,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
   // Capture current frame
   const captureCurrentFrame = useCallback((): string | null => {
-    if (!videoRef.current) return null;
-    const video = videoRef.current;
-    if (!video.videoWidth || !video.videoHeight) return null;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.94);
+    return captureOptimizedFrame(videoRef.current);
   }, []);
 
   // Step success transition
