@@ -17,6 +17,7 @@ import {
 import { kioskService } from "../../services/kiosk.service";
 import { KioskCheckInResponse } from "../../types/kiosk.types";
 import { ekycAudio } from "../../lib/ekyc-audio";
+import { captureOptimizedFrame } from "../../lib/camera-utils";
 import { Button } from "../ui/button";
 
 interface LiveAttendanceModalProps {
@@ -113,18 +114,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
   // Capture frame
   const captureFrame = useCallback((): string | null => {
-    if (!videoRef.current) return null;
-    const video = videoRef.current;
-    if (!video.videoWidth || !video.videoHeight) return null;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.92);
+    return captureOptimizedFrame(videoRef.current);
   }, []);
 
   // Perform Attendance Check-in
