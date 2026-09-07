@@ -1,0 +1,68 @@
+services:
+  cv-service:
+    build:
+      context: ./apps/cv-service
+      dockerfile: Dockerfile.dev
+    container_name: emanagement-cv-service-dev
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+      - SPRING_BOOT_URL=http://backend:8080
+    volumes:
+      - ./apps/cv-service/app:/app/app
+      - ./apps/cv-service/weights:/app/weights:ro
+    command: ["uvicorn", "app.main:app", "--reload", "--reload-dir", "app", "--host", "0.0.0.0", "--port", "8000"]
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile.dev
+    container_name: emanagement-backend-dev
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      PORT: "8080"
+      SERVER_PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-emanagement_db}
+      DB_USER: ${DB_USER:-dung}
+      DB_PASSWORD: ${DB_PASSWORD:-dung123}
+      AI_SERVICE_URL: http://cv-service:8000
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-attendance-images-dev}
+    volumes:
+      - ./apps/backend:/app
+      - maven_cache:/root/.m2
+    command: ["mvn", "spring-boot:run"]
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile.dev
+    container_name: emanagement-frontend-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+      - WATCHPACK_POLLING=${WATCHPACK_POLLING:-false}
+      - CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-false}
+    volumes:
+      - ./apps/frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next_cache:/app/.next
+    command: ["npm", "run", "dev"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  frontend_node_modules:
+  frontend_next_cache:
+  maven_cache:
