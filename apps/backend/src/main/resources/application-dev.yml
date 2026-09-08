@@ -1,5 +1,5 @@
 server:
-  port: 2504
+  port: ${PORT:8080}
 
 spring:
   config:
