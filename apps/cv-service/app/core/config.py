@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # Danh sách origin được phép gọi trực tiếp (CORS)
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
-    SPRING_BOOT_URL: str = "http://localhost:2504"
+    SPRING_BOOT_URL: str = "http://localhost:8080"
 
     # Đường dẫn model ONNX (OpenCV Zoo). Tải bằng: python scripts/download_models.py
     DETECTOR_MODEL_PATH: str = "weights/face_detection_yunet_2023mar.onnx"
