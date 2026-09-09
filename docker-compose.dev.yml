@@ -1,3 +1,22 @@
+# ==============================================================================
+# HƯỚNG DẪN KHỞI CHẠY MÔI TRƯỜNG DEVELOPMENT (HOT RELOAD)
+# ==============================================================================
+# 1. Khởi chạy toàn bộ hệ thống dev (chạy nền):
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# 2. Khởi chạy và theo dõi log trực tiếp trên terminal:
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# 3. Dừng hệ thống dev:
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+#
+# Cơ chế hoạt động:
+# - Kế thừa hạ tầng dữ liệu (PostgreSQL, MinIO) từ docker-compose.yml gốc.
+# - CV-Service : Mount mã nguồn ./apps/cv-service/app, Uvicorn chạy --reload.
+# - Backend    : Mount mã nguồn ./apps/backend, cache volume maven_cache, chạy mvn spring-boot:run.
+# - Frontend   : Mount mã nguồn ./apps/frontend, volume cách ly node_modules & .next, chạy npm run dev.
+# ==============================================================================
+
 services:
   cv-service:
     build:
