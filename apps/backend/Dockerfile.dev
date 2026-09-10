@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Copy dependency descriptor and pre-fetch dependencies
 COPY pom.xml ./
-RUN mvn dependency:go-offline -B || true
+RUN mvn dependency:go-offline -B
 
 # Copy source code
 COPY src ./src
