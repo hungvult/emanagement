@@ -167,6 +167,9 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException("Dữ liệu vector khuôn mặt không hợp lệ.");
         }
 
+        // Xóa vector cũ của nhân viên để tránh lưu trùng lặp hoặc lẫn lộn nhiều người
+        faceDataRepository.deleteByUserId(user.getId());
+
         FaceData newFace = new FaceData();
         newFace.setUser(user);
         newFace.setFaceVector(dto.getFaceVector().toString());
