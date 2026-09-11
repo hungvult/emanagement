@@ -14,4 +14,6 @@ public interface AuthService {
     UserProfileDto getCurrentUser(String identifier);
 
     UserProfileDto updateProfile(String currentIdentifier, UpdateProfileRequest request);
+
+    void changePassword(String identifier, ChangePasswordRequest request);
 }

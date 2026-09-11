@@ -64,4 +64,10 @@ public class AlertServiceImpl implements AlertService {
                 .createdAt(alert.getCreatedAt())
                 .build();
     }
+
+    @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void createAlert(AnomalyAlert alert) {
+        anomalyAlertRepository.save(alert);
+    }
 }

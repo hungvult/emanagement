@@ -5,6 +5,9 @@ spring:
   application:
     name: backend
 
+  flyway:
+    enabled: false # Vô hiệu hóa auto-config mặc định để FlywayConfig tự quản lý chạy duy nhất 1 lần
+
   servlet:
     multipart:
       max-file-size: 10MB

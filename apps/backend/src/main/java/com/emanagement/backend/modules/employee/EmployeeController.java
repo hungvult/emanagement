@@ -71,6 +71,13 @@ public class EmployeeController {
         return ResponseEntity.ok(ApiResponse.success("Vô hiệu hóa tài khoản nhân viên thành công", null));
     }
 
+    @DeleteMapping("/{id}/face")
+    @Operation(summary = "Xóa dữ liệu khuôn mặt Face ID", description = "Xóa toàn bộ vector đặc trưng khuôn mặt của nhân viên")
+    public ResponseEntity<ApiResponse<Void>> deleteFaceData(@PathVariable Long id) {
+        employeeService.deleteFaceData(id);
+        return ResponseEntity.ok(ApiResponse.success("Xóa dữ liệu khuôn mặt nhân viên thành công", null));
+    }
+
     @PostMapping("/ekyc-enroll")
     @Operation(summary = "Đăng ký khuôn mặt eKYC Live", description = "Tiếp nhận các frame ảnh Base64 live từ camera và trích xuất vector khuôn mặt")
     public ResponseEntity<ApiResponse<LiveEkycEnrollResponseDto>> enrollEkycLive(

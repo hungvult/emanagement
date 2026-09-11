@@ -8,4 +8,6 @@ public interface AlertService {
     PageResponse<AnomalyAlertResponseDto> getAlerts(Boolean isResolved, int page, int size);
 
     AnomalyAlertResponseDto resolveAlert(Long id, ResolveAlertRequestDto dto);
+
+    void createAlert(AnomalyAlert alert);
 }

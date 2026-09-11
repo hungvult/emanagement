@@ -16,5 +16,7 @@ public class UserProfileDto {
     private String employeeCode;
     private String fullName;
     private String email;
+    private String phone;
+    private String avatarUrl;
     private Set<String> roles;
 }

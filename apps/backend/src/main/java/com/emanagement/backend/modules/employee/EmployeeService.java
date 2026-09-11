@@ -18,5 +18,7 @@ public interface EmployeeService {
 
     void deleteEmployee(Long id);
 
+    void deleteFaceData(Long id);
+
     LiveEkycEnrollResponseDto enrollEkycLive(LiveEkycEnrollDto dto);
 }

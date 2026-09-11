@@ -69,4 +69,13 @@ public class AuthController {
         UserProfileDto profile = authService.updateProfile(currentIdentifier, request);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin cá nhân thành công", profile));
     }
+
+    @PutMapping("/change-password")
+    @Operation(summary = "Đổi mật khẩu", description = "Nhân viên thay đổi mật khẩu bằng mật khẩu cũ")
+    public ResponseEntity<ApiResponse<Void>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentIdentifier = authentication.getName();
+        authService.changePassword(currentIdentifier, request);
+        return ResponseEntity.ok(ApiResponse.success("Đổi mật khẩu thành công", null));
+    }
 }

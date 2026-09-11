@@ -22,11 +22,11 @@ import com.emanagement.backend.modules.employee.dto.LiveEkycEnrollResponseDto;
 import com.emanagement.backend.modules.face.AiFaceService;
 import com.emanagement.backend.modules.face.FaceData;
 import com.emanagement.backend.modules.face.FaceDataRepository;
+import com.emanagement.backend.modules.face.dto.AiEnrollResponseDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -147,49 +147,47 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional
+    public void deleteFaceData(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+        faceDataRepository.deleteByUserId(user.getId());
+    }
+
+    @Override
+    @Transactional
     public LiveEkycEnrollResponseDto enrollEkycLive(LiveEkycEnrollDto dto) {
         User user = userRepository.findById(dto.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
+                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
 
-        if (dto.getFaceImagesBase64() == null || dto.getFaceImagesBase64().isEmpty()) {
-            throw new BusinessException("Danh sách ảnh khuôn mặt quét eKYC không được để trống");
+        if (!"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException("Nhân viên này không ở trạng thái ACTIVE, không thể đăng ký khuôn mặt.");
         }
 
-        // Xóa vector cũ
+        if (dto.getFaceVector() == null || dto.getFaceVector().isEmpty()) {
+            throw new BusinessException("Dữ liệu vector khuôn mặt không hợp lệ.");
+        }
+
+        // Xóa vector cũ của nhân viên để tránh lưu trùng lặp hoặc lẫn lộn nhiều người
         faceDataRepository.deleteByUserId(user.getId());
 
-        int totalSaved = 0;
-        for (int i = 0; i < dto.getFaceImagesBase64().size(); i++) {
-            String base64Img = dto.getFaceImagesBase64().get(i);
-            String cleanBase64 = base64Img != null ? base64Img.trim() : "";
-            if (cleanBase64.contains(",")) {
-                cleanBase64 = cleanBase64.split(",")[1];
-            }
-            cleanBase64 = cleanBase64.replaceAll("[^a-zA-Z0-9+/=]", "");
-            byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
-
-            List<Double> vector = aiFaceService.extractEmbedding(imageBytes);
-
-            FaceData faceData = FaceData.builder()
-                    .user(user)
-                    .imageSnapshotUrl("minio://ekyc/" + user.getEmployeeCode() + "_angle_" + (i + 1) + ".jpg")
-                    .faceVector(vector.toString())
-                    .build();
-            faceDataRepository.save(faceData);
-            totalSaved++;
-        }
+        FaceData newFace = new FaceData();
+        newFace.setUser(user);
+        newFace.setFaceVector(dto.getFaceVector().toString());
+        faceDataRepository.save(newFace);
 
         return LiveEkycEnrollResponseDto.builder()
                 .userId(user.getId())
                 .employeeCode(user.getEmployeeCode())
-                .vectorCounterSaved(totalSaved)
-                .message("Đăng ký dữ liệu khuôn mặt Live eKYC thành công với " + totalSaved + " góc mặt")
+                .vectorCounterSaved(1)
+                .message("Đăng ký dữ liệu khuôn mặt eKYC Live thành công cho nhân viên " + user.getFullName())
                 .build();
     }
 
     private EmployeeResponseDto mapToDto(User user) {
         boolean hasFace = !faceDataRepository.findByUserId(user.getId()).isEmpty();
-        Set<String> roles = user.getRoles().stream().map(Role::getName).collect(Collectors.toSet());
+        Set<String> roleNames = user.getRoles().stream()
+                .map(role -> role.getName())
+                .collect(Collectors.toSet());
 
         return EmployeeResponseDto.builder()
                 .id(user.getId())
@@ -199,7 +197,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())
                 .status(user.getStatus())
-                .roles(roles)
+                .roles(roleNames)
                 .hasRegisteredFace(hasFace)
                 .createdAt(user.getCreatedAt())
                 .build();

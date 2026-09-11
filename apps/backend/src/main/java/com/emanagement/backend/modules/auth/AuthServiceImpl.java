@@ -106,6 +106,8 @@ public class AuthServiceImpl implements AuthService {
                 .employeeCode(userPrincipal.getEmployeeCode())
                 .fullName(userPrincipal.getFullName())
                 .email(userPrincipal.getEmail())
+                .phone(user.getPhone())
+                .avatarUrl(user.getAvatarUrl())
                 .roles(roles)
                 .build();
     }
@@ -187,6 +189,8 @@ public class AuthServiceImpl implements AuthService {
                 .employeeCode(user.getEmployeeCode())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .phone(user.getPhone())
+                .avatarUrl(user.getAvatarUrl())
                 .roles(roles)
                 .build();
     }
@@ -242,8 +246,28 @@ public class AuthServiceImpl implements AuthService {
                 .employeeCode(updated.getEmployeeCode())
                 .fullName(updated.getFullName())
                 .email(updated.getEmail())
+                .phone(updated.getPhone())
+                .avatarUrl(updated.getAvatarUrl())
                 .roles(roles)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(String identifier, ChangePasswordRequest request) {
+        User user = userRepository.findByIdentifier(identifier)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPasswordHash())) {
+            throw new BusinessException("Mật khẩu cũ không chính xác.");
+        }
+
+        if (request.getNewPassword().length() < 8) {
+            throw new BusinessException("Mật khẩu mới phải có tối thiểu 8 ký tự.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
     }
 
     private boolean verifyOtpInternal(String identifier, String code, String type) {
