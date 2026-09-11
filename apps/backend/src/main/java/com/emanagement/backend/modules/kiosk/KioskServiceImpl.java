@@ -21,6 +21,7 @@ import com.emanagement.backend.modules.shift.Shift;
 import com.emanagement.backend.modules.shift.ShiftRepository;
 import com.emanagement.backend.security.JwtTokenProvider;
 
+import com.emanagement.backend.common.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public class KioskServiceImpl implements KioskService {
     private final AiFaceService aiFaceService;
     private final com.emanagement.backend.modules.alert.AlertService alertService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final StorageService storageService;
 
     @Override
     @Transactional
@@ -140,7 +142,12 @@ public class KioskServiceImpl implements KioskService {
             record.setKiosk(kiosk);
             record.setCheckInTime(now);
             record.setStatus(status);
-            record.setSnapshotUrl(cleanBase64);
+
+            String snapshotUrl = null;
+            if (cleanBase64 != null && !cleanBase64.isBlank()) {
+                snapshotUrl = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkin_" + user.getEmployeeCode());
+            }
+            record.setSnapshotUrl(snapshotUrl);
         } else {
             record = todayRecords.get(todayRecords.size() - 1);
             
