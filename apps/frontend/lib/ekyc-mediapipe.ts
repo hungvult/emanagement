@@ -1,6 +1,4 @@
-// MediaPipe FaceMesh High-Precision 3D Biometric & Pose Engine for Banking eKYC
-
-export type PoseStepId = "front" | "left" | "right" | "up" | "smile";
+export type PoseStepId = "front" | "left" | "right" | "up" | "smile" | "blink";
 
 export type BiometricStatus =
   | "INITIALIZING"
@@ -34,6 +32,13 @@ export interface BiometricAnalysisResult {
   confidence: number;
 }
 
+export interface FaceGeometryProfile {
+  ratioEyeToFace: number;      // Khoảng cách 2 mắt / Chiều dài khuôn mặt
+  ratioNoseToFace: number;     // Mũi tới cằm / Chiều dài khuôn mặt
+  ratioMouthToFace: number;    // Độ rộng miệng / Chiều dài khuôn mặt
+  ratioJawToFace: number;      // Độ rộng quai hàm / Chiều dài khuôn mặt
+}
+
 export class EkycMediaPipeEngine {
   private faceMesh: any = null;
   private isModelLoaded: boolean = false;
@@ -44,6 +49,83 @@ export class EkycMediaPipeEngine {
   private smoothYaw: number | null = null;
   private smoothPitch: number | null = null;
   private smoothRoll: number | null = null;
+
+  // Face Identity Consistency (Khóa khuôn mặt từ bước 1)
+  private referenceFaceProfile: FaceGeometryProfile | null = null;
+
+  public setReferenceFace(landmarks: Landmark3D[]): void {
+    this.referenceFaceProfile = this.extractGeometryProfile(landmarks);
+  }
+
+  public clearReferenceFace(): void {
+    this.referenceFaceProfile = null;
+  }
+
+  public hasReferenceFace(): boolean {
+    return this.referenceFaceProfile !== null;
+  }
+
+  public extractGeometryProfile(landmarks: Landmark3D[]): FaceGeometryProfile | null {
+    if (!landmarks || landmarks.length < 468) return null;
+    const lm = landmarks;
+    const leftEyeX = (lm[33].x + lm[133].x) / 2;
+    const leftEyeY = (lm[33].y + lm[133].y) / 2;
+    const rightEyeX = (lm[263].x + lm[362].x) / 2;
+    const rightEyeY = (lm[263].y + lm[362].y) / 2;
+
+    const eyeDist = Math.hypot(rightEyeX - leftEyeX, rightEyeY - leftEyeY);
+    const faceLen = Math.hypot(lm[152].x - lm[10].x, lm[152].y - lm[10].y) || 1e-5;
+    const noseToChin = Math.hypot(lm[152].x - lm[1].x, lm[152].y - lm[1].y);
+    const mouthW = Math.hypot(lm[291].x - lm[61].x, lm[291].y - lm[61].y);
+    const jawW = Math.hypot(lm[454].x - lm[234].x, lm[454].y - lm[234].y);
+
+    return {
+      ratioEyeToFace: eyeDist / faceLen,
+      ratioNoseToFace: noseToChin / faceLen,
+      ratioMouthToFace: mouthW / faceLen,
+      ratioJawToFace: jawW / faceLen,
+    };
+  }
+
+  public checkFaceConsistency(landmarks: Landmark3D[]): { isConsistent: boolean; diff: number } {
+    if (!this.referenceFaceProfile) {
+      return { isConsistent: true, diff: 0 };
+    }
+    const cur = this.extractGeometryProfile(landmarks);
+    if (!cur) {
+      return { isConsistent: true, diff: 0 };
+    }
+    const ref = this.referenceFaceProfile;
+    const d1 = Math.abs(cur.ratioEyeToFace - ref.ratioEyeToFace) / (ref.ratioEyeToFace + 1e-5);
+    const d2 = Math.abs(cur.ratioNoseToFace - ref.ratioNoseToFace) / (ref.ratioNoseToFace + 1e-5);
+    const d3 = Math.abs(cur.ratioMouthToFace - ref.ratioMouthToFace) / (ref.ratioMouthToFace + 1e-5);
+    const d4 = Math.abs(cur.ratioJawToFace - ref.ratioJawToFace) / (ref.ratioJawToFace + 1e-5);
+
+    const avgDiff = (d1 + d2 + d3 + d4) / 4.0;
+    return {
+      isConsistent: avgDiff <= 0.16,
+      diff: avgDiff,
+    };
+  }
+
+  // Blink State Machine chống giả mạo ảnh tĩnh (tương thích cả người đeo kính và mọi dáng mắt)
+  private blinkState: "WAITING_OPEN" | "OPEN_READY" | "CLOSED" | "REOPENED" | "COMPLETED" = "WAITING_OPEN";
+  private openEarSamples: number[] = [];
+  private baselineOpenEar: number = 0.18;
+  private closedTime: number = 0;
+  private reopenedTime: number = 0;
+  private completedUntil: number = 0;
+  private blinkCooldownUntil: number = 0;
+
+  public resetBlink(): void {
+    this.blinkState = "WAITING_OPEN";
+    this.openEarSamples = [];
+    this.baselineOpenEar = 0.18;
+    this.closedTime = 0;
+    this.reopenedTime = 0;
+    this.completedUntil = 0;
+    this.blinkCooldownUntil = Date.now() + 600; // 600ms cooldown an toàn khi vừa chuyển bước
+  }
 
   // Initialize MediaPipe FaceMesh with WASM / CDN fallback
   public async loadModel(): Promise<boolean> {
@@ -303,6 +385,57 @@ export class EkycMediaPipeEngine {
     const mouthRatio = mouthWidth / (faceWidth || 1);
     const smileScore = Math.min(1.0, Math.max(0.0, (mouthRatio - 0.35) * 5.0));
 
+    // Eye Aspect Ratio (EAR) for Blink Detection (Chống giả mạo ảnh điện thoại)
+    // Áp dụng công thức Soukupová-Cech chuẩn 2 đoạn thẳng dọc mỗi mắt:
+    // Mắt trái: 160 & 144, 158 & 153, chiều rộng 133 & 33
+    const leftEyeH1 = Math.hypot(lm[160].x - lm[144].x, lm[160].y - lm[144].y);
+    const leftEyeH2 = Math.hypot(lm[158].x - lm[153].x, lm[158].y - lm[153].y);
+    const leftEyeW = Math.hypot(lm[133].x - lm[33].x, lm[133].y - lm[33].y);
+    const leftEAR = (leftEyeH1 + leftEyeH2) / (2.0 * (leftEyeW + 1e-5));
+
+    // Mắt phải: 385 & 380, 387 & 373, chiều rộng 263 & 362
+    const rightEyeH1 = Math.hypot(lm[385].x - lm[380].x, lm[385].y - lm[380].y);
+    const rightEyeH2 = Math.hypot(lm[387].x - lm[373].x, lm[387].y - lm[373].y);
+    const rightEyeW = Math.hypot(lm[263].x - lm[362].x, lm[263].y - lm[362].y);
+    const rightEAR = (rightEyeH1 + rightEyeH2) / (2.0 * (rightEyeW + 1e-5));
+
+    const avgEAR = (leftEAR + rightEAR) / 2.0;
+
+    // 2D robust horizontal pose ratio (bất biến với Z-axis noise và webcam mirror)
+    const distLeft = Math.abs(nose.x - leftEar.x);
+    const distRight = Math.abs(nose.x - rightEar.x);
+    const asymmetry = (distRight - distLeft) / (distRight + distLeft + 1e-5);
+
+    // 2D vertical ratio (tỉ lệ khoảng cách từ cằm tới mũi so với từ mũi tới trán)
+    const noseToChin = Math.abs(chin.y - nose.y);
+    const foreheadToNose = Math.abs(nose.y - forehead.y);
+    const verticalRatio = noseToChin / (foreheadToNose + 1e-5);
+    const earMidY = (leftEar.y + rightEar.y) / 2;
+    const noseAboveEarRatio = (earMidY - nose.y) / (faceWidth + 1e-5);
+
+    // 3.5 Check Cross-Step Face Consistency (Chống đổi người / đổi ảnh giữa chừng)
+    // Khi đang ở bước chớp mắt (blink) hoặc nhìn thẳng (front), góc mặt đủ thẳng để so khớp tỷ lệ hình học khuôn mặt
+    if (this.referenceFaceProfile && (targetPose === "front" || targetPose === "blink")) {
+      const consistency = this.checkFaceConsistency(lm);
+      if (!consistency.isConsistent) {
+        return {
+          status: "WRONG_POSE",
+          isMatched: false,
+          message: "Phát hiện đổi khuôn mặt! Vui lòng giữ nguyên khuôn mặt ban đầu",
+          voiceMessage: "Vui lòng giữ nguyên khuôn mặt ban đầu",
+          yaw,
+          pitch,
+          roll,
+          distanceRatio,
+          isCentered,
+          smileScore,
+          blinkScore: avgEAR,
+          landmarks: lm,
+          confidence: 0.8,
+        };
+      }
+    }
+
     // 4. Check Target Pose Requirement - Smooth and Responsive
     let isMatched = false;
     let message = "";
@@ -310,26 +443,120 @@ export class EkycMediaPipeEngine {
 
     switch (targetPose) {
       case "front":
-        // Straight front face: generous allowance
-        if (Math.abs(yaw) <= 15 && Math.abs(pitch) <= 18) {
+        // Nhìn thẳng: mặt cân đối (asymmetry nhỏ), không cúi/ngửa quá mức
+        if (Math.abs(asymmetry) <= 0.12 && Math.abs(pitch) <= 16 && verticalRatio < 1.30) {
           isMatched = true;
           message = "Góc mặt chính diện chuẩn xác";
           voiceMessage = "Giữ yên khuôn mặt";
-        } else if (yaw < -15) {
-          message = "Đang quay trái, vui lòng nhìn thẳng";
-          voiceMessage = "Vui lòng nhìn thẳng vào camera";
-        } else if (yaw > 15) {
-          message = "Đang quay phải, vui lòng nhìn thẳng";
-          voiceMessage = "Vui lòng nhìn thẳng vào camera";
         } else {
           message = "Vui lòng nhìn thẳng vào camera";
           voiceMessage = "Vui lòng nhìn thẳng vào camera";
         }
         break;
 
+      case "blink": {
+        const now = Date.now();
+
+        // 1. Cooldown an toàn ngay sau khi reset / chuyển bước (để người dùng định hình tư thế)
+        if (now < this.blinkCooldownUntil) {
+          message = "Vui lòng nhìn vào camera...";
+          voiceMessage = "Vui lòng nhìn vào camera";
+          break;
+        }
+
+        // 2. Thu thập baseline mắt mở tự nhiên (yêu cầu 6 frame ổn định ~ 200ms)
+        if (this.blinkState === "WAITING_OPEN") {
+          if (avgEAR >= 0.08) {
+            this.openEarSamples.push(avgEAR);
+            if (this.openEarSamples.length >= 6) {
+              const sum = this.openEarSamples.reduce((a, b) => a + b, 0);
+              // Baseline được cá nhân hóa theo dáng mắt và kính của người dùng (tối thiểu 0.10)
+              this.baselineOpenEar = Math.max(0.10, sum / this.openEarSamples.length);
+              this.blinkState = "OPEN_READY";
+            }
+          } else {
+            // Mắt đang nheo hoặc nhắm trong lúc chuẩn bị, đợi mở ổn định rồi mới lấy mẫu
+            this.openEarSamples = [];
+          }
+          message = "Vui lòng nhìn thẳng và chớp mắt";
+          voiceMessage = "Vui lòng chớp mắt";
+          break;
+        }
+
+        // 3. Trạng thái mắt mở sẵn sàng: Đợi người dùng thực hiện nhắm mắt
+        if (this.blinkState === "OPEN_READY") {
+          // Thích ứng nhẹ nếu mắt mở tự nhiên to hơn
+          if (avgEAR > this.baselineOpenEar && avgEAR < 0.40) {
+            this.baselineOpenEar = this.baselineOpenEar * 0.90 + avgEAR * 0.10;
+          }
+
+          // Phát hiện mắt nhắm thật (Active Liveness):
+          // YÊU CẦU ĐỒNG THỜI CẢ 2 TIÊU CHÍ (tránh tuyệt đối false-positive trên ảnh tĩnh / mắt mở tự nhiên):
+          // - Tỷ lệ EAR phải sụt giảm ít nhất 24% so với baseline ban đầu
+          // - Độ giảm tuyệt đối phải rõ rệt (drop >= 0.024)
+          const drop = this.baselineOpenEar - avgEAR;
+          const isClosed = drop >= 0.024 && avgEAR <= this.baselineOpenEar * 0.76;
+          if (isClosed) {
+            this.blinkState = "CLOSED";
+            this.closedTime = now;
+          }
+          message = "Vui lòng chớp mắt một cái";
+          voiceMessage = "Vui lòng chớp mắt";
+          break;
+        }
+
+        // 4. Trạng thái mắt đã nhắm: Đợi mắt mở trở lại (hoàn tất chu trình nhắm -> mở)
+        if (this.blinkState === "CLOSED") {
+          // Nếu nhắm quá lâu (> 1.8s) hoặc ngủ gật -> reset về OPEN_READY
+          if (now - this.closedTime > 1800) {
+            this.blinkState = "OPEN_READY";
+            break;
+          }
+
+          // Mắt mở trở lại:
+          // - Phải nhắm mắt tối thiểu 50ms (loại trừ nhiễu rung khung hình camera)
+          // - EAR phục hồi về ít nhất 85% baseline (có vùng trễ hysteresis 0.76 -> 0.85 loại bỏ chập chờn)
+          const closedDuration = now - this.closedTime;
+          const isReopened = closedDuration >= 50 && avgEAR >= this.baselineOpenEar * 0.85;
+          if (isReopened) {
+            this.blinkState = "REOPENED";
+            this.reopenedTime = now;
+          }
+          message = "Tốt lắm, mở mắt ra";
+          voiceMessage = "Tốt lắm";
+          break;
+        }
+
+        // 5. Trạng thái mắt vừa mở lại: Giữ 100ms để mắt mở to hoàn toàn, ảnh chụp sắc nét
+        if (this.blinkState === "REOPENED") {
+          if (now - this.reopenedTime >= 100) {
+            if (avgEAR >= this.baselineOpenEar * 0.80) {
+              this.blinkState = "COMPLETED";
+              this.completedUntil = now + 2000; // Giữ kết quả trong 2s
+            } else {
+              this.blinkState = "OPEN_READY";
+            }
+          }
+          message = "Tốt lắm, mở mắt ra";
+          voiceMessage = "Tốt lắm";
+          break;
+        }
+
+        // 6. Chu trình sinh trắc học đã hoàn tất thành công: Mở -> Nhắm Thật -> Mở Lại To Rõ
+        if (this.blinkState === "COMPLETED") {
+          if (now > this.completedUntil) {
+            this.blinkState = "OPEN_READY";
+          }
+          isMatched = true;
+          message = "Chớp mắt thành công!";
+          voiceMessage = "Tốt lắm";
+        }
+        break;
+      }
+
       case "left":
-        // Turn Left: Requires a deliberate turn (yaw <= -25)
-        if (yaw <= -25) {
+        // Bắt buộc quay sang bên trái: mũi lệch rõ rệt sang trái (asymmetry < -0.14)
+        if (asymmetry < -0.14) {
           isMatched = true;
           message = "Góc quay trái chuẩn xác";
           voiceMessage = "Giữ yên";
@@ -340,8 +567,8 @@ export class EkycMediaPipeEngine {
         break;
 
       case "right":
-        // Turn Right: Requires a deliberate turn (yaw >= 25)
-        if (yaw >= 25) {
+        // Bắt buộc quay sang bên phải: mũi lệch rõ rệt sang phải (asymmetry > 0.14)
+        if (asymmetry > 0.14) {
           isMatched = true;
           message = "Góc quay phải chuẩn xác";
           voiceMessage = "Giữ yên";
@@ -352,13 +579,13 @@ export class EkycMediaPipeEngine {
         break;
 
       case "up":
-        // Tilt Up: Requires deliberate chin lift
-        if (pitch <= -12 || (Math.abs(yaw) <= 15 && nose.y < 0.45)) {
+        // Hơi ngẩng cằm lên trên: pitch âm hoặc tỉ lệ cằm-mũi/mũi-trán tăng (>= 1.25)
+        if (pitch <= -6 || verticalRatio >= 1.25 || noseAboveEarRatio > -0.02) {
           isMatched = true;
           message = "Góc ngẩng mặt chuẩn xác";
           voiceMessage = "Giữ yên";
         } else {
-          message = "Ngẩng cằm lên trên";
+          message = "Hơi ngẩng cằm lên trên";
           voiceMessage = "Vui lòng ngẩng cằm lên một chút";
         }
         break;
@@ -368,6 +595,19 @@ export class EkycMediaPipeEngine {
         message = "Xác thực biểu cảm thành công";
         voiceMessage = "Giữ yên để hoàn tất";
         break;
+    }
+
+    let blinkProgress = 0;
+    if (this.blinkState === "WAITING_OPEN") {
+      blinkProgress = Math.min(25, Math.round((this.openEarSamples.length / 6) * 25));
+    } else if (this.blinkState === "OPEN_READY") {
+      blinkProgress = 35;
+    } else if (this.blinkState === "CLOSED") {
+      blinkProgress = 75;
+    } else if (this.blinkState === "REOPENED") {
+      blinkProgress = 90;
+    } else if (this.blinkState === "COMPLETED") {
+      blinkProgress = 100;
     }
 
     return {
@@ -381,7 +621,7 @@ export class EkycMediaPipeEngine {
       distanceRatio,
       isCentered,
       smileScore,
-      blinkScore: 0,
+      blinkScore: blinkProgress,
       landmarks: lm,
       confidence: 0.95,
     };
@@ -416,16 +656,16 @@ export class EkycMediaPipeEngine {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) {
       return {
-        status: "MATCHED",
-        isMatched: true,
-        message: "Giữ yên khuôn mặt",
-        voiceMessage: "Giữ yên khuôn mặt",
+        status: "WRONG_POSE",
+        isMatched: false,
+        message: "Đang xử lý hình ảnh...",
+        voiceMessage: "Vui lòng nhìn vào camera",
         yaw: 0,
         pitch: 0,
         roll: 0,
         distanceRatio: 0.5,
         isCentered: true,
-        smileScore: 0.5,
+        smileScore: 0,
         blinkScore: 0,
         landmarks: null,
         confidence: 0.5,
@@ -488,10 +728,18 @@ export class EkycMediaPipeEngine {
       isMatched = pitch <= -8 || Math.abs(yaw) <= 18;
       message = isMatched ? "Góc ngẩng chuẩn" : "Vui lòng ngẩng cằm lên";
       voiceMessage = "Vui lòng ngẩng cằm lên một chút";
-    } else {
+    } else if (targetPose === "blink") {
+      isMatched = false;
+      message = "Vui lòng nhìn thẳng và chớp mắt";
+      voiceMessage = "Vui lòng chớp mắt";
+    } else if (targetPose === "smile") {
       isMatched = true;
-      message = "Khuôn mặt hợp lệ";
-      voiceMessage = "Mỉm cười nhẹ";
+      message = "Xác thực biểu cảm thành công";
+      voiceMessage = "Giữ yên để hoàn tất";
+    } else {
+      isMatched = false;
+      message = "Vui lòng nhìn vào camera";
+      voiceMessage = "Vui lòng nhìn vào camera";
     }
 
     return {

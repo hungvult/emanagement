@@ -72,10 +72,13 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PORT=8000
+      - SPRING_BOOT_URL=http://backend:8080
     ports:
       - "8000:8000"
     volumes:
       - ./apps/cv-service/weights:/app/weights:ro
+      - ./apps/cv-service/app:/app/app:ro
+
     healthcheck:
       test:
         - CMD

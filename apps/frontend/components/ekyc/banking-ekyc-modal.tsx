@@ -14,12 +14,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ekycAudio } from "../../lib/ekyc-audio";
-import { ekycMediaPipe, BiometricAnalysisResult } from "../../lib/ekyc-mediapipe";
+import { ekycMediaPipe, BiometricAnalysisResult, Landmark3D } from "../../lib/ekyc-mediapipe";
 import { captureOptimizedFrame } from "../../lib/camera-utils";
 import { Button } from "../ui/button";
 
 export interface EkycStep {
-  id: "front" | "left" | "right" | "up" | "smile";
+  id: "front" | "left" | "right" | "up" | "smile" | "blink";
   title: string;
   voicePrompt: string;
   direction?: "left" | "right" | "up" | "center";
@@ -33,28 +33,28 @@ const EKYC_STEPS: EkycStep[] = [
     direction: "center",
   },
   {
-    id: "front",
-    title: "Giữ nguyên tư thế (2/5)",
-    voicePrompt: "Tốt lắm, giữ nguyên tư thế",
+    id: "blink",
+    title: "Vui lòng chớp mắt một cái (2/5)",
+    voicePrompt: "Vui lòng chớp mắt",
     direction: "center",
   },
   {
-    id: "front",
-    title: "Tiếp tục giữ nguyên (3/5)",
-    voicePrompt: "Tiếp tục giữ nguyên",
-    direction: "center",
+    id: "left",
+    title: "Quay mặt sang bên trái (3/5)",
+    voicePrompt: "Vui lòng quay mặt sang bên trái",
+    direction: "left",
   },
   {
-    id: "front",
-    title: "Sắp xong rồi (4/5)",
-    voicePrompt: "Sắp xong rồi",
-    direction: "center",
+    id: "right",
+    title: "Quay mặt sang bên phải (4/5)",
+    voicePrompt: "Vui lòng quay mặt sang bên phải",
+    direction: "right",
   },
   {
-    id: "front",
-    title: "Lần cuối cùng (5/5)",
-    voicePrompt: "Một lần nữa",
-    direction: "center",
+    id: "up",
+    title: "Hơi ngẩng cằm lên trên (5/5)",
+    voicePrompt: "Vui lòng ngẩng cằm lên một chút",
+    direction: "up",
   },
 ];
 
@@ -63,8 +63,8 @@ interface BankingEkycModalProps {
   onClose: () => void;
   employeeName: string;
   employeeCode: string;
-  onCaptureFrame: (imageBase64: string, index: number) => Promise<void>;
-  onCompleteAll: () => void;
+  onCaptureFrame?: (imageBase64: string, index: number) => Promise<void>;
+  onCompleteAll: (allImages: string[]) => Promise<void>;
 }
 
 export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
@@ -92,6 +92,9 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
   const poseHoldTimeRef = useRef<number>(0);
   const isTransitioningRef = useRef<boolean>(false);
   const lastVoiceTimeRef = useRef<number>(0);
+  const noFaceDurationRef = useRef<number>(0);
+  const faceMismatchDurationRef = useRef<number>(0);
+  const lastLandmarksRef = useRef<Landmark3D[] | null>(null);
 
   const currentStep = EKYC_STEPS[currentStepIdx] || EKYC_STEPS[0];
 
@@ -150,6 +153,11 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setCurrentStepIdx(0);
+      ekycMediaPipe.resetBlink();
+      ekycMediaPipe.clearReferenceFace();
+      lastLandmarksRef.current = null;
+      noFaceDurationRef.current = 0;
+      faceMismatchDurationRef.current = 0;
       setCapturedImages([]);
       setStepProgress(0);
       setIsDoneAll(false);
@@ -195,7 +203,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
   // Capture current frame
   const captureCurrentFrame = useCallback((): string | null => {
-    return captureOptimizedFrame(videoRef.current);
+    return captureOptimizedFrame(videoRef.current, 720, 0.88);
   }, []);
 
   // Step success transition
@@ -205,51 +213,60 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
     const frameBase64 = captureCurrentFrame();
     if (frameBase64) {
-      setPromptMessage("Đang gửi dữ liệu...");
-      try {
-        await onCaptureFrame(frameBase64, currentStepIdx);
-      } catch (error: any) {
-        setPromptMessage(error.message || "Gửi ảnh thất bại, vui lòng thử lại");
-        // Giữ trạng thái lỗi 2.5 giây để tránh việc camera chụp lại liên tục (gây nháy nháy)
-        setTimeout(() => {
-          isTransitioningRef.current = false;
-          setIsHoldingPose(false);
-          poseHoldTimeRef.current = 0;
-          setStepProgress(0);
-        }, 2500);
-        return;
-      }
-
-      // 1. Chỉ chớp sáng và phát âm thanh khi server báo thành công
+      // 1. Chớp sáng và phát âm thanh chụp ảnh
       setIsFlashing(true);
       setTimeout(() => setIsFlashing(false), 200);
       ekycAudio.playShutterSound();
       ekycAudio.playSuccessChime();
 
-      // 2. Cập nhật ảnh
+      // 2. Cập nhật ảnh vào danh sách 5 ảnh
       const nextList = [...capturedImages, frameBase64];
       setCapturedImages(nextList);
 
-      // 3. Xử lý chuyển bước ở ngoài
+      // Lưu lại đặc trưng hình học khuôn mặt chuẩn từ bước 1 để đối chiếu các bước sau
+      if (currentStepIdx === 0 && lastLandmarksRef.current) {
+        ekycMediaPipe.setReferenceFace(lastLandmarksRef.current);
+      }
+
+      if (onCaptureFrame) {
+        onCaptureFrame(frameBase64, currentStepIdx).catch(() => {});
+      }
+
+      // 3. Xử lý chuyển bước tiếp theo hoặc hoàn tất chuỗi 5 bước
       if (currentStepIdx + 1 < EKYC_STEPS.length) {
+        setPromptMessage(`Chuẩn bị bước ${currentStepIdx + 2}/5...`);
         setTimeout(() => {
+          ekycMediaPipe.resetBlink();
           setCurrentStepIdx((s) => s + 1);
           setStepProgress(0);
           setIsHoldingPose(false);
           poseHoldTimeRef.current = 0;
           isTransitioningRef.current = false;
-        }, 500);
+        }, 900);
       } else {
-        // Đã hoàn thành cả 5 bước
+        // Đã hoàn thành cả 5 bước!
         setIsDoneAll(true);
         setStepProgress(100);
+        setPromptMessage("Đang đối chiếu & lưu trữ dữ liệu...");
         ekycAudio.playCompleteFanfare();
         ekycAudio.speak("Xác thực hoàn tất, đang lưu dữ liệu", true);
 
-        // Chờ 1.1s để user thấy UI hoàn tất rồi mới submit
-        setTimeout(() => {
-          onCompleteAll();
-        }, 1100);
+        // Gửi toàn bộ 5 ảnh để kiểm tra đồng nhất khuôn mặt và lưu vector
+        setTimeout(async () => {
+          try {
+            await onCompleteAll(nextList);
+          } catch (error: any) {
+            setIsDoneAll(false);
+            setPromptMessage(error.message || "Xác thực thất bại! Vui lòng thử lại.");
+            ekycAudio.speak("Có lỗi xảy ra, vui lòng thử lại", true);
+            setTimeout(() => {
+              isTransitioningRef.current = false;
+              setIsHoldingPose(false);
+              poseHoldTimeRef.current = 0;
+              setStepProgress(0);
+            }, 3000);
+          }
+        }, 700);
       }
     } else {
       isTransitioningRef.current = false;
@@ -264,8 +281,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
     let lastTime = performance.now();
 
     const processFrame = async () => {
-      if (!isSubscribed || isTransitioningRef.current) {
-        animFrameRef.current = requestAnimationFrame(processFrame);
+      if (!isSubscribed) {
         return;
       }
 
@@ -283,6 +299,52 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
               currentStep.id
             );
 
+            if (res.landmarks) {
+              lastLandmarksRef.current = res.landmarks;
+            }
+
+            // Session Continuity & Anti-Swap Check:
+            // Một khi đã có ảnh hoặc qua bước 1, nếu bỏ điện thoại/mặt ra quá 400ms -> lập tức hủy và về bước 1
+            if (capturedImages.length > 0 || currentStepIdx > 0) {
+              if (res.status === "NO_FACE") {
+                noFaceDurationRef.current += delta;
+                if (noFaceDurationRef.current >= 400) {
+                  noFaceDurationRef.current = 0;
+                  handleRestart();
+                  setPromptMessage("Mất khuôn mặt! Bắt đầu lại từ bước 1.");
+                  ekycAudio.speak("Vui lòng giữ khuôn mặt liên tục trong khung hình", true);
+                  return;
+                }
+              } else if (res.status === "MULTIPLE_FACES") {
+                handleRestart();
+                setPromptMessage("Phát hiện nhiều người! Bắt đầu lại.");
+                ekycAudio.speak("Vui lòng chỉ một người đứng trước máy ảnh", true);
+                return;
+              } else {
+                noFaceDurationRef.current = 0;
+              }
+
+              // Kiểm tra nếu phát hiện đổi khuôn mặt (tỷ lệ giải phẫu khác khuôn mặt ban đầu)
+              if (res.message && res.message.includes("Phát hiện đổi khuôn mặt")) {
+                faceMismatchDurationRef.current += delta;
+                if (faceMismatchDurationRef.current >= 400) {
+                  faceMismatchDurationRef.current = 0;
+                  handleRestart();
+                  setPromptMessage("Phát hiện đổi người! Đã hủy và quay lại bước 1.");
+                  ekycAudio.speak("Phát hiện đổi người, vui lòng không đổi người", true);
+                  return;
+                }
+              } else {
+                faceMismatchDurationRef.current = 0;
+              }
+            }
+
+            // Nếu đang trong thời gian đệm chuyển bước, chỉ theo dõi khuôn mặt, không tính tiến trình
+            if (isTransitioningRef.current) {
+              animFrameRef.current = requestAnimationFrame(processFrame);
+              return;
+            }
+
             // Clean, friendly prompt message
             if (res.isMatched) {
               setPromptMessage("Giữ nguyên vị trí...");
@@ -297,20 +359,34 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
               ekycAudio.speak(res.voiceMessage);
             }
 
-            // Pose Hold Progress - Fast & Smooth 450ms
-            if (res.isMatched) {
-              setIsHoldingPose(true);
-              poseHoldTimeRef.current += delta;
-              const progress = Math.min(100, Math.round((poseHoldTimeRef.current / 450) * 100));
-              setStepProgress(progress);
-
-              if (progress >= 100) {
+            // Nhịp độ giữ tư thế:
+            // Riêng với bước "blink" (chớp mắt): Chu trình sinh trắc Mở -> Nhắm -> Mở đã được xác thực,
+            // kích hoạt thành công ngay lập tức để chuyển bước mượt mà không bị trễ!
+            if (currentStep.id === "blink") {
+              if (res.isMatched) {
+                setIsHoldingPose(true);
+                setStepProgress(100);
                 handleStepSuccess();
+              } else {
+                setIsHoldingPose(false);
+                setStepProgress(res.blinkScore || 0);
               }
             } else {
-              setIsHoldingPose(false);
-              poseHoldTimeRef.current = Math.max(0, poseHoldTimeRef.current - delta * 0.8);
-              setStepProgress(Math.round((poseHoldTimeRef.current / 450) * 100));
+              const targetHoldMs = 650;
+              if (res.isMatched) {
+                setIsHoldingPose(true);
+                poseHoldTimeRef.current += delta;
+                const progress = Math.min(100, Math.round((poseHoldTimeRef.current / targetHoldMs) * 100));
+                setStepProgress(progress);
+
+                if (progress >= 100) {
+                  handleStepSuccess();
+                }
+              } else {
+                setIsHoldingPose(false);
+                poseHoldTimeRef.current = Math.max(0, poseHoldTimeRef.current - delta * 0.5);
+                setStepProgress(Math.round((poseHoldTimeRef.current / targetHoldMs) * 100));
+              }
             }
           } catch (e) {
             // Ignore minor frame drops
@@ -329,10 +405,15 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [isOpen, isCameraActive, isDoneAll, currentStep.id, handleStepSuccess, currentStepIdx]);
+  }, [isOpen, isCameraActive, isDoneAll, currentStep.id, handleStepSuccess, currentStepIdx, capturedImages.length]);
 
   // Restart scan
   const handleRestart = () => {
+    noFaceDurationRef.current = 0;
+    faceMismatchDurationRef.current = 0;
+    lastLandmarksRef.current = null;
+    ekycMediaPipe.clearReferenceFace();
+    ekycMediaPipe.resetBlink();
     setCurrentStepIdx(0);
     setCapturedImages([]);
     setStepProgress(0);
@@ -591,7 +672,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
           <Button
             type="button"
             size="sm"
-            onClick={onCompleteAll}
+            onClick={() => onCompleteAll(capturedImages)}
             disabled={capturedImages.length < EKYC_STEPS.length}
             className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-4 text-xs shadow-lg shadow-emerald-500/20"
           >

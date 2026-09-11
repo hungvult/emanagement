@@ -6,18 +6,19 @@ import {
   CheckCircle2,
   XCircle,
   X,
-  Sparkles,
   RefreshCw,
   Clock,
   UserCheck,
   Zap,
   Volume2,
   VolumeX,
+  Eye,
 } from "lucide-react";
 import { kioskService } from "../../services/kiosk.service";
 import { KioskCheckInResponse } from "../../types/kiosk.types";
 import { ekycAudio } from "../../lib/ekyc-audio";
 import { captureOptimizedFrame } from "../../lib/camera-utils";
+import { ekycMediaPipe, BiometricAnalysisResult } from "../../lib/ekyc-mediapipe";
 import { Button } from "../ui/button";
 
 interface LiveAttendanceModalProps {
@@ -36,17 +37,22 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   const [scanResult, setScanResult] = useState<KioskCheckInResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
+  const [promptMessage, setPromptMessage] = useState<string>(
+    "Vui lòng nhìn thẳng và chớp mắt một cái để chấm công"
+  );
+  const [isFaceDetected, setIsFaceDetected] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const autoScanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const animFrameRef = useRef<number | null>(null);
   const isProcessingRef = useRef<boolean>(false);
+  const lastVoiceTimeRef = useRef<number>(0);
 
   // Stop camera & loops
   const stopCamera = useCallback(() => {
-    if (autoScanIntervalRef.current) {
-      clearInterval(autoScanIntervalRef.current);
-      autoScanIntervalRef.current = null;
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -57,6 +63,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     }
     setIsCameraActive(false);
     isProcessingRef.current = false;
+    ekycAudio.stopSpeaking();
   }, []);
 
   // Start Camera
@@ -90,14 +97,95 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     }
   }, []);
 
+  // Capture current frame (optimized resolution & quality)
+  const captureFrame = useCallback((): string | null => {
+    return captureOptimizedFrame(videoRef.current);
+  }, []);
+
+  // Restart scan manually or auto-reset after showing result
+  const handleReset = useCallback(() => {
+    setScanResult(null);
+    setErrorMessage(null);
+    ekycMediaPipe.resetBlink();
+    isProcessingRef.current = false;
+    setPromptMessage("Vui lòng nhìn thẳng và chớp mắt một cái để chấm công");
+  }, []);
+
+  // Perform Attendance Check-in (chỉ kích hoạt sau khi đã xác thực chớp mắt thật)
+  const executeCheckIn = useCallback(async () => {
+    const frameBase64 = captureFrame();
+    if (!frameBase64) {
+      isProcessingRef.current = false;
+      return;
+    }
+
+    setIsScanning(true);
+    setErrorMessage(null);
+
+    // Flash & chime
+    setIsFlashing(true);
+    setTimeout(() => setIsFlashing(false), 200);
+    ekycAudio.playShutterSound();
+
+    try {
+      const res = await kioskService.checkIn("WEB_KIOSK_DEFAULT", {
+        imageFrameBase64: frameBase64,
+      });
+
+      if (res.status === "SUCCESS" && res.data) {
+        setScanResult(res.data);
+        ekycAudio.playSuccessChime();
+        const actionText =
+          res.data.checkType === "CHECK_IN" ? "Check in thành công" : "Check out thành công";
+        ekycAudio.speak(actionText, true);
+      } else {
+        setErrorMessage(res.message || "Không thể nhận diện khuôn mặt");
+        ekycAudio.speak("Nhận diện thất bại");
+      }
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.message || err.message || "Không tìm thấy khuôn mặt phù hợp trong hệ thống";
+      setErrorMessage(msg);
+
+      let spokenError = "Nhận diện thất bại";
+      if (msg.includes("Không phát hiện khuôn mặt") || msg.includes("NO_FACE")) {
+        spokenError = "Không có khuôn mặt";
+      } else if (msg.includes("Không nhận diện được khuôn mặt") || msg.includes("UNKNOWN_FACE")) {
+        spokenError = "Người lạ, không nhận diện được";
+      } else if (msg.includes("giả mạo") || msg.includes("SPOOF_DETECTED")) {
+        spokenError = "Phát hiện giả mạo khuôn mặt";
+      } else if (msg.includes("tranh chấp")) {
+        spokenError = "Tranh chấp nhận diện";
+      }
+
+      ekycAudio.speak(spokenError);
+    } finally {
+      setIsScanning(false);
+      // Giữ kết quả hiển thị 3.5 giây rồi tự động reset cho người tiếp theo
+      setTimeout(() => {
+        handleReset();
+      }, 3500);
+    }
+  }, [captureFrame, handleReset]);
+
   // Initialize
   useEffect(() => {
     if (isOpen) {
+      ekycMediaPipe.loadModel().catch(() => {});
+      ekycMediaPipe.clearReferenceFace();
+      ekycMediaPipe.resetBlink();
+      setScanResult(null);
+      setErrorMessage(null);
+      isProcessingRef.current = false;
+      lastVoiceTimeRef.current = 0;
+      setPromptMessage("Vui lòng nhìn thẳng và chớp mắt một cái để chấm công");
       startCamera();
     } else {
+      ekycMediaPipe.clearReferenceFace();
       stopCamera();
     }
     return () => {
+      ekycMediaPipe.clearReferenceFace();
       stopCamera();
     };
   }, [isOpen, startCamera, stopCamera]);
@@ -112,106 +200,99 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     }
   }, [isOpen, isCameraActive]);
 
-  // Capture frame
-  const captureFrame = useCallback((): string | null => {
-    return captureOptimizedFrame(videoRef.current);
-  }, []);
-
-  // Perform Attendance Check-in
-  const executeCheckIn = useCallback(async () => {
-    if (isProcessingRef.current || !isCameraActive) return;
-    const frameBase64 = captureFrame();
-    if (!frameBase64) return;
-
-    isProcessingRef.current = true;
-    setIsScanning(true);
-    setErrorMessage(null);
-
-    // Flash
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 200);
-    ekycAudio.playShutterSound();
-
-    try {
-      const res = await kioskService.checkIn("WEB_KIOSK_DEFAULT", {
-        imageFrameBase64: frameBase64,
-      });
-
-      if (res.status === "SUCCESS" && res.data) {
-        setScanResult(res.data);
-        ekycAudio.playSuccessChime();
-        const actionText = res.data.checkType === "CHECK_IN" ? "Check in thành công" : "Check out thành công";
-        ekycAudio.speak(actionText, true);
-      } else {
-        setErrorMessage(res.message || "Không thể nhận diện khuôn mặt");
-        ekycAudio.speak("Nhận diện thất bại");
-      }
-    } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || "Không tìm thấy khuôn mặt phù hợp trong hệ thống";
-      setErrorMessage(msg);
-      
-      // Simplify spoken error message
-      let spokenError = "Nhận diện thất bại";
-      if (msg.includes("Không phát hiện khuôn mặt") || msg.includes("NO_FACE")) {
-        spokenError = "Không có khuôn mặt";
-      } else if (msg.includes("Không nhận diện được khuôn mặt") || msg.includes("UNKNOWN_FACE")) {
-        spokenError = "Người lạ, không nhận diện được";
-      } else if (msg.includes("giả mạo")) {
-        spokenError = "Phát hiện giả mạo khuôn mặt";
-      } else if (msg.includes("tranh chấp")) {
-        spokenError = "Tranh chấp nhận diện";
-      }
-
-      // Avoid spamming the 'No face' error every 2 seconds when idling
-      // ekycAudio already has a 4-second throttle for identical texts, 
-      // but to be safe, we still speak it per user request.
-      ekycAudio.speak(spokenError);
-    } finally {
-      setIsScanning(false);
-      // Cooldown before next auto-attempt
-      setTimeout(() => {
-        isProcessingRef.current = false;
-      }, 2500);
-    }
-  }, [captureFrame, isCameraActive]);
-
-  // Auto-scan loop
+  // Real-time Active Biometric Liveness Loop: Chống 100% việc giơ ảnh điện thoại
   useEffect(() => {
-    if (isOpen && isCameraActive) {
-      // Clear any existing interval first
-      if (autoScanIntervalRef.current) clearInterval(autoScanIntervalRef.current);
-      
-      autoScanIntervalRef.current = setInterval(() => {
-        // Only trigger if not currently processing and no result/error is currently displayed
-        if (!isProcessingRef.current && !scanResult && !errorMessage) {
-          executeCheckIn();
+    if (!isOpen || !isCameraActive) return;
+
+    let isSubscribed = true;
+    let lastTime = performance.now();
+
+    const processFrame = async () => {
+      if (!isSubscribed) return;
+
+      const now = performance.now();
+      const delta = now - lastTime;
+
+      // Xử lý mỗi ~45ms
+      if (
+        delta >= 45 &&
+        videoRef.current &&
+        !isProcessingRef.current &&
+        !scanResult &&
+        !errorMessage
+      ) {
+        lastTime = now;
+        const video = videoRef.current;
+
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          try {
+            const res: BiometricAnalysisResult = await ekycMediaPipe.processFrame(
+              video,
+              "blink"
+            );
+
+            // Cập nhật thông báo hướng dẫn người dùng
+            if (res.status === "NO_FACE") {
+              setIsFaceDetected(false);
+              setPromptMessage("Vui lòng đưa khuôn mặt vào giữa khung hình");
+            } else if (res.status === "MULTIPLE_FACES") {
+              setIsFaceDetected(true);
+              setPromptMessage("Phát hiện nhiều người! Vui lòng chỉ một người đứng trước camera");
+            } else if (res.status === "NOT_CENTERED") {
+              setIsFaceDetected(true);
+              setPromptMessage("Vui lòng căn giữa khuôn mặt trong vòng tròn");
+            } else if (res.status === "TOO_FAR") {
+              setIsFaceDetected(true);
+              setPromptMessage("Vui lòng tiến lại gần camera hơn");
+            } else if (res.status === "TOO_CLOSE") {
+              setIsFaceDetected(true);
+              setPromptMessage("Vui lòng lùi lại một chút");
+            } else {
+              setIsFaceDetected(true);
+              if (res.blinkScore >= 70 && !res.isMatched) {
+                setPromptMessage("Tốt lắm, mở mắt ra...");
+              } else {
+                setPromptMessage("Vui lòng nhìn thẳng và chớp mắt một cái để chấm công");
+              }
+            }
+
+            // Nhắc nhở bằng giọng nói định kỳ (mỗi 5 giây) nếu đã thấy mặt
+            const currentTime = Date.now();
+            if (
+              res.status !== "NO_FACE" &&
+              currentTime - lastVoiceTimeRef.current > 5000 &&
+              !isProcessingRef.current
+            ) {
+              lastVoiceTimeRef.current = currentTime;
+              ekycAudio.speak("Vui lòng nhìn thẳng và chớp mắt một cái để chấm công");
+            }
+
+            // KÍCH HOẠT CHẤM CÔNG DUY NHẤT KHI PHÁT HIỆN CHỚP MẮT SINH TRẮC HỌC THẬT (Strict Active Liveness)
+            // Tuyệt đối không tự chụp bằng thời gian đứng yên, triệt tiêu 100% gian lận bằng ảnh/điện thoại!
+            if (res.isMatched && !isProcessingRef.current) {
+              isProcessingRef.current = true;
+              setPromptMessage("Đang nhận diện khuôn mặt...");
+              executeCheckIn();
+              return;
+            }
+          } catch (e) {
+            // bỏ qua drop frame tạm thời
+          }
         }
-      }, 2000);
-    }
+      }
+
+      animFrameRef.current = requestAnimationFrame(processFrame);
+    };
+
+    animFrameRef.current = requestAnimationFrame(processFrame);
+
     return () => {
-      if (autoScanIntervalRef.current) {
-        clearInterval(autoScanIntervalRef.current);
-        autoScanIntervalRef.current = null;
+      isSubscribed = false;
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
       }
     };
   }, [isOpen, isCameraActive, scanResult, errorMessage, executeCheckIn]);
-
-  // Restart scan manually or auto-reset after showing result
-  const handleReset = useCallback(() => {
-    setScanResult(null);
-    setErrorMessage(null);
-    isProcessingRef.current = false;
-  }, []);
-
-  // Auto-reset effect
-  useEffect(() => {
-    if (scanResult || errorMessage) {
-      const timer = setTimeout(() => {
-        handleReset();
-      }, 3000); // Automatically clear after 3 seconds to be ready for next person
-      return () => clearTimeout(timer);
-    }
-  }, [scanResult, errorMessage, handleReset]);
 
   if (!isOpen) return null;
 
@@ -357,9 +438,15 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 <span>{errorMessage}</span>
               </div>
             ) : (
-              <p className="text-xs text-slate-400">
-                Đưa khuôn mặt vào giữa khung tròn để máy tự động nhận diện chấm công
-              </p>
+              <div className="flex flex-col items-center gap-2.5 py-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-medium shadow-sm">
+                  <Eye className="h-3.5 w-3.5 text-cyan-400" />
+                  <span>Xác thực tính sống AI (Liveness Detection)</span>
+                </div>
+                <p className="text-xs text-slate-300 font-medium tracking-wide">
+                  {promptMessage}
+                </p>
+              </div>
             )}
           </div>
         </div>
