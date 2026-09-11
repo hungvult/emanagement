@@ -46,11 +46,11 @@ class Settings(BaseSettings):
     CENTER_MARGIN_RATIO: float = 0.2
 
     # Liveness (passive, heuristic - xem docstring liveness_service)
-    LIVENESS_THRESHOLD: float = 0.55
+    LIVENESS_THRESHOLD: float = 0.35
     LIVENESS_ENABLED: bool = True
 
-    # Enrollment
-    MIN_ENROLL_IMAGES: int = 1
+    # Enrollment (yêu cầu gửi đủ 5 ảnh của chuỗi eKYC)
+    MIN_ENROLL_IMAGES: int = 5
     MAX_ENROLL_IMAGES: int = 10
 
     # Giới hạn kích thước ảnh base64 nhận vào (bytes sau khi giải mã)
