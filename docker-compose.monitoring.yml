@@ -1,3 +1,26 @@
+# ==============================================================================
+# HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG GIÁM SÁT (PROMETHEUS MONITORING)
+# ==============================================================================
+# Điều kiện tiên quyết:
+# - Môi trường Backend (dev hoặc prod) phải đang chạy để khởi tạo network chung:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# 1. Khởi chạy Prometheus (chạy nền):
+#    docker compose -f docker-compose.monitoring.yml up -d
+#
+# 2. Theo dõi log tiến trình scrape:
+#    docker compose -f docker-compose.monitoring.yml logs -f
+#
+# 3. Dừng hệ thống giám sát:
+#    docker compose -f docker-compose.monitoring.yml down
+#
+# 4. Kiểm tra trạng thái hoạt động:
+#    - Prometheus Web UI: http://localhost:9090
+#    - Scrape Targets   : http://localhost:9090/targets (Target "spring-boot-backend" trạng thái UP)
+#    - Backend Metrics  : http://localhost:8080/actuator/prometheus
+#
+# ==============================================================================
+
 name: emanagement-monitoring
 
 services:
