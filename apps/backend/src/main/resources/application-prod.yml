@@ -47,6 +47,7 @@ minio:
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket-name: ${MINIO_BUCKET:attendance-images-prod}
+  public-url: ${MINIO_PUBLIC_URL:http://localhost:9000}
 
 ai-service:
   base-url: ${AI_SERVICE_URL:http://localhost:8000}
