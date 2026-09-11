@@ -171,20 +171,18 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleCaptureFrame = async (base64: string, idx: number) => {
+  const handleEnrollComplete = async (allImages: string[]) => {
     if (!ekycEmployee) return;
 
-    if (idx === 0) {
-      try {
-        await employeeService.deleteFaceData(ekycEmployee.id);
-      } catch (err) {
-        // ignore error if face data doesn't exist
-      }
+    try {
+      await employeeService.deleteFaceData(ekycEmployee.id);
+    } catch (err) {
+      // ignore error if face data doesn't exist
     }
 
     const token = localStorage.getItem("access_token");
 
-    // Gọi trực tiếp CV-Service (Python) ở port 8000 để xử lý ảnh
+    // Gửi toàn bộ 5 ảnh của chuỗi eKYC lên CV-Service để kiểm tra tính đồng nhất khuôn mặt và lưu vector
     const response = await fetch("http://localhost:8000/api/v1/cv/enroll", {
       method: "POST",
       headers: {
@@ -193,7 +191,7 @@ export default function EmployeesPage() {
       },
       body: JSON.stringify({
         userId: ekycEmployee.id,
-        images: [base64],
+        images: allImages,
       }),
     });
 
@@ -202,10 +200,8 @@ export default function EmployeesPage() {
     if (!response.ok || data.status !== "ENROLLMENT_SUCCESS") {
       throw new Error(data.message || "Lỗi khi xử lý khuôn mặt từ AI");
     }
-  };
 
-  const handleEnrollComplete = () => {
-    success("Đăng ký khuôn mặt eKYC thành công!");
+    success("Đăng ký khuôn mặt eKYC 5 bước thành công!");
     setIsEkycOpen(false);
     fetchEmployees(page);
   };
@@ -470,7 +466,6 @@ export default function EmployeesPage() {
           onClose={() => setIsEkycOpen(false)}
           employeeName={ekycEmployee?.fullName || ""}
           employeeCode={ekycEmployee?.employeeCode || ""}
-          onCaptureFrame={handleCaptureFrame}
           onCompleteAll={handleEnrollComplete}
         />
       </div>
