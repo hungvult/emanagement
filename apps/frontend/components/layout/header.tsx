@@ -1,7 +1,9 @@
 "use client";
 
 import { useAuth } from "../../hooks/use-auth";
-import { LogOut, User as UserIcon } from "lucide-react";
+import { LogOut, User as UserIcon, Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "../ui/sheet";
+import { Sidebar } from "./sidebar";
 
 export const Header = () => {
   const { user, logout } = useAuth();
@@ -9,7 +11,18 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background px-6 transition-all">
       <div className="flex-1 flex items-center">
-        <div className="h-8 w-1 rounded-full bg-primary mr-4"></div>
+        <Sheet>
+          <SheetTrigger render={<button className="mr-3 rounded-md p-2 text-muted-foreground hover:bg-muted lg:hidden" />}>
+            <Menu className="h-5 w-5" />
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-64 border-r-0" showCloseButton={false}>
+            <SheetTitle className="sr-only">Menu</SheetTitle>
+            <SheetDescription className="sr-only">Điều hướng hệ thống</SheetDescription>
+            <Sidebar isMobile />
+          </SheetContent>
+        </Sheet>
+        
+        <div className="h-8 w-1 rounded-full bg-primary mr-4 hidden lg:block"></div>
         <h1 className="text-lg font-semibold text-foreground capitalize">
           {typeof window !== 'undefined' ? window.location.pathname.split('/').pop() || 'Dashboard' : 'Dashboard'}
         </h1>
