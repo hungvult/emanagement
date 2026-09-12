@@ -25,11 +25,10 @@ export default function EmployeesPage() {
 
   // Create Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<EmployeeCreate>({
+  const [createForm, setCreateForm] = useState<{fullName: string; email: string; phone: string}>({
     fullName: "",
     email: "",
     phone: "",
-    password: "",
   });
   const [isCreating, setIsCreating] = useState(false);
 
@@ -75,18 +74,19 @@ export default function EmployeesPage() {
       error("Họ và tên không được để trống");
       return;
     }
-    if (!createForm.password || createForm.password.length < 8) {
-      error("Mật khẩu phải từ 8 ký tự trở lên (bao gồm chữ hoa, thường, số, ký tự đặc biệt)");
-      return;
-    }
 
     setIsCreating(true);
     try {
-      const res = await employeeService.create(createForm);
+      const defaultPassword = "DefaultPassword@123";
+      const payload: EmployeeCreate = {
+        ...createForm,
+        password: defaultPassword,
+      };
+      const res = await employeeService.create(payload);
       if (res.status === "SUCCESS") {
-        success(`Thêm nhân viên ${res.data.fullName} (${res.data.employeeCode}) thành công!`);
+        success(`Thêm nhân viên ${res.data.fullName} thành công! Mật khẩu: ${defaultPassword}`);
         setIsCreateOpen(false);
-        setCreateForm({ fullName: "", email: "", phone: "", password: "" });
+        setCreateForm({ fullName: "", email: "", phone: "" });
         fetchEmployees(0);
       } else {
         error(res.message || "Không thể tạo nhân viên");
@@ -398,14 +398,7 @@ export default function EmployeesPage() {
               value={createForm.phone || ""}
               onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
             />
-            <Input
-              label="Mật khẩu khởi tạo *"
-              type="password"
-              placeholder="Ít nhất 8 ký tự, gồm hoa, thường, số, ký tự đặc biệt"
-              value={createForm.password}
-              onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-              required
-            />
+
             <p className="text-xs text-text-secondary">
               Mã nhân viên sẽ được hệ thống tự động sinh theo chuẩn EMP26XXXX.
             </p>
