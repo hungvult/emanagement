@@ -14,7 +14,7 @@ import {
   UserCircle,
 } from "lucide-react";
 
-export const Sidebar = () => {
+export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
   const pathname = usePathname();
   const { hasRole } = useAuth();
 
@@ -63,9 +63,9 @@ export const Sidebar = () => {
     },
   ];
 
-  return (
-    <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r border-border bg-card text-card-foreground transition-all duration-300">
-      <div className="flex h-16 items-center border-b border-border px-6">
+  const content = (
+    <>
+      <div className="flex h-16 items-center border-b border-border px-6 shrink-0">
         <div className="flex items-center gap-3 font-bold text-xl text-foreground">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
             e
@@ -74,7 +74,7 @@ export const Sidebar = () => {
         </div>
       </div>
       
-      <div className="flex flex-col py-6 px-4 space-y-1.5 overflow-y-auto h-[calc(100vh-4rem)]">
+      <div className="flex flex-col py-6 px-4 space-y-1.5 overflow-y-auto h-full">
         <div className="text-xs font-semibold text-muted-foreground mb-2 px-2 uppercase tracking-wider">Menu</div>
         {menuItems.filter(item => item.show).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -97,6 +97,20 @@ export const Sidebar = () => {
           );
         })}
       </div>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full bg-card">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r border-border bg-card text-card-foreground transition-all duration-300 hidden lg:flex flex-col">
+      {content}
     </aside>
   );
 };
