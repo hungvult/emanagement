@@ -54,12 +54,12 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-bg-secondary/40 backdrop-blur-xl p-6 rounded-2xl border border-white/5 shadow-lg">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-text-secondary">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {isAdmin ? "Nhật ký chấm công" : "Lịch sử chấm công của tôi"}
           </h1>
-          <p className="text-sm text-text-secondary mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {isAdmin ? "Xem và quản lý dữ liệu check-in/out của toàn bộ nhân viên." : "Theo dõi thời gian làm việc của bạn."}
           </p>
         </div>
@@ -69,7 +69,7 @@ export default function AttendancePage() {
         <div className="flex justify-center py-8">
           <div className="animate-pulse space-y-4 w-full">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-12 bg-bg-tertiary rounded-md" />
+              <div key={i} className="h-12 bg-muted rounded-md" />
             ))}
           </div>
         </div>
@@ -89,7 +89,7 @@ export default function AttendancePage() {
             <TableBody>
               {records.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 6 : 5} className="text-center py-8 text-text-secondary">
+                  <TableCell colSpan={isAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
                     Không có dữ liệu chấm công
                   </TableCell>
                 </TableRow>
@@ -98,8 +98,8 @@ export default function AttendancePage() {
                   <TableRow key={record.id}>
                     {isAdmin && (
                       <TableCell>
-                        <div className="font-medium text-text-primary">{record.fullName}</div>
-                        <div className="text-xs text-text-secondary">{record.employeeCode}</div>
+                        <div className="font-medium text-foreground">{record.fullName}</div>
+                        <div className="text-xs text-muted-foreground">{record.employeeCode}</div>
                       </TableCell>
                     )}
                     <TableCell className="font-medium">{record.kioskName}</TableCell>
@@ -128,7 +128,7 @@ export default function AttendancePage() {
                           <Eye className="h-3.5 w-3.5" /> Xem ảnh
                         </Button>
                       ) : (
-                        <span className="text-text-secondary text-sm">—</span>
+                        <span className="text-muted-foreground text-sm">—</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -152,15 +152,15 @@ export default function AttendancePage() {
         title="Ảnh chụp nhận diện từ camera trạm Kiosk"
       >
         <div className="flex flex-col items-center space-y-4">
-          <div className="relative aspect-video w-full rounded-lg bg-bg-tertiary overflow-hidden border border-border flex items-center justify-center">
+          <div className="relative aspect-video w-full rounded-lg bg-muted overflow-hidden border border-border flex items-center justify-center">
             {previewSnapshot ? (
               <img src={previewSnapshot} alt="Snapshot Kiosk" className="w-full h-full object-contain" />
             ) : (
-              <ImageIcon className="h-12 w-12 text-text-secondary" />
+              <ImageIcon className="h-12 w-12 text-muted-foreground" />
             )}
           </div>
-          <p className="text-xs text-text-secondary text-center">
-            Đường dẫn snapshot: <code className="bg-bg-tertiary px-1 py-0.5 rounded">{previewSnapshot}</code>
+          <p className="text-xs text-muted-foreground text-center">
+            Đường dẫn snapshot: <code className="bg-muted px-1 py-0.5 rounded">{previewSnapshot}</code>
           </p>
           <Button variant="secondary" onClick={() => setPreviewSnapshot(null)}>
             Đóng

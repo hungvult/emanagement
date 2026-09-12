@@ -219,32 +219,32 @@ export default function EmployeesPage() {
   return (
     <RoleGuard allowedRoles={["ROLE_ADMIN"]} fallback={<p>Không có quyền truy cập</p>}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-bg-secondary/40 backdrop-blur-xl p-6 rounded-2xl border border-white/5 shadow-lg">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-xl border border-border shadow-sm">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-text-secondary">Quản lý nhân viên</h1>
-            <p className="text-sm text-text-secondary mt-1">Quản lý danh sách, hồ sơ và dữ liệu eKYC khuôn mặt.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Quản lý nhân viên</h1>
+            <p className="text-sm text-muted-foreground mt-1">Quản lý danh sách, hồ sơ và dữ liệu eKYC khuôn mặt.</p>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input 
                 placeholder="Tìm tên, mã, email..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-bg-tertiary/50 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
+                className="w-full bg-background border border-input rounded-md py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-input transition-all"
               />
             </div>
-            <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2 shadow-lg shadow-accent/20 whitespace-nowrap rounded-xl">
+            <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2 whitespace-nowrap">
               <Plus className="h-4 w-4" /> Thêm mới
             </Button>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-8 bg-bg-secondary/20 rounded-2xl border border-white/5 backdrop-blur-sm p-6">
+          <div className="flex justify-center py-8 bg-muted/30 rounded-xl border border-border p-6">
             <div className="animate-pulse space-y-4 w-full">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-14 bg-bg-tertiary/50 rounded-xl" />
+                <div key={i} className="h-14 bg-muted rounded-md" />
               ))}
             </div>
           </div>
@@ -265,7 +265,7 @@ export default function EmployeesPage() {
               <TableBody>
                 {filteredEmployees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-text-secondary">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Không tìm thấy nhân viên nào
                     </TableCell>
                   </TableRow>
@@ -275,10 +275,10 @@ export default function EmployeesPage() {
                       <TableCell className="font-medium">{emp.employeeCode}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-xs">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                             {emp.fullName?.charAt(0) || "U"}
                           </div>
-                          <span className="font-medium text-text-primary">{emp.fullName}</span>
+                          <span className="font-medium text-foreground">{emp.fullName}</span>
                           {emp.roles.includes("ROLE_ADMIN") && (
                             <Badge variant="outline" className="text-[10px] ml-2">ADMIN</Badge>
                           )}
@@ -287,11 +287,11 @@ export default function EmployeesPage() {
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="text-sm">{emp.email || "—"}</span>
-                          <span className="text-xs text-text-secondary">{emp.phone || "—"}</span>
+                          <span className="text-xs text-muted-foreground">{emp.phone || "—"}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={emp.status === "ACTIVE" ? "success" : "danger"}>
+                        <Badge variant={emp.status === "ACTIVE" ? "default" : "destructive"}>
                           {emp.status}
                         </Badge>
                       </TableCell>
@@ -331,7 +331,7 @@ export default function EmployeesPage() {
                           </Button>
                         )}
                       </TableCell>
-                      <TableCell className="text-text-secondary">
+                      <TableCell className="text-muted-foreground">
                         {emp.createdAt ? formatDateTime(emp.createdAt).split(" ")[0] : "—"}
                       </TableCell>
                       <TableCell className="text-right">
@@ -399,7 +399,7 @@ export default function EmployeesPage() {
               onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
             />
 
-            <p className="text-xs text-text-secondary">
+            <p className="text-xs text-muted-foreground">
               Mã nhân viên sẽ được hệ thống tự động sinh theo chuẩn EMP26XXXX.
             </p>
             <div className="flex justify-end gap-2 pt-4">
@@ -432,9 +432,9 @@ export default function EmployeesPage() {
               onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
             />
             <div className="space-y-1">
-              <label className="text-sm font-medium text-text-secondary">Trạng thái tài khoản</label>
+              <label className="text-sm font-medium text-muted-foreground">Trạng thái tài khoản</label>
               <select
-                className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 value={editForm.status}
                 onChange={(e) => setEditForm({ ...editForm, status: e.target.value as "ACTIVE" | "INACTIVE" })}
               >

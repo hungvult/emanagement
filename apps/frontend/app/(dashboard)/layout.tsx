@@ -9,7 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-bg-primary text-text-primary">
+      <div className="min-h-screen bg-muted/30 text-foreground">
         <Sidebar />
         <div className="pl-64 transition-all duration-300">
           <Header />

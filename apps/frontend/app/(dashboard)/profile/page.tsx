@@ -109,31 +109,31 @@ export default function ProfilePage() {
     <>
     <div className="space-y-6 max-w-4xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-text-primary">Hồ sơ cá nhân</h1>
-        <p className="text-text-secondary">Quản lý thông tin tài khoản và cập nhật bảo mật an toàn.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Hồ sơ cá nhân</h1>
+        <p className="text-muted-foreground">Quản lý thông tin tài khoản và cập nhật bảo mật an toàn.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-1 space-y-6">
-          <Card className="relative overflow-hidden group border-white/5 bg-bg-secondary/40 backdrop-blur-xl">
-            <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-accent/20 to-purple-600/20" />
+          <Card className="relative overflow-hidden group border-border bg-card shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-primary/10 to-indigo-500/10" />
             <CardContent className="pt-12 pb-6 px-6 flex flex-col items-center text-center relative z-10">
               <div className="relative mb-4 group-hover:scale-105 transition-transform duration-300">
-                <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-bg-primary bg-bg-tertiary ring-2 ring-accent/30 shadow-xl">
+                <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-muted ring-2 ring-primary/20 shadow-xl">
                   {user?.avatarUrl ? (
                     <img src={user.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                   ) : (
-                    <UserCircle className="h-full w-full p-4 text-text-secondary" />
+                    <UserCircle className="h-full w-full p-4 text-muted-foreground" />
                   )}
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-text-primary bg-clip-text text-transparent bg-gradient-to-r from-white to-text-secondary">{user?.fullName}</h2>
-              <p className="text-sm font-medium text-accent mt-1">{user?.employeeCode}</p>
+              <h2 className="text-xl font-bold text-foreground">{user?.fullName}</h2>
+              <p className="text-sm font-medium text-primary mt-1">{user?.employeeCode}</p>
               
               <div className="mt-6 flex w-full flex-col gap-2">
-                <div className="flex items-center justify-between rounded-lg bg-bg-tertiary/50 border border-white/5 px-3 py-2 text-sm shadow-inner">
-                  <span className="text-text-secondary">Chức vụ</span>
-                  <span className="font-medium text-text-primary">
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Chức vụ</span>
+                  <span className="font-medium text-foreground">
                     {user?.roles?.includes("ROLE_ADMIN") ? "Quản trị viên" : "Nhân viên"}
                   </span>
                 </div>
@@ -143,10 +143,10 @@ export default function ProfilePage() {
         </div>
 
         <div className="md:col-span-2 space-y-6">
-          <Card className="border-white/5 bg-bg-secondary/40 backdrop-blur-xl">
-            <CardHeader className="border-b border-white/5 pb-4">
+          <Card className="border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border pb-4">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Settings className="h-5 w-5 text-accent" />
+                <Settings className="h-5 w-5 text-primary" />
                 Thiết lập tài khoản
               </CardTitle>
             </CardHeader>
@@ -159,35 +159,35 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                   <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-text-secondary font-medium flex items-center gap-1.5">
-                      <User className="h-4 w-4 text-text-secondary" /> Họ và tên
+                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                      <User className="h-4 w-4 text-muted-foreground" /> Họ và tên
                     </div>
-                    <div className="col-span-2 text-sm text-text-primary font-medium">{user.fullName}</div>
+                    <div className="col-span-2 text-sm text-foreground font-medium">{user.fullName}</div>
                   </div>
                   <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-text-secondary font-medium flex items-center gap-1.5">
-                      <KeyRound className="h-4 w-4 text-text-secondary" /> Mã nhân viên
+                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                      <KeyRound className="h-4 w-4 text-muted-foreground" /> Mã nhân viên
                     </div>
-                    <div className="col-span-2 text-sm text-text-primary font-mono">{user.employeeCode}</div>
+                    <div className="col-span-2 text-sm text-foreground font-mono">{user.employeeCode}</div>
                   </div>
                   <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-text-secondary font-medium flex items-center gap-1.5">
-                      <Phone className="h-4 w-4 text-text-secondary" /> Số điện thoại
+                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Phone className="h-4 w-4 text-muted-foreground" /> Số điện thoại
                     </div>
-                    <div className="col-span-2 text-sm text-text-primary font-mono">{user.phone || "Chưa cập nhật"}</div>
+                    <div className="col-span-2 text-sm text-foreground font-mono">{user.phone || "Chưa cập nhật"}</div>
                   </div>
                   <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-text-secondary font-medium flex items-center gap-1.5">
-                      <Mail className="h-4 w-4 text-text-secondary" /> Email
+                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Mail className="h-4 w-4 text-muted-foreground" /> Email
                     </div>
-                    <div className="col-span-2 text-sm text-text-primary">{user.email || "Chưa cập nhật"}</div>
+                    <div className="col-span-2 text-sm text-foreground">{user.email || "Chưa cập nhật"}</div>
                   </div>
                   <div className="grid grid-cols-3">
-                    <div className="text-sm text-text-secondary font-medium flex items-center gap-1.5">
-                      <Shield className="h-4 w-4 text-success" /> Bảo mật
+                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Shield className="h-4 w-4 text-emerald-500" /> Bảo mật
                     </div>
-                    <div className="col-span-2 text-sm text-text-primary flex items-center gap-1">
-                      <span className="text-success font-medium">Bảo vệ bởi JWT & Xác thực OTP 2FA</span>
+                    <div className="col-span-2 text-sm text-foreground flex items-center gap-1">
+                      <span className="text-emerald-600 font-medium">Bảo vệ bởi JWT & Xác thực OTP 2FA</span>
                     </div>
                   </div>
                 </div>
@@ -215,7 +215,7 @@ export default function ProfilePage() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   disabled={isLoading}
                 />
-                <p className="text-xs text-text-secondary">
+                <p className="text-xs text-muted-foreground">
                   Khi nhấn lưu, hệ thống sẽ gửi mã OTP 6 số đến Email/SĐT mới để xác thực chính chủ.
                 </p>
                 <div className="flex gap-2 pt-4">
@@ -229,8 +229,8 @@ export default function ProfilePage() {
               </form>
             ) : (
               <form onSubmit={handleUpdate} className="space-y-4">
-                <div className="rounded-md bg-accent/10 p-4 border border-accent/20 mb-4">
-                  <p className="text-sm text-text-primary">
+                <div className="rounded-md bg-primary/10 p-4 border border-primary/20 mb-4">
+                  <p className="text-sm text-foreground">
                     Mã OTP 6 số đã được gửi đến <strong>{formData.email || formData.phone}</strong>. Vui lòng nhập mã để hoàn tất cập nhật.
                   </p>
                 </div>
@@ -260,10 +260,10 @@ export default function ProfilePage() {
   </div>
 
   <div className="mt-6 space-y-6 max-w-4xl mx-auto">
-    <Card className="border-white/5 bg-bg-secondary/40 backdrop-blur-xl">
-      <CardHeader className="border-b border-white/5 pb-4">
+    <Card className="border-border bg-card shadow-sm">
+      <CardHeader className="border-b border-border pb-4">
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
-          <Shield className="h-5 w-5 text-accent" />
+          <Shield className="h-5 w-5 text-primary" />
           Đổi mật khẩu
         </CardTitle>
       </CardHeader>
