@@ -61,22 +61,22 @@ export default function AlertsPage() {
   return (
     <RoleGuard allowedRoles={["ROLE_ADMIN"]} fallback={<p>Không có quyền truy cập</p>}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-bg-secondary/40 backdrop-blur-xl p-6 rounded-2xl border border-white/5 shadow-lg">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-text-secondary">Cảnh báo bất thường AI</h1>
-            <p className="text-sm text-text-secondary mt-1">Giám sát các hành vi bất thường, giả mạo eKYC hoặc chấm công sai quy chế.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Cảnh báo bất thường AI</h1>
+            <p className="text-sm text-muted-foreground mt-1">Giám sát các hành vi bất thường, giả mạo eKYC hoặc chấm công sai quy chế.</p>
           </div>
           <div className="flex gap-2">
             <Button 
-              variant={filter === "UNRESOLVED" ? "primary" : "secondary"}
+              variant={filter === "UNRESOLVED" ? "default" : "secondary"}
               size="sm"
               onClick={() => { setFilter("UNRESOLVED"); setPage(0); }}
-              className="flex items-center gap-1.5 rounded-xl shadow-lg shadow-accent/10"
+              className="flex items-center gap-1.5 rounded-xl shadow-lg shadow-primary/10"
             >
               <AlertTriangle className="h-4 w-4" /> Chưa xử lý
             </Button>
             <Button 
-              variant={filter === "ALL" ? "primary" : "secondary"}
+              variant={filter === "ALL" ? "default" : "secondary"}
               size="sm"
               onClick={() => { setFilter("ALL"); setPage(0); }}
               className="flex items-center gap-1.5 rounded-xl"
@@ -90,7 +90,7 @@ export default function AlertsPage() {
           <div className="flex justify-center py-8">
             <div className="animate-pulse space-y-4 w-full">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-12 bg-bg-tertiary rounded-md" />
+                <div key={i} className="h-12 bg-muted rounded-md" />
               ))}
             </div>
           </div>
@@ -110,7 +110,7 @@ export default function AlertsPage() {
               <TableBody>
                 {alerts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-text-secondary">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Không có cảnh báo nào
                     </TableCell>
                   </TableRow>
@@ -119,21 +119,21 @@ export default function AlertsPage() {
                     <TableRow key={alert.id} className={!alert.isResolved ? "bg-danger/5" : ""}>
                       <TableCell className="whitespace-nowrap font-medium">{alert.alertDate}</TableCell>
                       <TableCell>
-                        <div className="font-medium text-text-primary">{alert.fullName}</div>
-                        <div className="text-xs text-text-secondary">{alert.employeeCode}</div>
+                        <div className="font-medium text-foreground">{alert.fullName}</div>
+                        <div className="text-xs text-muted-foreground">{alert.employeeCode}</div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={!alert.isResolved ? "text-danger border-danger/30 bg-danger/10" : ""}>
                           {alert.alertType}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm max-w-xs">{alert.description}</TableCell>
+                      <TableCell className="text-sm max-w-[200px] lg:max-w-[300px] truncate" title={alert.description}>{alert.description}</TableCell>
                       <TableCell>
                         {alert.isResolved ? (
                           <div className="flex flex-col">
                             <Badge variant="success" className="w-fit">Đã xử lý</Badge>
                             {alert.resolvedByName && (
-                              <span className="text-[11px] text-text-secondary mt-1">bởi {alert.resolvedByName}</span>
+                              <span className="text-[11px] text-muted-foreground mt-1">bởi {alert.resolvedByName}</span>
                             )}
                           </div>
                         ) : (

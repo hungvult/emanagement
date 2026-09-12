@@ -60,12 +60,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end bg-bg-secondary/40 backdrop-blur-xl p-4 rounded-xl border border-white/5 shadow-sm">
+      <div className="flex justify-between items-end bg-card p-6 rounded-xl border border-border shadow-sm">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-text-primary">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Xin chào, {user?.fullName}!
           </h1>
-          <p className="text-sm text-text-secondary mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Chào mừng bạn quay lại hệ thống eManagement.
           </p>
         </div>
@@ -74,79 +74,79 @@ export default function DashboardPage() {
       {isAdmin ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="relative overflow-hidden group border-white/5">
-              <div className="absolute right-0 top-0 h-20 w-20 -translate-y-6 translate-x-6 rounded-full bg-accent/20 blur-xl group-hover:bg-accent/30 transition-all"></div>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-4 relative z-10">
-                <CardTitle className="text-xs font-medium text-text-secondary">Tổng nhân viên</CardTitle>
-                <div className="p-1.5 bg-accent/10 rounded-md">
-                  <Users className="h-4 w-4 text-accent" />
+            <Card className="relative overflow-hidden border-border bg-card shadow-sm hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 h-24 w-24 -translate-y-8 translate-x-8 rounded-full bg-primary/10 blur-2xl group-hover:bg-primary/20 transition-all"></div>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-5 relative z-10">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Tổng nhân viên</CardTitle>
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Users className="h-4 w-4 text-primary" />
                 </div>
               </CardHeader>
-              <CardContent className="pb-4 relative z-10">
-                <div className="text-2xl font-bold text-text-primary tracking-tight">{stats.totalEmployees}</div>
+              <CardContent className="pb-5 relative z-10">
+                <div className="text-3xl font-bold text-foreground tracking-tight">{stats.totalEmployees}</div>
               </CardContent>
             </Card>
             
-            <Card className="relative overflow-hidden group border-white/5">
-              <div className="absolute right-0 top-0 h-20 w-20 -translate-y-6 translate-x-6 rounded-full bg-success/20 blur-xl group-hover:bg-success/30 transition-all"></div>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-4 relative z-10">
-                <CardTitle className="text-xs font-medium text-text-secondary">Lượt chấm công</CardTitle>
-                <div className="p-1.5 bg-success/10 rounded-md">
-                  <Clock className="h-4 w-4 text-success" />
+            <Card className="relative overflow-hidden border-border bg-card shadow-sm hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 h-24 w-24 -translate-y-8 translate-x-8 rounded-full bg-emerald-500/10 blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-5 relative z-10">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Lượt chấm công</CardTitle>
+                <div className="p-2 bg-emerald-500/10 rounded-lg">
+                  <Clock className="h-4 w-4 text-emerald-600" />
                 </div>
               </CardHeader>
-              <CardContent className="pb-4 relative z-10">
-                <div className="text-2xl font-bold text-text-primary tracking-tight">{stats.checkInsToday}</div>
+              <CardContent className="pb-5 relative z-10">
+                <div className="text-3xl font-bold text-foreground tracking-tight">{stats.checkInsToday}</div>
               </CardContent>
             </Card>
             
-            <Card className="relative overflow-hidden group border-white/5">
-              <div className="absolute right-0 top-0 h-20 w-20 -translate-y-6 translate-x-6 rounded-full bg-warning/20 blur-xl group-hover:bg-warning/30 transition-all"></div>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-4 relative z-10">
-                <CardTitle className="text-xs font-medium text-text-secondary">Đơn phép chờ</CardTitle>
-                <div className="p-1.5 bg-warning/10 rounded-md">
-                  <FileText className="h-4 w-4 text-warning" />
+            <Card className="relative overflow-hidden border-border bg-card shadow-sm hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 h-24 w-24 -translate-y-8 translate-x-8 rounded-full bg-amber-500/10 blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-5 relative z-10">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Đơn phép chờ</CardTitle>
+                <div className="p-2 bg-amber-500/10 rounded-lg">
+                  <FileText className="h-4 w-4 text-amber-600" />
                 </div>
               </CardHeader>
-              <CardContent className="pb-4 relative z-10">
-                <div className="text-2xl font-bold text-text-primary tracking-tight">{stats.pendingLeaves}</div>
+              <CardContent className="pb-5 relative z-10">
+                <div className="text-3xl font-bold text-foreground tracking-tight">{stats.pendingLeaves}</div>
               </CardContent>
             </Card>
             
-            <Card className="relative overflow-hidden group border-white/5">
-              <div className="absolute right-0 top-0 h-20 w-20 -translate-y-6 translate-x-6 rounded-full bg-danger/20 blur-xl group-hover:bg-danger/30 transition-all"></div>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-4 relative z-10">
-                <CardTitle className="text-xs font-medium text-text-secondary">Cảnh báo chưa xử lý</CardTitle>
-                <div className="p-1.5 bg-danger/10 rounded-md">
-                  <AlertTriangle className="h-4 w-4 text-danger" />
+            <Card className="relative overflow-hidden border-border bg-card shadow-sm hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 h-24 w-24 -translate-y-8 translate-x-8 rounded-full bg-destructive/10 blur-2xl group-hover:bg-destructive/20 transition-all"></div>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-5 relative z-10">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Cảnh báo chưa xử lý</CardTitle>
+                <div className="p-2 bg-destructive/10 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
                 </div>
               </CardHeader>
-              <CardContent className="pb-4 relative z-10">
-                <div className="text-2xl font-bold text-text-primary tracking-tight">{stats.unresolvedAlerts}</div>
+              <CardContent className="pb-5 relative z-10">
+                <div className="text-3xl font-bold text-foreground tracking-tight">{stats.unresolvedAlerts}</div>
               </CardContent>
             </Card>
           </div>
         </>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="border-white/5">
-            <CardHeader className="border-b border-white/5 pb-3 pt-4">
-              <CardTitle className="text-base font-semibold bg-clip-text text-transparent bg-gradient-to-r from-white to-text-secondary">Chấm công gần đây</CardTitle>
+          <Card className="border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border pb-3 pt-4">
+              <CardTitle className="text-base font-semibold text-foreground">Chấm công gần đây</CardTitle>
             </CardHeader>
             <CardContent className="pt-3 pb-3">
               {recentAttendance.length > 0 ? (
                 <div className="space-y-2">
                   {recentAttendance.map((record) => (
-                    <div key={record.id} className="flex items-center justify-between border-b border-white/5 pb-2 last:border-0 last:pb-0 hover:bg-white/[0.02] p-1.5 rounded-md transition-colors -mx-1.5 px-1.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="p-1.5 bg-bg-tertiary rounded-md border border-white/5 shadow-inner">
-                          <Clock className="h-3.5 w-3.5 text-accent" />
+                    <div key={record.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0 last:pb-0 hover:bg-muted/50 p-2 rounded-md transition-colors -mx-2 px-2">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-md text-primary">
+                          <Clock className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-text-primary">
+                          <p className="text-sm font-semibold text-foreground">
                             {record.kioskName}
                           </p>
-                          <p className="text-xs text-text-secondary mt-0.5">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             Vào: {formatDateTime(record.checkInTime) || "--"} • Ra: {formatDateTime(record.checkOutTime) || "--"}
                           </p>
                         </div>
@@ -164,8 +164,8 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="py-8 text-center">
-                  <Clock className="h-10 w-10 text-text-secondary/30 mx-auto mb-3" />
-                  <p className="text-sm text-text-secondary">Chưa có dữ liệu chấm công.</p>
+                  <Clock className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Chưa có dữ liệu chấm công.</p>
                 </div>
               )}
             </CardContent>

@@ -64,18 +64,18 @@ export const Sidebar = () => {
   ];
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r border-white/5 bg-bg-secondary/40 backdrop-blur-2xl transition-all duration-300 shadow-2xl shadow-black/50">
-      <div className="flex h-16 items-center border-b border-white/5 px-6">
-        <div className="flex items-center gap-3 font-bold text-xl text-text-primary">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-purple-600 text-white shadow-lg shadow-accent/20">
+    <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r border-border bg-card text-card-foreground transition-all duration-300">
+      <div className="flex h-16 items-center border-b border-border px-6">
+        <div className="flex items-center gap-3 font-bold text-xl text-foreground">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
             e
           </div>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-text-secondary">Management</span>
+          <span>Management</span>
         </div>
       </div>
       
       <div className="flex flex-col py-6 px-4 space-y-1.5 overflow-y-auto h-[calc(100vh-4rem)]">
-        <div className="text-xs font-semibold text-text-secondary/60 mb-2 px-2 uppercase tracking-wider">Menu</div>
+        <div className="text-xs font-semibold text-muted-foreground mb-2 px-2 uppercase tracking-wider">Menu</div>
         {menuItems.filter(item => item.show).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           const Icon = item.icon;
@@ -85,13 +85,13 @@ export const Sidebar = () => {
               key={item.href}
               href={item.href}
               className={cn(
-                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300",
+                "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive 
-                  ? "bg-gradient-to-r from-accent/20 to-purple-500/10 text-accent-hover shadow-[inset_2px_0_0_0_#818cf8]" 
-                  : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
+                  ? "bg-primary/10 text-primary" 
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <Icon className={cn("h-5 w-5 transition-transform duration-300", isActive ? "scale-110" : "group-hover:scale-110")} />
+              <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive ? "scale-105" : "group-hover:scale-105")} />
               {item.title}
             </Link>
           );
