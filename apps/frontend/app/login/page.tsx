@@ -9,7 +9,7 @@ import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Briefcase } from "lucide-react";
 import { ApiResponse } from "../../types/common.types";
 import { JwtResponse } from "../../types/auth.types";
 
@@ -67,8 +67,8 @@ export default function LoginPage() {
         <Card className="border-border bg-card shadow-lg p-2">
           <CardHeader className="space-y-3 text-center pb-6">
             <div className="flex justify-center mb-2">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-3xl shadow-sm ring-4 ring-background">
-                e
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-3xl shadow-sm ring-4 ring-background bg-gradient-to-br from-indigo-500 to-primary">
+                <Briefcase className="h-8 w-8" />
               </div>
             </div>
             <CardTitle className="text-3xl font-bold tracking-tight text-foreground">

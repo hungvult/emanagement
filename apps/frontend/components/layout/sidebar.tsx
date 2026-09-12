@@ -12,6 +12,7 @@ import {
   FileText,
   AlertTriangle,
   UserCircle,
+  Briefcase,
 } from "lucide-react";
 
 export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
@@ -67,10 +68,10 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
     <>
       <div className="flex h-16 items-center border-b border-border px-6 shrink-0">
         <div className="flex items-center gap-3 font-bold text-xl text-foreground">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            e
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm bg-gradient-to-br from-indigo-500 to-primary">
+            <Briefcase className="h-5 w-5" />
           </div>
-          <span>Management</span>
+          <span className="tracking-tight">eManagement</span>
         </div>
       </div>
       
