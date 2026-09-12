@@ -13,6 +13,7 @@ import {
   Shield,
   HelpCircle,
   ArrowRight,
+  Briefcase,
 } from "lucide-react";
 import { useAuth } from "../hooks/use-auth";
 import { LiveAttendanceModal } from "../components/attendance/live-attendance-modal";
@@ -57,8 +58,8 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-extrabold text-xl shadow-md shadow-primary/20">
-              e
+            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-extrabold text-xl shadow-md shadow-primary/20 bg-gradient-to-br from-indigo-500 to-primary">
+              <Briefcase className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
             <div>
               <div className="flex items-center gap-2">
