@@ -220,19 +220,19 @@ const useToastManager = ToastPrimitive.useToastManager
 function useToast() {
   return {
     success: (message: string) => {
-      (toast as any).create({
+      (toast as any).add({
         description: message,
         type: "success",
       });
     },
     error: (message: string) => {
-      (toast as any).create({
+      (toast as any).add({
         description: message,
         type: "error",
       });
     },
     info: (message: string) => {
-      (toast as any).create({
+      (toast as any).add({
         description: message,
         type: "info",
       });
