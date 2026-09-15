@@ -434,14 +434,14 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
       />
 
       {/* Main Luxury Modal Card */}
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-[#111622]/95 border border-white/10 text-white shadow-2xl flex flex-col z-10">
+      <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white border border-slate-200 text-slate-900 shadow-2xl flex flex-col z-10">
         {/* Top Minimalist Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
           <div>
-            <h3 className="text-base font-semibold text-white tracking-tight">
+            <h3 className="text-base font-semibold text-slate-900 tracking-tight">
               Xác thực khuôn mặt
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {employeeName} • {employeeCode}
             </p>
           </div>
@@ -449,18 +449,18 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleToggleMute}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all border border-white/10"
+              className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-all border border-slate-200"
               title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
             >
               {isMuted ? (
-                <VolumeX className="h-4 w-4 text-rose-400" />
+                <VolumeX className="h-4 w-4 text-rose-500" />
               ) : (
-                <Volume2 className="h-4 w-4 text-emerald-400" />
+                <Volume2 className="h-4 w-4 text-emerald-600" />
               )}
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/10"
+              className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-all border border-slate-200"
             >
               <X className="h-4 w-4" />
             </button>
@@ -477,10 +477,10 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
                 key={`${step.id}-${idx}`}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   isDone
-                    ? "w-8 bg-emerald-400"
+                    ? "w-8 bg-emerald-500"
                     : isCur
-                    ? "w-10 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
-                    : "w-6 bg-white/15"
+                    ? "w-10 bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]"
+                    : "w-6 bg-slate-200"
                 }`}
               />
             );
@@ -495,8 +495,8 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             <div
               className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 isHoldingPose
-                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                  : "bg-white/5 text-slate-200 border border-white/10"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                  : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
             >
               {isHoldingPose && (
@@ -522,7 +522,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
                 cy="50"
                 r="46"
                 fill="none"
-                stroke="rgba(255, 255, 255, 0.08)"
+                stroke="#e2e8f0"
                 strokeWidth="3"
               />
               {/* Animated Progress ring */}
@@ -531,7 +531,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
                 cy="50"
                 r="46"
                 fill="none"
-                stroke={isDoneAll || isHoldingPose ? "#10b981" : "rgba(255, 255, 255, 0.4)"}
+                stroke={isDoneAll || isHoldingPose ? "#10b981" : "#cbd5e1"}
                 strokeWidth="3.5"
                 strokeDasharray="289"
                 strokeDashoffset={289 - (289 * stepProgress) / 100}
@@ -549,17 +549,17 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             {!isHoldingPose && !isDoneAll && isCameraActive && (
               <>
                 {currentStep.direction === "left" && (
-                  <div className="absolute -left-3 z-30 flex items-center p-2 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 animate-pulse shadow-lg">
+                  <div className="absolute -left-3 z-30 flex items-center p-2 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-600 animate-pulse shadow-lg">
                     <ArrowLeft className="h-5 w-5" />
                   </div>
                 )}
                 {currentStep.direction === "right" && (
-                  <div className="absolute -right-3 z-30 flex items-center p-2 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 animate-pulse shadow-lg">
+                  <div className="absolute -right-3 z-30 flex items-center p-2 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-600 animate-pulse shadow-lg">
                     <ArrowRight className="h-5 w-5" />
                   </div>
                 )}
                 {currentStep.direction === "up" && (
-                  <div className="absolute -top-3 z-30 flex items-center p-2 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 animate-pulse shadow-lg">
+                  <div className="absolute -top-3 z-30 flex items-center p-2 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-600 animate-pulse shadow-lg">
                     <ArrowUp className="h-5 w-5" />
                   </div>
                 )}
@@ -568,12 +568,12 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
             {/* Circular Video Frame */}
             <div
-              className={`relative w-[230px] h-[230px] sm:w-[260px] sm:h-[260px] rounded-full overflow-hidden bg-black flex items-center justify-center border-2 transition-all duration-300 z-10 ${
+              className={`relative w-[230px] h-[230px] sm:w-[260px] sm:h-[260px] rounded-full overflow-hidden bg-slate-100 flex items-center justify-center border-2 transition-all duration-300 z-10 ${
                 isDoneAll
-                  ? "border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.5)]"
+                  ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.4)]"
                   : isHoldingPose
-                  ? "border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.6)]"
-                  : "border-white/15"
+                  ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+                  : "border-slate-200"
               }`}
             >
               {/* Shutter Flash Animation */}
@@ -594,15 +594,15 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
               {/* Loading State */}
               {!isCameraActive && !cameraError && (
-                <div className="flex flex-col items-center gap-2 text-slate-400">
-                  <Camera className="h-8 w-8 text-slate-300 animate-pulse" />
+                <div className="flex flex-col items-center gap-2 text-slate-500">
+                  <Camera className="h-8 w-8 text-slate-400 animate-pulse" />
                   <p className="text-xs">Đang mở máy ảnh...</p>
                 </div>
               )}
 
               {/* Error State */}
               {cameraError && (
-                <div className="flex flex-col items-center gap-2 text-rose-400 p-4 text-center">
+                <div className="flex flex-col items-center gap-2 text-rose-600 p-4 text-center">
                   <p className="text-xs">{cameraError}</p>
                   <Button
                     size="sm"
@@ -617,11 +617,11 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
               {/* Done Completion Overlay */}
               {isDoneAll && (
-                <div className="absolute inset-0 bg-emerald-950/85 backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-in zoom-in-95 duration-200 z-30">
-                  <div className="h-14 w-14 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-300 shadow-lg">
+                <div className="absolute inset-0 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center gap-2 animate-in zoom-in-95 duration-200 z-30">
+                  <div className="h-14 w-14 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-600 shadow-lg">
                     <CheckCircle2 className="h-8 w-8" />
                   </div>
-                  <p className="text-sm font-semibold text-emerald-200">
+                  <p className="text-sm font-semibold text-emerald-700">
                     Xác thực hoàn tất
                   </p>
                 </div>
@@ -635,7 +635,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
               {capturedImages.map((img, idx) => (
                 <div
                   key={idx}
-                  className="h-10 w-10 rounded-full border border-emerald-400/50 overflow-hidden bg-slate-800 shadow-sm"
+                  className="h-10 w-10 rounded-full border border-emerald-500 overflow-hidden bg-slate-100 shadow-sm"
                 >
                   <img
                     src={img}
@@ -647,7 +647,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
               {Array.from({ length: 5 - capturedImages.length }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-10 w-10 rounded-full border border-dashed border-white/15 flex items-center justify-center text-[10px] text-slate-500"
+                  className="h-10 w-10 rounded-full border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-[10px] text-slate-400"
                 >
                   {capturedImages.length + i + 1}
                 </div>
@@ -657,14 +657,14 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
         </div>
 
         {/* Bottom Actions Bar */}
-        <div className="px-6 py-4 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={handleRestart}
             disabled={capturedImages.length === 0}
-            className="text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1.5"
+            className="text-slate-600 hover:text-slate-900 text-xs flex items-center gap-1.5"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Quét lại
           </Button>
@@ -674,7 +674,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             size="sm"
             onClick={() => onCompleteAll(capturedImages)}
             disabled={capturedImages.length < EKYC_STEPS.length}
-            className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-4 text-xs shadow-lg shadow-emerald-500/20"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 text-xs shadow-lg shadow-emerald-500/30"
           >
             <Sparkles className="h-3.5 w-3.5 mr-1" />
             Hoàn tất ({capturedImages.length}/5)
