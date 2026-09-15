@@ -66,18 +66,20 @@ class ArcFaceRecognizer:
 
 
 class ModelRegistry:
-    """Giữ instance detector (YuNet) và recognizer (SFace) dùng chung."""
+    """Giữ instance detector (YuNet), recognizer (SFace) và anti-spoof (MiniFASNet) dùng chung."""
 
     def __init__(self) -> None:
         self._detector: Optional[Any] = None
         self._recognizer: Optional[Any] = None
+        self._anti_spoof: Optional[Any] = None
         self._detector_lock = threading.Lock()
         self._recognizer_lock = threading.Lock()
+        self._anti_spoof_lock = threading.Lock()
         self.load_error: Optional[str] = None
 
     @property
     def is_ready(self) -> bool:
-        return self._detector is not None and self._recognizer is not None
+        return self._detector is not None and self._recognizer is not None and self._anti_spoof is not None
 
     @property
     def detector_ready(self) -> bool:
@@ -87,12 +89,17 @@ class ModelRegistry:
     def recognizer_ready(self) -> bool:
         return self._recognizer is not None
 
+    @property
+    def anti_spoof_ready(self) -> bool:
+        return self._anti_spoof is not None
+
     def load(self) -> None:
-        """Nạp cả 2 model. Không raise: lỗi được ghi vào load_error."""
+        """Nạp cả 3 model. Không raise: lỗi được ghi vào load_error."""
         errors: list[str] = []
 
         det_path = resolve_model_path(settings.DETECTOR_MODEL_PATH)
         rec_path = resolve_model_path(settings.RECOGNIZER_MODEL_PATH)
+        spoof_path = resolve_model_path(settings.ANTI_SPOOF_MODEL_PATH)
 
         try:
             self._detector = self._create_detector(det_path)
@@ -109,6 +116,14 @@ class ModelRegistry:
             self._recognizer = None
             errors.append(f"recognizer: {exc}")
             logger.error(f"Không nạp được face recognizer từ {rec_path}: {exc}")
+
+        try:
+            self._anti_spoof = self._create_anti_spoof(spoof_path)
+            logger.info(f"Nạp anti-spoof MiniFASNet thành công: {spoof_path}")
+        except Exception as exc:
+            self._anti_spoof = None
+            errors.append(f"anti_spoof: {exc}")
+            logger.error(f"Không nạp được anti-spoof model từ {spoof_path}: {exc}")
 
         self.load_error = "; ".join(errors) if errors else None
         if self.load_error:
@@ -166,6 +181,17 @@ class ModelRegistry:
             raise RuntimeError("Face recognizer chưa được nạp")
         with self._recognizer_lock:
             return self._recognizer.feature(aligned_face)
+
+    def _create_anti_spoof(self, path: Path) -> Any:
+        self._require_file(path)
+        return cv2.dnn.readNetFromONNX(str(path))
+
+    def predict_anti_spoof(self, blob: Any) -> Any:
+        if self._anti_spoof is None:
+            raise RuntimeError("Anti-spoof model chưa được nạp")
+        with self._anti_spoof_lock:
+            self._anti_spoof.setInput(blob)
+            return self._anti_spoof.forward()
 
 
 model_registry = ModelRegistry()

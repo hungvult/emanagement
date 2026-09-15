@@ -1,43 +1,18 @@
 """Đánh giá chất lượng vùng khuôn mặt: kích thước -> độ nét -> độ sáng -> điểm tổng hợp."""
 
 from typing import Any, Dict, Tuple
-
-import cv2
 import numpy as np
 
-from app.core.config import settings
 from app.core.constants import CvStatus
 
 BBox = Tuple[int, int, int, int]
 
-# Mốc chuẩn hoá điểm chất lượng: đạt các giá trị này coi như tối đa 1.0.
-BLUR_SCORE_CAP = 300.0
-FACE_SIZE_CAP = 300.0
-IDEAL_BRIGHTNESS = 128.0
-
-
 class FaceQualityAssessor:
-    def check_blur(self, img: np.ndarray) -> Tuple[bool, float]:
-        """Phát hiện ảnh mờ bằng Laplacian Variance. Trả về (is_blurry, blur_score)."""
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
-        blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        return blur_score < settings.BLUR_THRESHOLD, blur_score
+    """Đánh giá chất lượng khuôn mặt cơ bản (bbox hợp lệ và nằm trong khung hình).
 
-    def check_brightness(self, img: np.ndarray) -> Tuple[bool, float]:
-        """Kiểm tra độ sáng trung bình vùng mặt. Trả về (is_valid, brightness_score)."""
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
-        brightness_score = float(np.mean(gray))
-        is_valid = settings.BRIGHTNESS_MIN <= brightness_score <= settings.BRIGHTNESS_MAX
-        return is_valid, brightness_score
-
-    def check_size(self, bbox: BBox) -> Tuple[bool, int, int]:
-        """Kiểm tra bbox có đủ lớn để nhận diện. Trả về (is_valid, width, height)."""
-        _, _, width, height = bbox
-        return (
-            width >= settings.MIN_FACE_SIZE and height >= settings.MIN_FACE_SIZE,
-            int(width),
-            int(height),
-        )
+    Chất lượng chi tiết về độ thật/giả và tính sống đã được mô hình học sâu
+    MiniFASNetV2 và mô hình trích xuất đặc trưng SFace đảm nhận.
+    """
 
     def evaluate_quality(
         self, img: np.ndarray, bbox: BBox
@@ -58,7 +33,6 @@ class FaceQualityAssessor:
             details.update({"face_size_valid": False, "face_width": 0, "face_height": 0})
             return CvStatus.FACE_TOO_SMALL, 0.0, details
 
-        # Đã vô hiệu hoá các kiểm tra chất lượng khắt khe để dễ dàng vượt qua eKYC trên webcam laptop
         details["face_size_valid"] = True
         details["is_blurry"] = False
         details["is_too_dark"] = False

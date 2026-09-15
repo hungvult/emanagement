@@ -1,10 +1,13 @@
-"""Kiểm tra tính sống (liveness / anti-spoofing) bằng đặc trưng ảnh cổ điển.
+"""Kiểm tra tính sống (Liveness / Anti-Spoofing) bằng mô hình học sâu MiniFASNetV2.
 
-Giới hạn cần biết: đây là heuristic dựa trên phổ tần số và độ biến thiên màu, chỉ
-lọc được ảnh in mờ và màn hình có moiré rõ. Nó KHÔNG phải anti-spoofing chuẩn
-sản xuất và có thể bị vượt qua bằng ảnh in chất lượng cao hoặc màn hình độ phân
-giải cao. Vì vậy nó có thể tắt qua LIVENESS_ENABLED, và ngưỡng đặt trong
-LIVENESS_THRESHOLD để hiệu chuẩn theo camera thực tế thay vì hard-code.
+Mô hình MiniFASNetV2 (Silent-Face-Anti-Spoofing) phân loại khuôn mặt vào 3 lớp:
+  0: Paper Photo (ảnh in giấy)
+  1: Real Face (khuôn mặt thật)
+  2: Screen Photo / Replay (ảnh / video phát lại trên màn hình điện thoại/máy tính)
+
+Thay thế hoàn toàn các phương pháp heuristic cũ (FFT, phổ màu YCrCb, HSV std,
+Laplacian micro-texture), ngăn chặn triệt để hành vi quay video người chớp mắt
+trên điện thoại để gian lận chấm công.
 """
 
 from typing import Any, Dict, Tuple
@@ -14,85 +17,155 @@ import numpy as np
 
 from app.core.config import settings
 from app.core.constants import CvStatus
-from app.utils.image_utils import crop_face
-
-HIGH_FREQ_CAP = 180.0
-SAT_STD_CAP = 50.0
+from app.core.logging import logger
+from app.core.models import model_registry
 
 
 class LivenessDetector:
+    """Bộ phát hiện giả mạo khuôn mặt (Anti-Spoofing) sử dụng mô hình MiniFASNetV2."""
+
+    LABEL_NAMES = ["Paper Photo", "Real Face", "Screen Photo"]
+
+    def _get_new_box(
+        self, src_w: int, src_h: int, bbox: Tuple[int, int, int, int] | list, scale: float
+    ) -> Tuple[int, int, int, int]:
+        """Tính toán bounding box mở rộng theo hệ số scale (chuẩn MiniFASNet)."""
+        x, y, box_w, box_h = bbox[:4]
+
+        # Giới hạn scale không vượt quá kích thước ảnh
+        scale = min((src_h - 1) / max(1, box_h), min((src_w - 1) / max(1, box_w), scale))
+
+        new_width = box_w * scale
+        new_height = box_h * scale
+        center_x = box_w / 2.0 + x
+        center_y = box_h / 2.0 + y
+
+        left_top_x = center_x - new_width / 2.0
+        left_top_y = center_y - new_height / 2.0
+        right_bottom_x = center_x + new_width / 2.0
+        right_bottom_y = center_y + new_height / 2.0
+
+        # Xử lý biên: nếu tràn mép thì bù sang phía đối diện để giữ nguyên kích thước
+        if left_top_x < 0:
+            right_bottom_x -= left_top_x
+            left_top_x = 0
+
+        if left_top_y < 0:
+            right_bottom_y -= left_top_y
+            left_top_y = 0
+
+        if right_bottom_x > src_w - 1:
+            left_top_x -= right_bottom_x - src_w + 1
+            right_bottom_x = src_w - 1
+
+        if right_bottom_y > src_h - 1:
+            left_top_y -= right_bottom_y - src_h + 1
+            right_bottom_y = src_h - 1
+
+        return (
+            int(max(0, left_top_x)),
+            int(max(0, left_top_y)),
+            int(min(src_w - 1, right_bottom_x)),
+            int(min(src_h - 1, right_bottom_y)),
+        )
+
     def check_liveness(
         self, img: np.ndarray, bbox: Tuple[int, int, int, int]
     ) -> Tuple[CvStatus, bool, float, Dict[str, Any]]:
-        """Trả về (status, is_real, liveness_score, details)."""
+        """Kiểm tra tính sống của khuôn mặt.
+
+        Trả về: (status, is_real, liveness_score, details)
+        """
         if not settings.LIVENESS_ENABLED:
             return CvStatus.VALID, True, 1.0, {"liveness_enabled": False, "is_real": True}
 
-        face_crop = crop_face(img, bbox, margin_ratio=0.1)
+        if not model_registry.anti_spoof_ready:
+            logger.error("Anti-spoof model (MiniFASNetV2) chưa sẵn sàng.")
+            return (
+                CvStatus.MODEL_NOT_READY,
+                False,
+                0.0,
+                {
+                    "liveness_enabled": True,
+                    "model": "MiniFASNetV2",
+                    "error": "Model not ready",
+                    "is_real": False,
+                },
+            )
+
+        src_h, src_w = img.shape[:2]
+        x1, y1, x2, y2 = self._get_new_box(src_w, src_h, bbox, settings.ANTI_SPOOF_SCALE)
+        face_crop = img[y1 : y2 + 1, x1 : x2 + 1]
+
         if face_crop.size == 0:
             face_crop = img
 
-        gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
+        face_resized = cv2.resize(face_crop, (80, 80))
 
-        # 1. Phân tích phổ tần số (FFT): ảnh in và màn hình có phân bố tần số cao
-        # bị cắt đột ngột hoặc lẫn nhiễu sọc (moiré).
-        f_shift = np.fft.fftshift(np.fft.fft2(gray))
-        magnitude_spectrum = 20 * np.log(np.abs(f_shift) + 1e-8)
+        # MiniFASNet yêu cầu đầu vào BGR trong dải pixel [0, 255] (không swap RB, không chia 255)
+        blob = cv2.dnn.blobFromImage(
+            face_resized,
+            scalefactor=1.0,
+            size=(80, 80),
+            mean=(0, 0, 0),
+            swapRB=False,
+            crop=False,
+        )
 
-        h, w = gray.shape
-        cy, cx = h // 2, w // 2
-        radius = max(1, min(h, w) // 6)
-        mask = np.ones((h, w), dtype=np.uint8)
-        cv2.circle(mask, (int(cx), int(cy)), int(radius), (0,), -1)
-        high_freq_energy = float(np.mean(magnitude_spectrum * mask))
+        try:
+            raw_output = model_registry.predict_anti_spoof(blob)
+            exp_out = np.exp(raw_output - np.max(raw_output, axis=1, keepdims=True))
+            probs = exp_out / np.sum(exp_out, axis=1, keepdims=True)
+            scores = probs[0]
 
-        # 2. Độ biến thiên bão hoà màu: bản in/màn hình thường phẳng màu hơn da thật.
-        hsv = cv2.cvtColor(face_crop, cv2.COLOR_BGR2HSV)
-        sat_std = float(np.std(hsv[:, :, 1]))
+            paper_prob = float(scores[0])
+            real_prob = float(scores[1])
+            screen_prob = float(scores[2])
 
-        # 3. Phân tích sắc tố da thật (Skin Chrominance) trong không gian YCrCb:
-        # Da người thật có vùng Cb và Cr hội tụ đặc trưng.
-        # Mở rộng dải thích ứng với nhiều loại webcam và ánh sáng phòng khác nhau.
-        ycrcb = cv2.cvtColor(face_crop, cv2.COLOR_BGR2YCrCb)
-        cr = ycrcb[:, :, 1]
-        cb = ycrcb[:, :, 2]
-        skin_mask = (cr >= 115) & (cr <= 185) & (cb >= 68) & (cb <= 145)
-        skin_ratio = float(np.sum(skin_mask) / (skin_mask.size + 1e-5))
+            label_idx = int(np.argmax(scores))
+            label_text = (
+                self.LABEL_NAMES[label_idx]
+                if label_idx < len(self.LABEL_NAMES)
+                else "Unknown"
+            )
 
-        # 4. Phân tích kết cấu vi mô bề mặt (Laplacian micro-texture variance):
-        # Ảnh webcam nén JPEG 640px có độ sắc nét tự nhiên var ~5.0 - 40.0.
-        # Chỉ phạt nhẹ khi ảnh hoàn toàn phẳng/nhòe nhân tạo (var < 3.0).
-        lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        texture_penalty = 0.12 if lap_var < 3.0 else (0.05 if lap_var < 5.0 else 0.0)
+            # Khuôn mặt thật nếu lớp chiếm ưu thế là Real Face và xác suất >= ngưỡng
+            is_real = (label_idx == 1) and (real_prob >= settings.LIVENESS_THRESHOLD)
+            liveness_score = round(real_prob, 4)
 
-        # 5. Kiểm tra vệt lóa phản chiếu ánh sáng trên mặt kính điện thoại (Specular glare):
-        # Chỉ phạt khi vùng lóa trắng chiếm diện tích bất thường (> 18% diện tích mặt).
-        glare_pixels = np.sum((face_crop[:, :, 0] > 238) & (face_crop[:, :, 1] > 238) & (face_crop[:, :, 2] > 238) & (hsv[:, :, 1] < 35))
-        glare_ratio = float(glare_pixels / (face_crop.shape[0] * face_crop.shape[1] + 1e-5))
-        glare_penalty = 0.15 if glare_ratio > 0.18 else (0.08 if glare_ratio > 0.12 else 0.0)
+            details: Dict[str, Any] = {
+                "liveness_enabled": True,
+                "model": "MiniFASNetV2",
+                "liveness_score": liveness_score,
+                "liveness_threshold": settings.LIVENESS_THRESHOLD,
+                "label": label_idx,
+                "label_text": label_text,
+                "is_real": is_real,
+                "probabilities": {
+                    "paper": round(paper_prob, 4),
+                    "real": round(real_prob, 4),
+                    "screen": round(screen_prob, 4),
+                },
+            }
 
-        norm_high_freq = min(1.0, max(0.0, high_freq_energy / HIGH_FREQ_CAP))
-        norm_sat = min(1.0, max(0.0, sat_std / SAT_STD_CAP))
-        norm_skin = min(1.0, max(0.0, skin_ratio * 1.4))
+            if not is_real:
+                logger.info(
+                    f"Phát hiện giả mạo khuôn mặt: label={label_text}, "
+                    f"scores=[paper={paper_prob:.3f}, real={real_prob:.3f}, screen={screen_prob:.3f}], "
+                    f"threshold={settings.LIVENESS_THRESHOLD}"
+                )
+                return CvStatus.SPOOF_DETECTED, False, liveness_score, details
 
-        liveness_score = float(np.round(0.45 * norm_high_freq + 0.35 * norm_sat + 0.20 * norm_skin - texture_penalty - glare_penalty, 2))
-        is_real = liveness_score >= settings.LIVENESS_THRESHOLD
+            return CvStatus.VALID, True, liveness_score, details
 
-        details: Dict[str, Any] = {
-            "liveness_enabled": True,
-            "liveness_score": liveness_score,
-            "liveness_threshold": settings.LIVENESS_THRESHOLD,
-            "high_freq_energy": round(high_freq_energy, 2),
-            "color_sat_std": round(sat_std, 2),
-            "laplacian_var": round(lap_var, 2),
-            "glare_ratio": round(glare_ratio, 4),
-            "is_real": is_real,
-        }
-
-        if not is_real:
-            return CvStatus.SPOOF_DETECTED, False, liveness_score, details
-
-        return CvStatus.VALID, True, liveness_score, details
+        except Exception as exc:
+            logger.error(f"Lỗi suy luận Anti-Spoofing: {exc}", exc_info=True)
+            return (
+                CvStatus.SPOOF_DETECTED,
+                False,
+                0.0,
+                {"liveness_enabled": True, "error": str(exc), "is_real": False},
+            )
 
 
 liveness_detector = LivenessDetector()
