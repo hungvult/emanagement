@@ -180,25 +180,11 @@ export default function EmployeesPage() {
       // ignore error if face data doesn't exist
     }
 
-    const token = localStorage.getItem("access_token");
+    // Gửi toàn bộ 5 ảnh của chuỗi eKYC lên CV-Service qua service layer để kiểm tra và lưu vector
+    const data = await employeeService.enrollFaceWithAi(ekycEmployee.id, allImages);
 
-    // Gửi toàn bộ 5 ảnh của chuỗi eKYC lên CV-Service để kiểm tra tính đồng nhất khuôn mặt và lưu vector
-    const response = await fetch("http://localhost:8000/api/v1/cv/enroll", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        userId: ekycEmployee.id,
-        images: allImages,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || data.status !== "ENROLLMENT_SUCCESS") {
-      throw new Error(data.message || "Lỗi khi xử lý khuôn mặt từ AI");
+    if (!data || data.status !== "ENROLLMENT_SUCCESS") {
+      throw new Error(data?.message || "Lỗi khi xử lý khuôn mặt từ AI");
     }
 
     success("Đăng ký khuôn mặt eKYC 5 bước thành công!");
@@ -206,7 +192,7 @@ export default function EmployeesPage() {
     fetchEmployees(page);
   };
 
-  const filteredEmployees = employees.filter((emp) => {
+  const filteredEmployees = employees.filter((emp: EmployeeResponse) => {
     const term = searchTerm.toLowerCase();
     return (
       emp.fullName?.toLowerCase().includes(term) ||
@@ -270,7 +256,7 @@ export default function EmployeesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredEmployees.map((emp) => (
+                  filteredEmployees.map((emp: EmployeeResponse) => (
                     <TableRow key={emp.id}>
                       <TableCell className="font-medium">{emp.employeeCode}</TableCell>
                       <TableCell>

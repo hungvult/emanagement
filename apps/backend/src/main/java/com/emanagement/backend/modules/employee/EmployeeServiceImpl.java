@@ -19,10 +19,8 @@ import com.emanagement.backend.modules.employee.dto.EmployeeResponseDto;
 import com.emanagement.backend.modules.employee.dto.EmployeeUpdateDto;
 import com.emanagement.backend.modules.employee.dto.LiveEkycEnrollDto;
 import com.emanagement.backend.modules.employee.dto.LiveEkycEnrollResponseDto;
-import com.emanagement.backend.modules.face.AiFaceService;
 import com.emanagement.backend.modules.face.FaceData;
 import com.emanagement.backend.modules.face.FaceDataRepository;
-import com.emanagement.backend.modules.face.dto.AiEnrollResponseDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,14 +36,15 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final FaceDataRepository faceDataRepository;
-    private final AiFaceService aiFaceService;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final com.emanagement.backend.modules.face.FaceCandidateCacheService faceCandidateCacheService;
 
     @Override
     @Transactional
     public EmployeeResponseDto createEmployee(EmployeeCreateDto dto) {
-        // 1. Bắt buộc hệ thống tự sinh mã nhân viên chuẩn doanh nghiệp: EMP + Năm(2 số) + 4 số STT (Ví dụ: EMP260001)
+        // 1. Bắt buộc hệ thống tự sinh mã nhân viên chuẩn doanh nghiệp: EMP + Năm(2 số)
+        // + 4 số STT (Ví dụ: EMP260001)
         String generatedEmployeeCode = CodeGeneratorUtils.generateEmployeeCode(
                 code -> userRepository.findByEmployeeCode(code).isPresent());
 
@@ -58,7 +57,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 throw new BusinessException("Email đã tồn tại trên hệ thống");
             }
             if (!emailService.verifyEmailDomainExists(email)) {
-                throw new BusinessException("Tên miền của email (" + email + ") không tồn tại trên thực tế hoặc không thể nhận mail.");
+                throw new BusinessException(
+                        "Tên miền của email (" + email + ") không tồn tại trên thực tế hoặc không thể nhận mail.");
             }
         }
 
@@ -84,7 +84,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         // 4. Nếu có email, tự động gửi thông báo chào mừng
         if (created.getEmail() != null && !created.getEmail().isBlank()) {
             try {
-                emailService.sendWelcomeEmail(created.getEmail(), created.getFullName(), created.getEmployeeCode(), dto.getPassword());
+                emailService.sendWelcomeEmail(created.getEmail(), created.getFullName(), created.getEmployeeCode(),
+                        dto.getPassword());
             } catch (Exception e) {
                 log.warn("Không thể gửi email chào mừng tới {}: {}", created.getEmail(), e.getMessage());
             }
@@ -143,6 +144,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
         userRepository.delete(user);
+        faceCandidateCacheService.evictCache();
     }
 
     @Override
@@ -151,6 +153,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
         faceDataRepository.deleteByUserId(user.getId());
+        faceCandidateCacheService.evictCache();
     }
 
     @Override
@@ -174,6 +177,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         newFace.setUser(user);
         newFace.setFaceVector(dto.getFaceVector().toString());
         faceDataRepository.save(newFace);
+        faceCandidateCacheService.evictCache();
 
         return LiveEkycEnrollResponseDto.builder()
                 .userId(user.getId())

@@ -36,5 +36,22 @@ export const employeeService = {
   deleteFaceData: (id: number): Promise<ApiResponse<void>> => {
     return apiClient.delete<void>(`/employees/${id}/face`);
   },
+
+  enrollFaceWithAi: async (userId: number, images: string[]): Promise<any> => {
+    const aiBaseUrl = process.env.NEXT_PUBLIC_AI_API_URL || "http://localhost:8000";
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    const res = await fetch(`${aiBaseUrl}/api/v1/cv/enroll`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        userId,
+        images,
+      }),
+    });
+    return res.json();
+  },
 };
 

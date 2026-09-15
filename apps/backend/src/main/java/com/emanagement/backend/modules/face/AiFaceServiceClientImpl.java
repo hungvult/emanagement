@@ -38,7 +38,10 @@ public class AiFaceServiceClientImpl implements AiFaceService {
             @Value("${ai-service.base-url:http://localhost:8000}") String baseUrl,
             @Value("${ai-service.enroll-endpoint:/api/v1/cv/enroll}") String enrollEndpoint,
             @Value("${ai-service.recognize-endpoint:/api/v1/cv/recognize}") String recognizeEndpoint) {
-        this.restTemplate = new RestTemplate();
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000); // 3 giây timeout kết nối
+        factory.setReadTimeout(8000); // 8 giây timeout chờ AI inference
+        this.restTemplate = new RestTemplate(factory);
         this.baseUrl = baseUrl;
         this.enrollEndpoint = enrollEndpoint;
         this.recognizeEndpoint = recognizeEndpoint;
@@ -58,7 +61,8 @@ public class AiFaceServiceClientImpl implements AiFaceService {
                     url,
                     HttpMethod.POST,
                     entity,
-                    new ParameterizedTypeReference<AiApiResponse<AiEnrollResponseDto>>() {});
+                    new ParameterizedTypeReference<AiApiResponse<AiEnrollResponseDto>>() {
+                    });
 
             AiApiResponse<AiEnrollResponseDto> body = response.getBody();
             if (body != null && body.isSuccess() && body.getData() != null) {
@@ -89,7 +93,8 @@ public class AiFaceServiceClientImpl implements AiFaceService {
                     url,
                     HttpMethod.POST,
                     entity,
-                    new ParameterizedTypeReference<AiApiResponse<AiRecognizeResponseDto>>() {});
+                    new ParameterizedTypeReference<AiApiResponse<AiRecognizeResponseDto>>() {
+                    });
 
             AiApiResponse<AiRecognizeResponseDto> body = response.getBody();
             if (body != null && body.getData() != null) {

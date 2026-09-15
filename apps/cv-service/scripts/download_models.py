@@ -26,9 +26,16 @@ MODEL_CHECKSUMS: dict[str, str] = {
 }
 
 BASE_URL = "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models"
+HF_BASE_URL = "https://huggingface.co/opencv"
 MODELS = {
-    "face_detection_yunet_2023mar.onnx": f"{BASE_URL}/face_detection_yunet/face_detection_yunet_2023mar.onnx",
-    "face_recognition_sface_2021dec.onnx": f"{BASE_URL}/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+    "face_detection_yunet_2023mar.onnx": [
+        f"{BASE_URL}/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+        f"{HF_BASE_URL}/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx",
+    ],
+    "face_recognition_sface_2021dec.onnx": [
+        f"{HF_BASE_URL}/face_recognition_sface/resolve/main/face_recognition_sface_2021dec.onnx",
+        f"{BASE_URL}/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+    ],
 }
 WEIGHTS_DIR = SERVICE_ROOT / "weights"
 
@@ -41,7 +48,7 @@ def sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download(filename: str, url: str) -> bool:
+def download(filename: str, urls: str | list[str]) -> bool:
     target = WEIGHTS_DIR / filename
     expected = MODEL_CHECKSUMS[filename]
 
@@ -49,30 +56,33 @@ def download(filename: str, url: str) -> bool:
         print(f"[OK] {filename} đã có sẵn và đúng checksum.")
         return True
 
-    print(f"[..] Đang tải {filename} ...")
+    url_list = [urls] if isinstance(urls, str) else urls
     tmp = target.with_suffix(target.suffix + ".part")
-    try:
-        with urllib.request.urlopen(url, timeout=120) as response, tmp.open("wb") as out:
-            while True:
-                chunk = response.read(1024 * 256)
-                if not chunk:
-                    break
-                out.write(chunk)
-    except Exception as exc:  # noqa: BLE001
-        tmp.unlink(missing_ok=True)
-        print(f"[LỖI] Không tải được {filename}: {exc}")
-        return False
 
-    actual = sha256_of(tmp)
-    if actual != expected:
+    for url in url_list:
+        print(f"[..] Đang tải {filename} từ {url[:50]}... ...")
         tmp.unlink(missing_ok=True)
-        print(f"[LỖI] Checksum {filename} không khớp.\n  mong đợi: {expected}\n  thực tế : {actual}")
-        return False
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=120) as response, tmp.open("wb") as out:
+                while True:
+                    chunk = response.read(1024 * 256)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+            actual = sha256_of(tmp)
+            if actual == expected:
+                tmp.replace(target)
+                size_mb = target.stat().st_size / (1024 * 1024)
+                print(f"[OK] {filename} ({size_mb:.1f} MB) - tải thành công và checksum khớp.")
+                return True
+            print(f"[CẢNH BÁO] Checksum {filename} không khớp từ {url}, đang thử mirror tiếp theo...")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[CẢNH BÁO] Không tải được {filename} từ {url}: {exc}")
 
-    tmp.replace(target)
-    size_mb = target.stat().st_size / (1024 * 1024)
-    print(f"[OK] {filename} ({size_mb:.1f} MB) - checksum khớp.")
-    return True
+    tmp.unlink(missing_ok=True)
+    print(f"[LỖI] Đã thử tất cả mirror nhưng không tải được {filename}.")
+    return False
 
 
 def main() -> int:
