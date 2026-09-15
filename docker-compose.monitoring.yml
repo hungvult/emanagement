@@ -1,0 +1,76 @@
+# ==============================================================================
+# HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG GIÁM SÁT (PROMETHEUS & GRAFANA)
+# ==============================================================================
+# Điều kiện tiên quyết:
+# - Môi trường Backend (dev hoặc prod) phải đang chạy để khởi tạo network chung:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# 1. Khởi chạy hệ thống giám sát (Prometheus & Grafana chạy nền):
+#    docker compose -f docker-compose.monitoring.yml up -d
+#
+# 2. Theo dõi log tiến trình scrape và dashboard:
+#    docker compose -f docker-compose.monitoring.yml logs -f
+#
+# 3. Dừng hệ thống giám sát:
+#    docker compose -f docker-compose.monitoring.yml down
+#
+# 4. Kiểm tra trạng thái hoạt động:
+#    - Grafana Dashboard: http://localhost:3001 (User: admin / Mật khẩu: admin)
+#    - Prometheus Web UI: http://localhost:9090
+#    - Scrape Targets   : http://localhost:9090/targets (Target "spring-boot-backend" trạng thái UP)
+#    - Backend Metrics  : http://localhost:8080/actuator/prometheus
+#
+# Cơ chế hoạt động:
+# - Chạy độc lập, kết nối vào external network "emanagement_emanagement-net".
+# - Prometheus scrape metrics từ backend:8080 và lưu trữ tại volume "prometheus_data".
+# - Grafana tự động nạp Prometheus datasource và dashboard Spring Boot/JVM qua provisioning.
+# ==============================================================================
+
+name: emanagement-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: emanagement-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - emanagement-net
+
+  grafana:
+    image: grafana/grafana-oss:10.4.1
+    container_name: emanagement-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - emanagement-net
+
+networks:
+  emanagement-net:
+    name: emanagement_emanagement-net
+    external: true
+
+volumes:
+  prometheus_data:
+  grafana_data:

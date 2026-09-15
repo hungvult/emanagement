@@ -144,8 +144,8 @@ export default function ShiftsPage() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-text-primary">Quản lý Ca làm việc</h1>
-            <p className="text-text-secondary">Tạo danh mục ca làm việc và phân bổ lịch trực cho nhân sự.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Quản lý Ca làm việc</h1>
+            <p className="text-muted-foreground">Tạo danh mục ca làm việc và phân bổ lịch trực cho nhân sự.</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -168,33 +168,33 @@ export default function ShiftsPage() {
           <div className="flex justify-center py-8">
             <div className="animate-pulse flex gap-4 w-full flex-wrap">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-40 w-full md:w-1/3 bg-bg-tertiary rounded-md" />
+                <div key={i} className="h-40 w-full md:w-1/3 bg-muted rounded-md" />
               ))}
             </div>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {shifts.length === 0 ? (
-              <p className="col-span-full text-text-secondary">Chưa có dữ liệu ca làm việc.</p>
+              <p className="col-span-full text-muted-foreground">Chưa có dữ liệu ca làm việc.</p>
             ) : (
               shifts.map((shift) => (
-                <Card key={shift.id} className="hover:border-accent/50 transition-colors shadow-sm">
+                <Card key={shift.id} className="hover:border-primary/50 transition-colors shadow-sm bg-card border-border">
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg text-text-primary">{shift.name}</CardTitle>
+                      <CardTitle className="text-lg text-foreground">{shift.name}</CardTitle>
                       <Badge variant="outline">{shift.shiftCode}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center gap-3 text-text-secondary">
-                      <div className="bg-bg-tertiary p-2 rounded-full">
-                        <Clock className="h-5 w-5 text-accent" />
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                      <div className="bg-primary/10 p-2 rounded-lg">
+                        <Clock className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex flex-col">
-                        <span className="font-medium text-text-primary">
+                        <span className="font-medium text-foreground">
                           {shift.startTime} - {shift.endTime}
                         </span>
-                        <span className="text-sm text-text-secondary">
+                        <span className="text-sm text-muted-foreground">
                           Cho phép trễ tối đa: <strong>{shift.gracePeriodMinutes}</strong> phút
                         </span>
                       </div>
@@ -265,9 +265,9 @@ export default function ShiftsPage() {
         >
           <form onSubmit={handleAssignSubmit} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-text-secondary">Chọn nhân viên *</label>
+              <label className="text-sm font-medium text-foreground">Chọn nhân viên *</label>
               <select
-                className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 value={assignForm.userId}
                 onChange={(e) => setAssignForm({ ...assignForm, userId: e.target.value })}
                 required
@@ -282,9 +282,9 @@ export default function ShiftsPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-text-secondary">Chọn ca làm việc *</label>
+              <label className="text-sm font-medium text-foreground">Chọn ca làm việc *</label>
               <select
-                className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 value={assignForm.shiftId}
                 onChange={(e) => setAssignForm({ ...assignForm, shiftId: e.target.value })}
                 required

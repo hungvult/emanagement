@@ -300,23 +300,23 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/85 backdrop-blur-xl transition-opacity"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-[#0e131f] border border-cyan-500/30 text-white shadow-[0_0_80px_rgba(6,182,212,0.25)] flex flex-col z-10">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-card border border-border text-foreground shadow-xl flex flex-col z-10">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-slate-900">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/50">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
               <Zap className="h-5 w-5 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-white">
+              <h3 className="text-base font-semibold text-foreground">
                 Chấm công Face ID Trực tuyến
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Nhận diện sinh trắc học AI tự động
               </p>
             </div>
@@ -329,18 +329,18 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 setIsMuted(nextMuted);
                 ekycAudio.setMuted(nextMuted);
               }}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all border border-white/10"
+              className="p-2 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-all border border-border"
               title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
             >
               {isMuted ? (
-                <VolumeX className="h-4 w-4 text-rose-400" />
+                <VolumeX className="h-4 w-4 text-destructive" />
               ) : (
-                <Volume2 className="h-4 w-4 text-cyan-400 animate-pulse" />
+                <Volume2 className="h-4 w-4 text-primary animate-pulse" />
               )}
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/10"
+              className="p-2 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-all border border-border"
             >
               <X className="h-4 w-4" />
             </button>
@@ -348,7 +348,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         </div>
 
         {/* Camera Scanner View */}
-        <div className="relative p-6 flex flex-col items-center justify-center bg-radial from-slate-900 to-[#070b14]">
+        <div className="relative p-6 flex flex-col items-center justify-center bg-card">
           {/* Flash */}
           {isFlashing && (
             <div className="absolute inset-0 bg-white z-40 pointer-events-none animate-out fade-out duration-200" />
@@ -360,10 +360,10 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
             <div
               className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${
                 scanResult
-                  ? "border-emerald-400 shadow-[0_0_35px_rgba(16,185,129,0.7)]"
+                  ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
                   : errorMessage
-                  ? "border-rose-500 shadow-[0_0_25px_rgba(244,63,94,0.5)]"
-                  : "border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.3)] animate-pulse"
+                  ? "border-destructive shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+                  : "border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.2)] animate-pulse"
               }`}
             />
 
@@ -381,20 +381,20 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
               {/* Laser Scan Line */}
               {isCameraActive && !scanResult && (
-                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_15px_#06b6d4] animate-bounce pointer-events-none opacity-80" />
+                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_15px_rgba(79,70,229,0.8)] animate-bounce pointer-events-none opacity-80" />
               )}
 
               {/* Loading State */}
               {!isCameraActive && !cameraError && (
-                <div className="flex flex-col items-center gap-2 text-slate-400">
-                  <Camera className="h-8 w-8 text-cyan-400 animate-pulse" />
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <Camera className="h-8 w-8 text-primary animate-pulse" />
                   <p className="text-xs">Đang mở máy ảnh...</p>
                 </div>
               )}
 
               {/* Error State */}
               {cameraError && (
-                <div className="flex flex-col items-center gap-2 text-rose-400 p-4 text-center">
+                <div className="flex flex-col items-center gap-2 text-destructive p-4 text-center">
                   <p className="text-xs">{cameraError}</p>
                   <Button
                     size="sm"
@@ -412,38 +412,38 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
           {/* Result Card or Guidance */}
           <div className="w-full max-w-sm mt-5 text-center">
             {scanResult ? (
-              <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 shadow-[0_0_30px_rgba(16,185,129,0.3)] animate-in zoom-in-95 duration-200">
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 shadow-sm animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-400 animate-bounce" />
-                  <span className="text-base font-bold text-white">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600 animate-bounce" />
+                  <span className="text-base font-bold text-emerald-800">
                     {scanResult.checkType === "CHECK_IN" ? "CHECK-IN THÀNH CÔNG" : "CHECK-OUT THÀNH CÔNG"}
                   </span>
                 </div>
-                <div className="text-sm font-semibold text-white">
+                <div className="text-sm font-semibold text-emerald-900">
                   {scanResult.fullName} ({scanResult.employeeCode})
                 </div>
-                <div className="mt-1 flex items-center justify-center gap-3 text-xs text-emerald-300">
+                <div className="mt-1 flex items-center justify-center gap-3 text-xs text-emerald-700">
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
                     {new Date(scanResult.checkTime).toLocaleTimeString("vi-VN")}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 font-semibold border border-emerald-400/30">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 font-semibold border border-emerald-500/30">
                     {scanResult.attendanceStatus === "ON_TIME" ? "Đúng giờ" : "Đi muộn"}
                   </span>
                 </div>
               </div>
             ) : errorMessage ? (
-              <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/40 text-rose-200 text-xs flex items-center justify-center gap-2 animate-in shake duration-200">
-                <XCircle className="h-4 w-4 text-rose-400 flex-shrink-0" />
+              <div className="p-3 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center justify-center gap-2 animate-in shake duration-200">
+                <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
                 <span>{errorMessage}</span>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2.5 py-1">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-medium shadow-sm">
-                  <Eye className="h-3.5 w-3.5 text-cyan-400" />
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium shadow-sm">
+                  <Eye className="h-3.5 w-3.5 text-primary" />
                   <span>Xác thực tính sống AI (Liveness Detection)</span>
                 </div>
-                <p className="text-xs text-slate-300 font-medium tracking-wide">
+                <p className="text-xs text-muted-foreground font-medium tracking-wide">
                   {promptMessage}
                 </p>
               </div>

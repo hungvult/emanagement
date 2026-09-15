@@ -87,20 +87,20 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg-primary px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
       
-      <Card className="w-full max-w-md relative z-10 border-border/50 bg-bg-secondary/60 backdrop-blur-xl shadow-2xl">
+      <Card className="w-full max-w-md relative z-10 border-border bg-card shadow-2xl p-2">
         <CardHeader className="space-y-1">
           <div className="flex items-center gap-2 mb-2">
-            <Link href="/login" className="text-text-secondary hover:text-text-primary transition-colors">
+            <Link href="/login" className="text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <CardTitle className="text-2xl font-bold tracking-tight text-text-primary">
+            <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
               Quên mật khẩu
             </CardTitle>
           </div>
-          <p className="text-sm text-text-secondary">
+          <p className="text-sm text-muted-foreground">
             {step === 1 && "Nhập Email, SĐT hoặc Mã NV để nhận mã xác thực OTP"}
             {step === 2 && `Nhập mã OTP đã gửi tới ${identifier} và thiết lập mật khẩu mới`}
           </p>
@@ -124,9 +124,9 @@ export default function ForgotPasswordPage() {
 
           {step === 2 && (
             <form onSubmit={handleResetPassword} className="space-y-4">
-              <div className="rounded-md bg-accent/10 p-3 border border-accent/20 mb-2">
-                <p className="text-xs text-text-primary flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-accent" />
+              <div className="rounded-md bg-primary/10 p-3 border border-primary/20 mb-2">
+                <p className="text-xs text-foreground flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
                   Mã OTP 6 số đã được gửi đến <strong>{identifier}</strong>
                 </p>
               </div>

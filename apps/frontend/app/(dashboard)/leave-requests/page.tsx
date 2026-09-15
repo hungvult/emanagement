@@ -129,17 +129,17 @@ export default function LeaveRequestsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {isAdmin ? "Quản lý đơn phép" : "Đơn phép của tôi"}
           </h1>
-          <p className="text-text-secondary">
+          <p className="text-muted-foreground">
             {isAdmin ? "Xét duyệt đơn xin nghỉ phép của nhân viên." : "Tạo và theo dõi đơn xin nghỉ phép."}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
             <select
-              className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
@@ -164,7 +164,7 @@ export default function LeaveRequestsPage() {
         <div className="flex justify-center py-8">
           <div className="animate-pulse space-y-4 w-full">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-12 bg-bg-tertiary rounded-md" />
+              <div key={i} className="h-12 bg-muted rounded-md" />
             ))}
           </div>
         </div>
@@ -186,7 +186,7 @@ export default function LeaveRequestsPage() {
             <TableBody>
               {requests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 8 : 6} className="text-center py-8 text-text-secondary">
+                  <TableCell colSpan={isAdmin ? 8 : 6} className="text-center py-8 text-muted-foreground">
                     Không có dữ liệu đơn phép
                   </TableCell>
                 </TableRow>
@@ -195,8 +195,8 @@ export default function LeaveRequestsPage() {
                   <TableRow key={req.id}>
                     {isAdmin && (
                       <TableCell>
-                        <div className="font-medium text-text-primary">{req.fullName}</div>
-                        <div className="text-xs text-text-secondary">{req.employeeCode}</div>
+                        <div className="font-medium text-foreground">{req.fullName}</div>
+                        <div className="text-xs text-muted-foreground">{req.employeeCode}</div>
                       </TableCell>
                     )}
                     <TableCell className="font-medium">{req.startDate}</TableCell>
@@ -215,10 +215,10 @@ export default function LeaveRequestsPage() {
                          req.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-text-secondary">
+                    <TableCell className="text-muted-foreground">
                       {req.approvedByName || "—"}
                     </TableCell>
-                    <TableCell className="text-text-secondary text-xs">
+                    <TableCell className="text-muted-foreground text-xs">
                       {req.createdAt ? formatDateTime(req.createdAt).split(" ")[0] : "—"}
                     </TableCell>
                     {isAdmin && (
@@ -245,7 +245,7 @@ export default function LeaveRequestsPage() {
                             </Button>
                           </div>
                         ) : (
-                          <span className="text-xs text-text-secondary">Đã xử lý</span>
+                          <span className="text-xs text-muted-foreground">Đã xử lý</span>
                         )}
                       </TableCell>
                     )}
@@ -289,9 +289,9 @@ export default function LeaveRequestsPage() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-text-secondary">Lý do xin nghỉ *</label>
+            <label className="text-sm font-medium text-muted-foreground">Lý do xin nghỉ *</label>
             <textarea
-              className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent min-h-[100px]"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[100px]"
               placeholder="VD: Nghỉ phép cá nhân giải quyết việc gia đình..."
               value={createForm.reason}
               onChange={(e) => setCreateForm({ ...createForm, reason: e.target.value })}
