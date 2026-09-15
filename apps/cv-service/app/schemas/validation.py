@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 class ValidateFrameRequest(BaseModel):
     image: str = Field(..., description="Chuỗi Base64 của camera frame cần kiểm tra")
+    check_pose: bool = Field(default=True, description="Có kiểm tra góc nghiêng đầu chính diện hay không")
 
 
 class PoseDto(BaseModel):

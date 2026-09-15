@@ -14,9 +14,11 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     SPRING_BOOT_URL: str = "http://localhost:8080"
 
-    # Đường dẫn model ONNX (OpenCV Zoo). Tải bằng: python scripts/download_models.py
+    # Đường dẫn model ONNX (OpenCV Zoo & MiniFASNet). Tải bằng: python scripts/download_models.py
     DETECTOR_MODEL_PATH: str = "weights/face_detection_yunet_2023mar.onnx"
     RECOGNIZER_MODEL_PATH: str = "weights/face_recognition_sface_2021dec.onnx"
+    ANTI_SPOOF_MODEL_PATH: str = "weights/2.7_80x80_MiniFASNetV2.onnx"
+    ANTI_SPOOF_SCALE: float = 2.7
 
     # YuNet detector
     DETECTOR_SCORE_THRESHOLD: float = 0.8
@@ -45,8 +47,8 @@ class Settings(BaseSettings):
     # cách mỗi cạnh CENTER_MARGIN_RATIO * chiều tương ứng.
     CENTER_MARGIN_RATIO: float = 0.2
 
-    # Liveness (passive, heuristic - xem docstring liveness_service)
-    LIVENESS_THRESHOLD: float = 0.35
+    # Liveness Anti-Spoofing (Deep Learning MiniFASNetV2)
+    LIVENESS_THRESHOLD: float = 0.60
     LIVENESS_ENABLED: bool = True
 
     # Enrollment (yêu cầu gửi đủ 5 ảnh của chuỗi eKYC)

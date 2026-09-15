@@ -36,7 +36,7 @@ def health_check(response: Response) -> ApiResponse[HealthStatusDto]:
         models={
             "face_detector": _state(model_registry.detector_ready),
             "face_recognizer": _state(model_registry.recognizer_ready),
-            "liveness": "READY" if settings.LIVENESS_ENABLED else "DISABLED",
+            "liveness": _state(model_registry.anti_spoof_ready) if settings.LIVENESS_ENABLED else "DISABLED",
         },
     )
 

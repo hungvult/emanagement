@@ -2,15 +2,33 @@
 
 import * as React from "react"
 import { Toast as ToastPrimitive } from "@base-ui/react/toast"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
 import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const toast = ToastPrimitive.createToastManager()
 
-function ToastProvider({ ...props }: ToastPrimitive.Provider.Props) {
-  return <ToastPrimitive.Provider {...props} />
+// Polyfill .create alias to .add to prevent runtime TypeError
+if (toast && !(toast as any).create) {
+  (toast as any).create = (options: any) => (toast as any).add?.(options);
+}
+
+function ToastProvider({
+  children,
+  toastManager = toast,
+  ...props
+}: ToastPrimitive.Provider.Props) {
+  return (
+    <ToastPrimitive.Provider toastManager={toastManager} {...props}>
+      {children}
+      <ToastPortal>
+        <ToastViewport>
+          <ToastList />
+        </ToastViewport>
+      </ToastPortal>
+    </ToastPrimitive.Provider>
+  )
 }
 
 function ToastPortal({ ...props }: ToastPrimitive.Portal.Props) {
@@ -137,19 +155,19 @@ function ToastIcon({ type }: { type: string | undefined }) {
 
   if (type === "success") {
     icon = (
-      <CircleCheckIcon aria-hidden="true" />
+      <CircleCheckIcon aria-hidden="true" className="text-emerald-500" />
     )
   }
 
   if (type === "info") {
     icon = (
-      <InfoIcon aria-hidden="true" />
+      <InfoIcon aria-hidden="true" className="text-blue-500" />
     )
   }
 
   if (type === "warning") {
     icon = (
-      <TriangleAlertIcon aria-hidden="true" />
+      <TriangleAlertIcon aria-hidden="true" className="text-amber-500" />
     )
   }
 
@@ -187,7 +205,7 @@ function ToastList() {
       <ToastContent>
         <ToastIcon type={toastItem.type} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <ToastTitle />
+          {toastItem.title && <ToastTitle />}
           <ToastDescription />
         </div>
         <ToastAction />
@@ -205,11 +223,6 @@ function Toaster({
   return (
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
-      <ToastPortal>
-        <ToastViewport>
-          <ToastList />
-        </ToastViewport>
-      </ToastPortal>
     </ToastProvider>
   )
 }
@@ -219,22 +232,38 @@ const useToastManager = ToastPrimitive.useToastManager
 
 function useToast() {
   return {
+    toast: (message: string, type: string = "info") => {
+      (toast as any).add?.({
+        description: message,
+        type,
+      });
+    },
     success: (message: string) => {
-      (toast as any).create({
+      (toast as any).add?.({
+        title: "Thành công",
         description: message,
         type: "success",
       });
     },
     error: (message: string) => {
-      (toast as any).create({
+      (toast as any).add?.({
+        title: "Lỗi",
         description: message,
         type: "error",
       });
     },
     info: (message: string) => {
-      (toast as any).create({
+      (toast as any).add?.({
+        title: "Thông báo",
         description: message,
         type: "info",
+      });
+    },
+    warning: (message: string) => {
+      (toast as any).add?.({
+        title: "Cảnh báo",
+        description: message,
+        type: "warning",
       });
     }
   };

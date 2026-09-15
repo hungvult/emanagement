@@ -206,6 +206,25 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
     return captureOptimizedFrame(videoRef.current, 720, 0.88);
   }, []);
 
+  // Restart scan về đầu bước 1
+  const handleRestart = useCallback(() => {
+    noFaceDurationRef.current = 0;
+    faceMismatchDurationRef.current = 0;
+    lastLandmarksRef.current = null;
+    ekycMediaPipe.clearReferenceFace();
+    ekycMediaPipe.resetBlink();
+    setCurrentStepIdx(0);
+    setCapturedImages([]);
+    setStepProgress(0);
+    setIsDoneAll(false);
+    isTransitioningRef.current = false;
+    setIsHoldingPose(false);
+    poseHoldTimeRef.current = 0;
+    lastVoiceTimeRef.current = 0;
+    setPromptMessage(EKYC_STEPS[0].title);
+    ekycAudio.speak("Bắt đầu lại xác thực từ bước 1", true);
+  }, []);
+
   // Step success transition
   const handleStepSuccess = useCallback(async () => {
     if (isTransitioningRef.current) return;
@@ -213,7 +232,42 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
     const frameBase64 = captureCurrentFrame();
     if (frameBase64) {
-      // 1. Chớp sáng và phát âm thanh chụp ảnh
+      // 1. Kiểm tra Anti-Spoofing & tính hợp lệ ngay sau mỗi ảnh quét (cả 5 bước)
+      try {
+        const valResp = await fetch("http://localhost:8000/api/v1/cv/validate-frame", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image: frameBase64,
+            check_pose: currentStepIdx === 0 || currentStepIdx === 1,
+          }),
+        });
+        const valData = await valResp.json();
+        if (valData.status === "SPOOF_DETECTED") {
+          const stepNum = currentStepIdx + 1;
+          const errText = `Phát hiện giả mạo khuôn mặt (ảnh điện thoại/ảnh in) ở bước ${stepNum}!`;
+          setPromptMessage(errText);
+          ekycAudio.speak("Phát hiện giả mạo khuôn mặt, vui lòng quét lại từ đầu", true);
+          setTimeout(() => {
+            handleRestart();
+          }, 2500);
+          return;
+        }
+        if (valData.status && valData.status !== "VALID") {
+          const stepNum = currentStepIdx + 1;
+          const errText = valData.message || `Ảnh ở bước ${stepNum} không hợp lệ! Vui lòng quét lại.`;
+          setPromptMessage(errText);
+          ekycAudio.speak(errText, true);
+          setTimeout(() => {
+            handleRestart();
+          }, 2500);
+          return;
+        }
+      } catch (e) {
+        console.error("Lỗi khi validate-frame:", e);
+      }
+
+      // Chớp sáng và phát âm thanh chụp ảnh
       setIsFlashing(true);
       setTimeout(() => setIsFlashing(false), 200);
       ekycAudio.playShutterSound();
@@ -257,21 +311,20 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             await onCompleteAll(nextList);
           } catch (error: any) {
             setIsDoneAll(false);
-            setPromptMessage(error.message || "Xác thực thất bại! Vui lòng thử lại.");
-            ekycAudio.speak("Có lỗi xảy ra, vui lòng thử lại", true);
+            const errText = error.message || "Xác thực thất bại! Vui lòng quét lại từ đầu.";
+            setPromptMessage(errText);
+            ekycAudio.speak(errText, true);
+            // TỰ ĐỘNG RESET VỀ ĐẦU BƯỚC 1 ĐỂ QUÉT LẠI
             setTimeout(() => {
-              isTransitioningRef.current = false;
-              setIsHoldingPose(false);
-              poseHoldTimeRef.current = 0;
-              setStepProgress(0);
-            }, 3000);
+              handleRestart();
+            }, 2500);
           }
         }, 700);
       }
     } else {
       isTransitioningRef.current = false;
     }
-  }, [captureCurrentFrame, currentStepIdx, onCaptureFrame, capturedImages, onCompleteAll]);
+  }, [captureCurrentFrame, currentStepIdx, onCaptureFrame, capturedImages, onCompleteAll, handleRestart]);
 
   // Real-time 3D Biometric AI Loop
   useEffect(() => {
@@ -407,21 +460,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
     };
   }, [isOpen, isCameraActive, isDoneAll, currentStep.id, handleStepSuccess, currentStepIdx, capturedImages.length]);
 
-  // Restart scan
-  const handleRestart = () => {
-    noFaceDurationRef.current = 0;
-    faceMismatchDurationRef.current = 0;
-    lastLandmarksRef.current = null;
-    ekycMediaPipe.clearReferenceFace();
-    ekycMediaPipe.resetBlink();
-    setCurrentStepIdx(0);
-    setCapturedImages([]);
-    setStepProgress(0);
-    setIsDoneAll(false);
-    isTransitioningRef.current = false;
-    lastVoiceTimeRef.current = 0;
-    ekycAudio.speak("Bắt đầu lại xác thực", true);
-  };
+
 
   if (!isOpen) return null;
 
@@ -672,7 +711,18 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
           <Button
             type="button"
             size="sm"
-            onClick={() => onCompleteAll(capturedImages)}
+            onClick={async () => {
+              try {
+                await onCompleteAll(capturedImages);
+              } catch (err: any) {
+                const errText = err.message || "Xác thực thất bại! Vui lòng quét lại từ đầu.";
+                setPromptMessage(errText);
+                ekycAudio.speak(errText, true);
+                setTimeout(() => {
+                  handleRestart();
+                }, 2500);
+              }
+            }}
             disabled={capturedImages.length < EKYC_STEPS.length}
             className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-4 text-xs shadow-lg shadow-emerald-500/20"
           >

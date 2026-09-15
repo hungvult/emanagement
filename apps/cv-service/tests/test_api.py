@@ -28,6 +28,7 @@ def test_health_reports_model_state(client):
     assert body["data"]["status"] == "UP"
     assert body["data"]["models"]["face_detector"] == "READY"
     assert body["data"]["models"]["face_recognizer"] == "READY"
+    assert body["data"]["models"]["liveness"] == "READY"
 
 
 def test_validate_frame_accepts_good_face(client, face_a):

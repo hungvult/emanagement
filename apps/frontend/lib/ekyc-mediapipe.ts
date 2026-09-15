@@ -111,19 +111,29 @@ export class EkycMediaPipeEngine {
   // Blink State Machine chống giả mạo ảnh tĩnh (tương thích cả người đeo kính và mọi dáng mắt)
   private blinkState: "WAITING_OPEN" | "OPEN_READY" | "CLOSED" | "REOPENED" | "COMPLETED" = "WAITING_OPEN";
   private openEarSamples: number[] = [];
+  private leftOpenEarSamples: number[] = [];
+  private rightOpenEarSamples: number[] = [];
+  private leftBaseline: number = 0.18;
+  private rightBaseline: number = 0.18;
   private baselineOpenEar: number = 0.18;
   private closedTime: number = 0;
   private reopenedTime: number = 0;
   private completedUntil: number = 0;
   private blinkCooldownUntil: number = 0;
+  private blinkHeadPoseRef: { x: number; y: number; yaw: number; pitch: number; roll: number } | null = null;
 
   public resetBlink(): void {
     this.blinkState = "WAITING_OPEN";
     this.openEarSamples = [];
+    this.leftOpenEarSamples = [];
+    this.rightOpenEarSamples = [];
+    this.leftBaseline = 0.18;
+    this.rightBaseline = 0.18;
     this.baselineOpenEar = 0.18;
     this.closedTime = 0;
     this.reopenedTime = 0;
     this.completedUntil = 0;
+    this.blinkHeadPoseRef = null;
     this.blinkCooldownUntil = Date.now() + 600; // 600ms cooldown an toàn khi vừa chuyển bước
   }
 
@@ -386,18 +396,20 @@ export class EkycMediaPipeEngine {
     const smileScore = Math.min(1.0, Math.max(0.0, (mouthRatio - 0.35) * 5.0));
 
     // Eye Aspect Ratio (EAR) for Blink Detection (Chống giả mạo ảnh điện thoại)
-    // Áp dụng công thức Soukupová-Cech chuẩn 2 đoạn thẳng dọc mỗi mắt:
-    // Mắt trái: 160 & 144, 158 & 153, chiều rộng 133 & 33
+    // Đo lường chính xác 3 đoạn thẳng dọc (2 bên mí và tâm con ngươi) để khử nhiễu gọng kính:
+    // Mắt trái: 160 & 144, 159 & 145 (tâm mí), 158 & 153, chiều rộng 133 & 33
     const leftEyeH1 = Math.hypot(lm[160].x - lm[144].x, lm[160].y - lm[144].y);
     const leftEyeH2 = Math.hypot(lm[158].x - lm[153].x, lm[158].y - lm[153].y);
+    const leftEyeH3 = Math.hypot(lm[159].x - lm[145].x, lm[159].y - lm[145].y);
     const leftEyeW = Math.hypot(lm[133].x - lm[33].x, lm[133].y - lm[33].y);
-    const leftEAR = (leftEyeH1 + leftEyeH2) / (2.0 * (leftEyeW + 1e-5));
+    const leftEAR = (leftEyeH1 + 2.0 * leftEyeH3 + leftEyeH2) / (4.0 * (leftEyeW + 1e-5));
 
-    // Mắt phải: 385 & 380, 387 & 373, chiều rộng 263 & 362
+    // Mắt phải: 385 & 380, 386 & 374 (tâm mí), 387 & 373, chiều rộng 263 & 362
     const rightEyeH1 = Math.hypot(lm[385].x - lm[380].x, lm[385].y - lm[380].y);
     const rightEyeH2 = Math.hypot(lm[387].x - lm[373].x, lm[387].y - lm[373].y);
+    const rightEyeH3 = Math.hypot(lm[386].x - lm[374].x, lm[386].y - lm[374].y);
     const rightEyeW = Math.hypot(lm[263].x - lm[362].x, lm[263].y - lm[362].y);
-    const rightEAR = (rightEyeH1 + rightEyeH2) / (2.0 * (rightEyeW + 1e-5));
+    const rightEAR = (rightEyeH1 + 2.0 * rightEyeH3 + rightEyeH2) / (4.0 * (rightEyeW + 1e-5));
 
     const avgEAR = (leftEAR + rightEAR) / 2.0;
 
@@ -457,25 +469,57 @@ export class EkycMediaPipeEngine {
       case "blink": {
         const now = Date.now();
 
-        // 1. Cooldown an toàn ngay sau khi reset / chuyển bước (để người dùng định hình tư thế)
+        // 1. Khóa tư thế đầu (Strict Pose Lock): Bắt buộc mặt phải hướng thẳng camera!
+        // Nghiêm cấm xoay hoặc nghiêng đầu khi chớp mắt.
+        // Khi đeo kính, nếu nghiêng hoặc xoay mặt, gọng kính và góc nhìn nghiêng sẽ làm biến dạng EAR giả lập nhắm mắt.
+        const isPoseCentered =
+          Math.abs(asymmetry) <= 0.08 &&
+          Math.abs(pitch) <= 12 &&
+          Math.abs(roll) <= 9;
+
+        if (!isPoseCentered) {
+          // Nếu đầu bị xoay/nghiêng khi đang chờ hoặc đang nhắm, reset lại chu trình để tránh false-positive
+          if (this.blinkState === "CLOSED" || this.blinkState === "REOPENED") {
+            this.blinkState = "OPEN_READY";
+          }
+          if (Math.abs(asymmetry) > 0.08) {
+            message = "Giữ mặt thẳng, không xoay mặt sang bên";
+          } else if (pitch > 12) {
+            message = "Không cúi đầu, hãy nhìn thẳng vào camera";
+          } else if (pitch < -12) {
+            message = "Không ngửa đầu, hãy nhìn thẳng vào camera";
+          } else {
+            message = "Giữ thẳng đầu, không nghiêng đầu sang bên";
+          }
+          voiceMessage = "Vui lòng nhìn thẳng và giữ yên đầu";
+          break;
+        }
+
+        // 2. Cooldown an toàn ngay sau khi reset / chuyển bước
         if (now < this.blinkCooldownUntil) {
           message = "Vui lòng nhìn vào camera...";
           voiceMessage = "Vui lòng nhìn vào camera";
           break;
         }
 
-        // 2. Thu thập baseline mắt mở tự nhiên (yêu cầu 6 frame ổn định ~ 200ms)
+        // 3. Thu thập baseline mắt mở tự nhiên độc lập cho cả 2 mắt (yêu cầu 8 frame ổn định ~ 250ms)
         if (this.blinkState === "WAITING_OPEN") {
-          if (avgEAR >= 0.08) {
+          if (leftEAR >= 0.08 && rightEAR >= 0.08) {
+            this.leftOpenEarSamples.push(leftEAR);
+            this.rightOpenEarSamples.push(rightEAR);
             this.openEarSamples.push(avgEAR);
-            if (this.openEarSamples.length >= 6) {
-              const sum = this.openEarSamples.reduce((a, b) => a + b, 0);
-              // Baseline được cá nhân hóa theo dáng mắt và kính của người dùng (tối thiểu 0.10)
-              this.baselineOpenEar = Math.max(0.10, sum / this.openEarSamples.length);
+            if (this.openEarSamples.length >= 8) {
+              const sumL = this.leftOpenEarSamples.reduce((a, b) => a + b, 0);
+              const sumR = this.rightOpenEarSamples.reduce((a, b) => a + b, 0);
+              this.leftBaseline = Math.max(0.12, sumL / this.leftOpenEarSamples.length);
+              this.rightBaseline = Math.max(0.12, sumR / this.rightOpenEarSamples.length);
+              this.baselineOpenEar = (this.leftBaseline + this.rightBaseline) / 2.0;
               this.blinkState = "OPEN_READY";
+              this.blinkHeadPoseRef = { x: nose.x, y: nose.y, yaw, pitch, roll };
             }
           } else {
-            // Mắt đang nheo hoặc nhắm trong lúc chuẩn bị, đợi mở ổn định rồi mới lấy mẫu
+            this.leftOpenEarSamples = [];
+            this.rightOpenEarSamples = [];
             this.openEarSamples = [];
           }
           message = "Vui lòng nhìn thẳng và chớp mắt";
@@ -483,20 +527,33 @@ export class EkycMediaPipeEngine {
           break;
         }
 
-        // 3. Trạng thái mắt mở sẵn sàng: Đợi người dùng thực hiện nhắm mắt
+        // 4. Trạng thái mắt mở sẵn sàng: Đợi người dùng thực hiện nhắm mắt thật
         if (this.blinkState === "OPEN_READY") {
-          // Thích ứng nhẹ nếu mắt mở tự nhiên to hơn
-          if (avgEAR > this.baselineOpenEar && avgEAR < 0.40) {
-            this.baselineOpenEar = this.baselineOpenEar * 0.90 + avgEAR * 0.10;
+          // Thích ứng nhẹ nếu mắt mở to hơn tự nhiên
+          if (leftEAR > this.leftBaseline && leftEAR < 0.42) {
+            this.leftBaseline = this.leftBaseline * 0.90 + leftEAR * 0.10;
           }
+          if (rightEAR > this.rightBaseline && rightEAR < 0.42) {
+            this.rightBaseline = this.rightBaseline * 0.90 + rightEAR * 0.10;
+          }
+          this.baselineOpenEar = (this.leftBaseline + this.rightBaseline) / 2.0;
 
-          // Phát hiện mắt nhắm thật (Active Liveness):
-          // YÊU CẦU ĐỒNG THỜI CẢ 2 TIÊU CHÍ (tránh tuyệt đối false-positive trên ảnh tĩnh / mắt mở tự nhiên):
-          // - Tỷ lệ EAR phải sụt giảm ít nhất 24% so với baseline ban đầu
-          // - Độ giảm tuyệt đối phải rõ rệt (drop >= 0.024)
-          const drop = this.baselineOpenEar - avgEAR;
-          const isClosed = drop >= 0.024 && avgEAR <= this.baselineOpenEar * 0.76;
-          if (isClosed) {
+          // Cập nhật vị trí đầu chuẩn khi mắt đang mở
+          this.blinkHeadPoseRef = { x: nose.x, y: nose.y, yaw, pitch, roll };
+
+          // TIÊU CHUẨN NHẮM MẮT THẬT (Bi-ocular Active Blink Verification):
+          // 1. CẢ 2 MẮT đều phải sụt giảm rõ rệt so với baseline của chính mắt đó
+          // 2. Mức sụt giảm phải đạt ít nhất 32% (tức EAR <= baseline * 0.68)
+          // 3. Độ giảm tuyệt đối mỗi mắt drop >= 0.028
+          // 4. Ngăn chặn tuyệt đối việc 1 mắt mở 1 mắt nhắm/bị che gọng kính
+          const dropL = this.leftBaseline - leftEAR;
+          const dropR = this.rightBaseline - rightEAR;
+
+          const isLeftClosed = dropL >= 0.028 && leftEAR <= this.leftBaseline * 0.68;
+          const isRightClosed = dropR >= 0.028 && rightEAR <= this.rightBaseline * 0.68;
+
+          // Bắt buộc cả 2 mắt phải cùng nhắm:
+          if (isLeftClosed && isRightClosed) {
             this.blinkState = "CLOSED";
             this.closedTime = now;
           }
@@ -505,20 +562,36 @@ export class EkycMediaPipeEngine {
           break;
         }
 
-        // 4. Trạng thái mắt đã nhắm: Đợi mắt mở trở lại (hoàn tất chu trình nhắm -> mở)
+        // 5. Trạng thái mắt đã nhắm: Đợi mắt mở trở lại (hoàn tất chu trình nhắm -> mở)
         if (this.blinkState === "CLOSED") {
-          // Nếu nhắm quá lâu (> 1.8s) hoặc ngủ gật -> reset về OPEN_READY
-          if (now - this.closedTime > 1800) {
+          // Kiểm tra đầu có bị di chuyển/lắc trong lúc nhắm mắt hay không
+          if (this.blinkHeadPoseRef) {
+            const shift = Math.hypot(nose.x - this.blinkHeadPoseRef.x, nose.y - this.blinkHeadPoseRef.y);
+            const yawDiff = Math.abs(yaw - this.blinkHeadPoseRef.yaw);
+            const pitchDiff = Math.abs(pitch - this.blinkHeadPoseRef.pitch);
+            if (shift > 0.035 || yawDiff > 7 || pitchDiff > 7) {
+              // Phát hiện đầu dịch chuyển hoặc xoay -> Hủy lượt nhắm do cử động đầu!
+              this.blinkState = "OPEN_READY";
+              this.blinkHeadPoseRef = { x: nose.x, y: nose.y, yaw, pitch, roll };
+              message = "Vui lòng giữ yên đầu và chớp mắt";
+              break;
+            }
+          }
+
+          // Nhắm quá lâu (> 1.6s) -> reset về OPEN_READY
+          if (now - this.closedTime > 1600) {
             this.blinkState = "OPEN_READY";
             break;
           }
 
           // Mắt mở trở lại:
-          // - Phải nhắm mắt tối thiểu 50ms (loại trừ nhiễu rung khung hình camera)
-          // - EAR phục hồi về ít nhất 85% baseline (có vùng trễ hysteresis 0.76 -> 0.85 loại bỏ chập chờn)
+          // - Phải nhắm tối thiểu 60ms (chống nhiễu rung camera)
+          // - CẢ 2 MẮT đều phải phục hồi về ít nhất 82% baseline
           const closedDuration = now - this.closedTime;
-          const isReopened = closedDuration >= 50 && avgEAR >= this.baselineOpenEar * 0.85;
-          if (isReopened) {
+          const leftReopened = leftEAR >= this.leftBaseline * 0.82;
+          const rightReopened = rightEAR >= this.rightBaseline * 0.82;
+
+          if (closedDuration >= 60 && leftReopened && rightReopened) {
             this.blinkState = "REOPENED";
             this.reopenedTime = now;
           }
@@ -527,12 +600,14 @@ export class EkycMediaPipeEngine {
           break;
         }
 
-        // 5. Trạng thái mắt vừa mở lại: Giữ 100ms để mắt mở to hoàn toàn, ảnh chụp sắc nét
+        // 6. Trạng thái mắt vừa mở lại: Giữ 80ms để 2 mắt mở to ổn định
         if (this.blinkState === "REOPENED") {
-          if (now - this.reopenedTime >= 100) {
-            if (avgEAR >= this.baselineOpenEar * 0.80) {
+          if (now - this.reopenedTime >= 80) {
+            const leftFullyOpen = leftEAR >= this.leftBaseline * 0.78;
+            const rightFullyOpen = rightEAR >= this.rightBaseline * 0.78;
+            if (leftFullyOpen && rightFullyOpen) {
               this.blinkState = "COMPLETED";
-              this.completedUntil = now + 2000; // Giữ kết quả trong 2s
+              this.completedUntil = now + 2000;
             } else {
               this.blinkState = "OPEN_READY";
             }
@@ -542,7 +617,7 @@ export class EkycMediaPipeEngine {
           break;
         }
 
-        // 6. Chu trình sinh trắc học đã hoàn tất thành công: Mở -> Nhắm Thật -> Mở Lại To Rõ
+        // 7. Hoàn tất chu trình sinh trắc học: Mở -> Cả 2 mắt nhắm thật mà đầu không lắc -> Mở lại to rõ
         if (this.blinkState === "COMPLETED") {
           if (now > this.completedUntil) {
             this.blinkState = "OPEN_READY";
