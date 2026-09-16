@@ -3,13 +3,16 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
-import { Users, Clock, FileText, AlertTriangle } from "lucide-react";
+import { Users, Clock, FileText, AlertTriangle, Eye, Image as ImageIcon } from "lucide-react";
 import { employeeService } from "../../../services/employee.service";
 import { attendanceService } from "../../../services/attendance.service";
 import { leaveService } from "../../../services/leave.service";
 import { alertService } from "../../../services/alert.service";
 import { formatDateTime } from "../../../lib/utils";
 import { Badge } from "../../../components/ui/badge";
+import { Button } from "../../../components/ui/button";
+import { Modal } from "../../../components/ui/modal";
+import { AttendanceHistory } from "../../../types/attendance.types";
 
 export default function DashboardPage() {
   const { user, hasRole } = useAuth();
@@ -22,7 +25,8 @@ export default function DashboardPage() {
     unresolvedAlerts: 0,
   });
 
-  const [recentAttendance, setRecentAttendance] = useState<any[]>([]);
+  const [recentAttendance, setRecentAttendance] = useState<AttendanceHistory[]>([]);
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceHistory | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -151,14 +155,29 @@ export default function DashboardPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge 
-                        variant={
-                          record.status === 'ON_TIME' ? 'success' : 
-                          record.status === 'LATE' ? 'warning' : 'danger'
-                        }
-                      >
-                        {record.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {(record.snapshotUrl || record.checkoutSnapshotUrl) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedRecord(record)}
+                            className="text-accent hover:bg-accent/10 flex items-center gap-1 h-7 text-xs font-medium px-2"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> Xem ảnh
+                            {record.snapshotUrl && record.checkoutSnapshotUrl && (
+                              <span className="px-1 py-0.2 rounded text-[10px] bg-primary/20 text-primary font-semibold">2</span>
+                            )}
+                          </Button>
+                        )}
+                        <Badge 
+                          variant={
+                            record.status === 'ON_TIME' ? 'success' : 
+                            record.status === 'LATE' ? 'warning' : 'danger'
+                          }
+                        >
+                          {record.status}
+                        </Badge>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -172,6 +191,92 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
+
+      {/* Modal Preview Snapshot đối soát ảnh Vào/Ra ca */}
+      <Modal
+        isOpen={!!selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+        title={`Ảnh đối soát chấm công: ${selectedRecord?.fullName || user?.fullName || ""} (${selectedRecord?.employeeCode || user?.employeeCode || ""})`}
+      >
+        {selectedRecord && (
+          <div className="flex flex-col space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Khung ảnh vào ca */}
+              <div className="flex flex-col space-y-2 rounded-xl border border-border p-3.5 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Ảnh vào ca (Check-in)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {selectedRecord.checkInTime ? formatDateTime(selectedRecord.checkInTime) : "—"}
+                  </span>
+                </div>
+                <div className="relative aspect-video w-full rounded-lg bg-black/5 dark:bg-black/30 overflow-hidden border border-border flex items-center justify-center">
+                  {selectedRecord.snapshotUrl ? (
+                    <img
+                      src={selectedRecord.snapshotUrl}
+                      alt="Ảnh Check-in"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                      <ImageIcon className="h-8 w-8 opacity-40" />
+                      <span className="text-xs">Không có ảnh</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Khung ảnh ra ca */}
+              <div className="flex flex-col space-y-2 rounded-xl border border-border p-3.5 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Ảnh ra ca (Check-out)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {selectedRecord.checkOutTime ? formatDateTime(selectedRecord.checkOutTime) : "Chưa chấm công ra"}
+                  </span>
+                </div>
+                <div className="relative aspect-video w-full rounded-lg bg-black/5 dark:bg-black/30 overflow-hidden border border-border flex items-center justify-center">
+                  {selectedRecord.checkoutSnapshotUrl ? (
+                    <img
+                      src={selectedRecord.checkoutSnapshotUrl}
+                      alt="Ảnh Check-out"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                      <ImageIcon className="h-8 w-8 opacity-40" />
+                      <span className="text-xs">
+                        {selectedRecord.checkOutTime ? "Không có ảnh" : "Chưa hoàn thành ca"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                Trạm: <strong className="text-foreground">{selectedRecord.kioskName}</strong> | Trạng thái:{" "}
+                <strong className={
+                  selectedRecord.status === 'ON_TIME' ? 'text-emerald-600 dark:text-emerald-400' :
+                  selectedRecord.status === 'LATE' ? 'text-amber-500' : 'text-rose-500'
+                }>
+                  {selectedRecord.status === 'ON_TIME' ? 'Đúng giờ' :
+                   selectedRecord.status === 'LATE' ? 'Đi muộn' :
+                   selectedRecord.status === 'EARLY_LEAVE' ? 'Về sớm' : selectedRecord.status}
+                </strong>
+              </span>
+              <Button variant="secondary" size="sm" onClick={() => setSelectedRecord(null)}>
+                Đóng
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

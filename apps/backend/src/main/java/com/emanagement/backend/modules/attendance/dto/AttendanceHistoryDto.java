@@ -39,6 +39,9 @@ public class AttendanceHistoryDto {
     @Schema(description = "Trạng thái chấm công: ON_TIME (Đúng giờ), LATE (Đi muộn), EARLY_LEAVE (Về sớm)", example = "ON_TIME")
     private String status;
 
-    @Schema(description = "Ảnh chụp bằng chứng nhận diện từ camera trạm", example = "minio://attendance/checkin_EMP260001_1724482800.jpg")
+    @Schema(description = "Ảnh chụp bằng chứng nhận diện từ camera trạm lúc vào ca", example = "minio://attendance/checkin_EMP260001_1724482800.jpg")
     private String snapshotUrl;
+
+    @Schema(description = "Ảnh chụp bằng chứng nhận diện từ camera trạm lúc ra ca", example = "minio://attendance/checkout_EMP260001_1724482800.jpg")
+    private String checkoutSnapshotUrl;
 }

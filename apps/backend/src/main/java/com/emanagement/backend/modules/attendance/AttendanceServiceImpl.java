@@ -44,6 +44,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .checkOutTime(record.getCheckOutTime())
                 .status(record.getStatus())
                 .snapshotUrl(record.getSnapshotUrl())
+                .checkoutSnapshotUrl(record.getCheckoutSnapshotUrl())
                 .build();
     }
 }
