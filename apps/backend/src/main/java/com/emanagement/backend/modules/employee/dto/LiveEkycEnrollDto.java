@@ -21,4 +21,6 @@ public class LiveEkycEnrollDto {
 
     @NotEmpty(message = "Vector khuôn mặt không được để trống")
     private List<Double> faceVector;
+
+    private List<String> images;
 }

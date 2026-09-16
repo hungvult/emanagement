@@ -11,7 +11,9 @@ import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.common.exception.BusinessException;
 import com.emanagement.backend.common.exception.ResourceNotFoundException;
 import com.emanagement.backend.common.service.EmailService;
+import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.common.util.CodeGeneratorUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.emanagement.backend.modules.auth.Role;
 import com.emanagement.backend.modules.auth.RoleRepository;
 import com.emanagement.backend.modules.employee.dto.EmployeeCreateDto;
@@ -27,6 +29,7 @@ import com.emanagement.backend.modules.face.dto.AiEnrollResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,6 +44,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final AiFaceService aiFaceService;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final StorageService storageService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
@@ -142,6 +147,13 @@ public class EmployeeServiceImpl implements EmployeeService {
     public void deleteEmployee(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+
+        // Xóa ảnh eKYC của nhân viên trên MinIO nếu có
+        List<FaceData> existingFaces = faceDataRepository.findByUserId(user.getId());
+        for (FaceData face : existingFaces) {
+            deleteMinioImagesForFace(face);
+        }
+
         userRepository.delete(user);
     }
 
@@ -150,6 +162,14 @@ public class EmployeeServiceImpl implements EmployeeService {
     public void deleteFaceData(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+
+        // 1. Xóa các file ảnh eKYC trên MinIO
+        List<FaceData> existingFaces = faceDataRepository.findByUserId(user.getId());
+        for (FaceData face : existingFaces) {
+            deleteMinioImagesForFace(face);
+        }
+
+        // 2. Xóa bản ghi trong Database
         faceDataRepository.deleteByUserId(user.getId());
     }
 
@@ -167,12 +187,45 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException("Dữ liệu vector khuôn mặt không hợp lệ.");
         }
 
-        // Xóa vector cũ của nhân viên để tránh lưu trùng lặp hoặc lẫn lộn nhiều người
+        // Xóa vector cũ và ảnh cũ của nhân viên trên MinIO để tránh lưu trùng lặp hoặc lẫn lộn nhiều người
+        List<FaceData> oldFaces = faceDataRepository.findByUserId(user.getId());
+        for (FaceData oldFace : oldFaces) {
+            deleteMinioImagesForFace(oldFace);
+        }
         faceDataRepository.deleteByUserId(user.getId());
 
         FaceData newFace = new FaceData();
         newFace.setUser(user);
         newFace.setFaceVector(dto.getFaceVector().toString());
+
+        // Lưu 5 ảnh đăng ký vào MinIO và lưu danh sách link URL vào database
+        if (dto.getImages() != null && !dto.getImages().isEmpty()) {
+            List<String> uploadedUrls = new ArrayList<>();
+            String[] stepNames = { "front", "blink", "left", "right", "up" };
+            for (int i = 0; i < dto.getImages().size(); i++) {
+                String base64Img = dto.getImages().get(i);
+                if (base64Img != null && !base64Img.isBlank()) {
+                    String step = i < stepNames.length ? stepNames[i] : ("step" + (i + 1));
+                    String prefix = "ekyc_" + user.getEmployeeCode() + "_" + step;
+                    try {
+                        String url = storageService.uploadBase64Image(base64Img, "faces", prefix);
+                        uploadedUrls.add(url);
+                    } catch (Exception e) {
+                        log.warn("Không thể lưu ảnh eKYC bước {} cho nhân viên {}: {}", step, user.getEmployeeCode(), e.getMessage());
+                    }
+                }
+            }
+
+            if (!uploadedUrls.isEmpty()) {
+                try {
+                    newFace.setImageSnapshotUrl(objectMapper.writeValueAsString(uploadedUrls));
+                } catch (Exception e) {
+                    log.error("Lỗi parse JSON danh sách URL ảnh eKYC: {}", e.getMessage());
+                    newFace.setImageSnapshotUrl(uploadedUrls.get(0));
+                }
+            }
+        }
+
         faceDataRepository.save(newFace);
 
         return LiveEkycEnrollResponseDto.builder()
@@ -201,5 +254,35 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .hasRegisteredFace(hasFace)
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    private void deleteMinioImagesForFace(FaceData face) {
+        if (face == null || face.getImageSnapshotUrl() == null || face.getImageSnapshotUrl().isBlank()) {
+            return;
+        }
+        String urlData = face.getImageSnapshotUrl().trim();
+        List<String> urlsToDelete = new ArrayList<>();
+        if (urlData.startsWith("[") && urlData.endsWith("]")) {
+            try {
+                List<String> list = objectMapper.readValue(
+                        urlData,
+                        new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}
+                );
+                urlsToDelete.addAll(list);
+            } catch (Exception e) {
+                log.warn("Không thể parse JSON danh sách URL ảnh để xóa: {}", e.getMessage());
+                urlsToDelete.add(urlData);
+            }
+        } else {
+            urlsToDelete.add(urlData);
+        }
+
+        for (String url : urlsToDelete) {
+            try {
+                storageService.deleteImageByUrl(url);
+            } catch (Exception e) {
+                log.warn("Lỗi khi xóa ảnh trên MinIO ({}): {}", url, e.getMessage());
+            }
+        }
     }
 }
