@@ -6,13 +6,15 @@ import {
   CheckCircle2,
   XCircle,
   X,
-  RefreshCw,
   Clock,
-  UserCheck,
   Zap,
   Volume2,
   VolumeX,
   Eye,
+  Moon,
+  Sun,
+  Sparkles,
+  Activity,
 } from "lucide-react";
 import { kioskService } from "../../services/kiosk.service";
 import { KioskCheckInResponse } from "../../types/kiosk.types";
@@ -25,6 +27,10 @@ interface LiveAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const IDLE_TIMEOUT_MS = 6000; // 6 giây không thấy người thì tự động ngủ
+const SLEEP_INTERVAL_MS = 750; // Khi ngủ: chỉ quét nhẹ nhàng mỗi 750ms để tiết kiệm CPU/GPU
+const ACTIVE_INTERVAL_MS = 45; // Khi thức: quét tốc độ cao 45ms để bắt kịp khuôn mặt
 
 export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   isOpen,
@@ -42,12 +48,51 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   );
   const [isFaceDetected, setIsFaceDetected] = useState<boolean>(false);
 
+  // Smart Standby / Sleep & Wake-up State
+  const [isAutoSleepEnabled, setIsAutoSleepEnabled] = useState<boolean>(true);
+  const [isSleepModeActive, setIsSleepModeActive] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<string>("");
+  const [currentDate, setCurrentDate] = useState<string>("");
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const isProcessingRef = useRef<boolean>(false);
   const steadyCountRef = useRef<number>(0);
   const lastVoiceTimeRef = useRef<number>(0);
+  const lastFaceSeenTimeRef = useRef<number>(Date.now());
+  const isSleepingRef = useRef<boolean>(false);
+
+  // Đồng bộ ref với state để tránh stale closure trong requestAnimationFrame
+  useEffect(() => {
+    isSleepingRef.current = isSleepModeActive;
+  }, [isSleepModeActive]);
+
+  // Đồng hồ thời gian thực cho màn hình chờ Standby
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date();
+      setCurrentTime(
+        now.toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      );
+      setCurrentDate(
+        now.toLocaleDateString("vi-VN", {
+          weekday: "long",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })
+      );
+    };
+
+    updateClock();
+    const timer = setInterval(updateClock, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Stop camera & loops
   const stopCamera = useCallback(() => {
@@ -65,6 +110,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     setIsCameraActive(false);
     isProcessingRef.current = false;
     steadyCountRef.current = 0;
+    setIsSleepModeActive(false);
     ekycAudio.stopSpeaking();
   }, []);
 
@@ -85,6 +131,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
       streamRef.current = stream;
       setIsCameraActive(true);
+      lastFaceSeenTimeRef.current = Date.now();
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -99,6 +146,26 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     }
   }, []);
 
+  // Đánh thức hệ thống (Wake Up)
+  const wakeUp = useCallback(() => {
+    setIsSleepModeActive(false);
+    isSleepingRef.current = false;
+    lastFaceSeenTimeRef.current = Date.now();
+    steadyCountRef.current = 0;
+    setPromptMessage("Vui lòng nhìn thẳng vào camera để chấm công");
+    ekycAudio.playWakeUpSound();
+    ekycAudio.speak("Xin chào, vui lòng nhìn thẳng vào camera", true);
+  }, []);
+
+  // Đưa hệ thống vào chế độ ngủ (Go To Sleep)
+  const goToSleep = useCallback(() => {
+    setIsSleepModeActive(true);
+    isSleepingRef.current = true;
+    setIsFaceDetected(false);
+    steadyCountRef.current = 0;
+    setPromptMessage("Hệ thống đang ở chế độ chờ tiết kiệm điện");
+  }, []);
+
   // Capture current frame (optimized resolution & quality)
   const captureFrame = useCallback((): string | null => {
     return captureOptimizedFrame(videoRef.current);
@@ -111,6 +178,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     ekycMediaPipe.resetBlink();
     isProcessingRef.current = false;
     steadyCountRef.current = 0;
+    lastFaceSeenTimeRef.current = Date.now();
     setPromptMessage("Vui lòng nhìn thẳng vào camera để chấm công");
   }, []);
 
@@ -164,6 +232,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
       ekycAudio.speak(spokenError);
     } finally {
       setIsScanning(false);
+      lastFaceSeenTimeRef.current = Date.now();
       // Giữ kết quả hiển thị 3.5 giây rồi tự động reset cho người tiếp theo
       setTimeout(() => {
         handleReset();
@@ -181,6 +250,8 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
       isProcessingRef.current = false;
       steadyCountRef.current = 0;
       lastVoiceTimeRef.current = 0;
+      lastFaceSeenTimeRef.current = Date.now();
+      setIsSleepModeActive(false);
       setPromptMessage("Vui lòng nhìn thẳng vào camera để chấm công");
       startCamera();
     } else {
@@ -203,7 +274,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     }
   }, [isOpen, isCameraActive]);
 
-  // Real-time Fast Check-in Loop: Nhìn thẳng tự động chấm công trong 1 giây (Passive Anti-Spoofing MiniFASNet)
+  // Real-time Fast Check-in Loop with Smart Auto-Sleep & Wake-Up
   useEffect(() => {
     if (!isOpen || !isCameraActive) return;
 
@@ -215,10 +286,11 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
       const now = performance.now();
       const delta = now - lastTime;
+      const currentlySleeping = isSleepingRef.current;
+      const targetInterval = currentlySleeping ? SLEEP_INTERVAL_MS : ACTIVE_INTERVAL_MS;
 
-      // Xử lý mỗi ~45ms
       if (
-        delta >= 45 &&
+        delta >= targetInterval &&
         videoRef.current &&
         !isProcessingRef.current &&
         !scanResult &&
@@ -229,61 +301,81 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           try {
-            // Định vị khuôn mặt nhìn thẳng chính diện
+            // Định vị khuôn mặt
             const res: BiometricAnalysisResult = await ekycMediaPipe.processFrame(
               video,
               "front"
             );
 
-            // Cập nhật thông báo hướng dẫn người dùng
-            if (res.status === "NO_FACE") {
-              setIsFaceDetected(false);
-              steadyCountRef.current = 0;
-              setPromptMessage("Vui lòng đưa khuôn mặt vào giữa khung hình");
-            } else if (res.status === "MULTIPLE_FACES") {
-              setIsFaceDetected(true);
-              steadyCountRef.current = 0;
-              setPromptMessage("Phát hiện nhiều người! Vui lòng chỉ một người đứng trước camera");
-            } else if (res.status === "NOT_CENTERED") {
-              setIsFaceDetected(true);
-              steadyCountRef.current = 0;
-              setPromptMessage("Vui lòng căn giữa khuôn mặt trong vòng tròn");
-            } else if (res.status === "TOO_FAR") {
-              setIsFaceDetected(true);
-              steadyCountRef.current = 0;
-              setPromptMessage("Vui lòng tiến lại gần camera hơn");
-            } else if (res.status === "TOO_CLOSE") {
-              setIsFaceDetected(true);
-              steadyCountRef.current = 0;
-              setPromptMessage("Vui lòng lùi lại một chút");
+            // ==========================================
+            // 1. NẾU ĐANG Ở CHẾ ĐỘ NGỦ (STANDBY)
+            // ==========================================
+            if (currentlySleeping) {
+              if (res.status !== "NO_FACE") {
+                // TỰ ĐỘNG ĐÁNH THỨC KHI THẤY MẶT NGƯỜI BƯỚC TỚI
+                wakeUp();
+              }
             } else {
-              setIsFaceDetected(true);
-              if (res.isMatched) {
-                steadyCountRef.current += 1;
-                // Giữ tư thế thẳng ổn định ~200ms (5 frame) để chống nhòe và chụp ngay lập tức
-                if (steadyCountRef.current >= 5 && !isProcessingRef.current) {
-                  isProcessingRef.current = true;
-                  setPromptMessage("Đang nhận diện khuôn mặt...");
-                  executeCheckIn();
-                  return;
-                } else {
-                  setPromptMessage("Giữ yên khuôn mặt...");
+              // ==========================================
+              // 2. NẾU ĐANG Ở CHẾ ĐỘ THỨC & QUÉT (ACTIVE)
+              // ==========================================
+              if (res.status === "NO_FACE") {
+                setIsFaceDetected(false);
+                steadyCountRef.current = 0;
+                setPromptMessage("Vui lòng đưa khuôn mặt vào giữa khung hình");
+
+                // KIỂM TRA ĐIỀU KIỆN TỰ ĐỘNG ĐI NGỦ (sau IDLE_TIMEOUT_MS không thấy mặt)
+                if (isAutoSleepEnabled) {
+                  const idleDuration = Date.now() - lastFaceSeenTimeRef.current;
+                  if (idleDuration >= IDLE_TIMEOUT_MS) {
+                    goToSleep();
+                  }
                 }
               } else {
-                steadyCountRef.current = 0;
-                setPromptMessage(res.message || "Vui lòng nhìn thẳng vào camera để chấm công");
-              }
-            }
+                // Có khuôn mặt trong khung hình -> Cập nhật thời gian nhìn thấy mặt
+                lastFaceSeenTimeRef.current = Date.now();
+                setIsFaceDetected(true);
 
-            // Nhắc nhở bằng giọng nói định kỳ (mỗi 5 giây) nếu đã thấy mặt
-            const currentTime = Date.now();
-            if (
-              res.status !== "NO_FACE" &&
-              currentTime - lastVoiceTimeRef.current > 5000 &&
-              !isProcessingRef.current
-            ) {
-              lastVoiceTimeRef.current = currentTime;
-              ekycAudio.speak("Vui lòng nhìn thẳng vào camera để chấm công");
+                if (res.status === "MULTIPLE_FACES") {
+                  steadyCountRef.current = 0;
+                  setPromptMessage("Phát hiện nhiều người! Vui lòng chỉ một người đứng trước camera");
+                } else if (res.status === "NOT_CENTERED") {
+                  steadyCountRef.current = 0;
+                  setPromptMessage("Vui lòng căn giữa khuôn mặt trong vòng tròn");
+                } else if (res.status === "TOO_FAR") {
+                  steadyCountRef.current = 0;
+                  setPromptMessage("Vui lòng tiến lại gần camera hơn");
+                } else if (res.status === "TOO_CLOSE") {
+                  steadyCountRef.current = 0;
+                  setPromptMessage("Vui lòng lùi lại một chút");
+                } else {
+                  if (res.isMatched) {
+                    steadyCountRef.current += 1;
+                    // Giữ tư thế thẳng ổn định ~200ms (5 frame) để chống nhòe và chụp ngay lập tức
+                    if (steadyCountRef.current >= 5 && !isProcessingRef.current) {
+                      isProcessingRef.current = true;
+                      setPromptMessage("Đang nhận diện khuôn mặt...");
+                      executeCheckIn();
+                      return;
+                    } else {
+                      setPromptMessage("Giữ yên khuôn mặt...");
+                    }
+                  } else {
+                    steadyCountRef.current = 0;
+                    setPromptMessage(res.message || "Vui lòng nhìn thẳng vào camera để chấm công");
+                  }
+                }
+
+                // Nhắc nhở bằng giọng nói định kỳ (mỗi 5 giây) nếu đã thấy mặt
+                const currentTimeMs = Date.now();
+                if (
+                  currentTimeMs - lastVoiceTimeRef.current > 5000 &&
+                  !isProcessingRef.current
+                ) {
+                  lastVoiceTimeRef.current = currentTimeMs;
+                  ekycAudio.speak("Vui lòng nhìn thẳng vào camera để chấm công");
+                }
+              }
             }
           } catch (e) {
             // bỏ qua drop frame tạm thời
@@ -302,7 +394,16 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [isOpen, isCameraActive, scanResult, errorMessage, executeCheckIn]);
+  }, [
+    isOpen,
+    isCameraActive,
+    scanResult,
+    errorMessage,
+    isAutoSleepEnabled,
+    wakeUp,
+    goToSleep,
+    executeCheckIn,
+  ]);
 
   if (!isOpen) return null;
 
@@ -310,29 +411,70 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-card border border-border text-foreground shadow-xl flex flex-col z-10">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-card border border-border text-foreground shadow-2xl flex flex-col z-10 transition-all duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/50">
+        <div className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-muted/40">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <Zap className="h-5 w-5 animate-pulse" />
+            <div
+              className={`h-10 w-10 rounded-xl border flex items-center justify-center transition-colors ${
+                isSleepModeActive
+                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                  : "bg-primary/10 border-primary/20 text-primary"
+              }`}
+            >
+              {isSleepModeActive ? (
+                <Moon className="h-5 w-5 animate-pulse" />
+              ) : (
+                <Zap className="h-5 w-5 animate-pulse" />
+              )}
             </div>
             <div>
-              <h3 className="text-base font-semibold text-foreground">
-                Chấm công Face ID Trực tuyến
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-foreground">
+                  Chấm công Face ID Kiosk
+                </h3>
+                {isSleepModeActive && (
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-medium animate-pulse">
+                    Đang ngủ (Standby)
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Nhận diện sinh trắc học AI tự động
+                {isSleepModeActive
+                  ? "Cảm biến trực chờ • Tự động thức khi có người"
+                  : "Nhận diện sinh trắc học AI tự động"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* Toggle Chế độ Tự Động Ngủ */}
+            <button
+              onClick={() => setIsAutoSleepEnabled((prev) => !prev)}
+              className={`p-2 rounded-full transition-all border ${
+                isAutoSleepEnabled
+                  ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25"
+                  : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"
+              }`}
+              title={
+                isAutoSleepEnabled
+                  ? "Đang bật tự động ngủ khi vắng người (Bấm để tắt)"
+                  : "Đang tắt tự động ngủ (Bấm để bật)"
+              }
+            >
+              {isAutoSleepEnabled ? (
+                <Moon className="h-4 w-4" />
+              ) : (
+                <Sun className="h-4 w-4" />
+              )}
+            </button>
+
+            {/* Toggle Âm Thanh */}
             <button
               onClick={() => {
                 const nextMuted = !isMuted;
@@ -348,6 +490,8 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 <Volume2 className="h-4 w-4 text-primary animate-pulse" />
               )}
             </button>
+
+            {/* Nút Đóng Modal */}
             <button
               onClick={onClose}
               className="p-2 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-all border border-border"
@@ -368,12 +512,14 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
           <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
             {/* Outer Ring */}
             <div
-              className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${
-                scanResult
-                  ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+              className={`absolute inset-0 rounded-full border-2 transition-all duration-500 ${
+                isSleepModeActive
+                  ? "border-indigo-500/30 shadow-[0_0_25px_rgba(99,102,241,0.15)] scale-95"
+                  : scanResult
+                  ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-100"
                   : errorMessage
-                  ? "border-destructive shadow-[0_0_20px_rgba(239,68,68,0.3)]"
-                  : "border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.2)] animate-pulse"
+                  ? "border-destructive shadow-[0_0_20px_rgba(239,68,68,0.3)] scale-100"
+                  : "border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.2)] animate-pulse scale-100"
               }`}
             />
 
@@ -384,13 +530,35 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover transform -scale-x-100 ${
-                  !isCameraActive ? "hidden" : ""
+                className={`w-full h-full object-cover transform -scale-x-100 transition-opacity duration-500 ${
+                  !isCameraActive ? "hidden" : isSleepModeActive ? "opacity-25 filter blur-xs" : "opacity-100"
                 }`}
               />
 
-              {/* Laser Scan Line */}
-              {isCameraActive && !scanResult && (
+              {/* OVERLAY CHẾ ĐỘ NGỦ (STANDBY AMBIENT DISPLAY) */}
+              {isSleepModeActive && (
+                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center z-30 animate-in fade-in duration-300">
+                  <div className="h-10 w-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-2 animate-pulse">
+                    <Moon className="h-5 w-5" />
+                  </div>
+
+                  <div className="font-mono text-2xl sm:text-3xl font-bold tracking-wider text-slate-100 drop-shadow-md">
+                    {currentTime || "12:00:00"}
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 mt-0.5 font-medium capitalize">
+                    {currentDate}
+                  </p>
+
+                  <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-[10px] font-medium">
+                    <Activity className="h-3 w-3 animate-spin" />
+                    <span>Cảm biến đang trực...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Laser Scan Line (Chỉ hiện khi thức và chưa có kết quả) */}
+              {isCameraActive && !isSleepModeActive && !scanResult && (
                 <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_15px_rgba(79,70,229,0.8)] animate-bounce pointer-events-none opacity-80" />
               )}
 
@@ -421,7 +589,22 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
           {/* Result Card or Guidance */}
           <div className="w-full max-w-sm mt-5 text-center">
-            {scanResult ? (
+            {isSleepModeActive ? (
+              <div className="flex flex-col items-center gap-2 py-1 animate-in fade-in duration-300">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium">
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                  <span>Bước vào trước camera để tự động đánh thức</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={wakeUp}
+                  className="mt-1 h-8 px-4 rounded-full text-xs font-medium border-border hover:bg-muted"
+                >
+                  Chạm để quét ngay
+                </Button>
+              </div>
+            ) : scanResult ? (
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 shadow-sm animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <CheckCircle2 className="h-6 w-6 text-emerald-600 animate-bounce" />

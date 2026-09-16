@@ -41,6 +41,31 @@ class EkycAudioEngine {
     return this.isMuted;
   }
 
+  // Play pleasant wake up chime
+  public playWakeUpSound() {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const notes = [440, 659.25]; // A4, E5 (bright rising chime)
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+        gain.gain.setValueAtTime(0.08, now + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.22);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.08);
+        osc.stop(now + idx * 0.08 + 0.22);
+      });
+    } catch (e) {
+      console.warn("Audio wakeup error:", e);
+    }
+  }
+
   // Play pleasant step success chime
   public playSuccessChime() {
     if (this.isMuted) return;
