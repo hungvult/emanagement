@@ -120,7 +120,6 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
         # Chống giả mạo ảnh (Anti-Spoofing): phát hiện ảnh in hoặc màn hình thiết bị
         spoof_status, is_real, liveness_score, _ = liveness_detector.check_liveness(img, face.bbox)
         if idx == 0:
-            # Bước 1 (nhìn thẳng chính diện): Bắt buộc phải vượt qua kiểm tra liveness chuẩn
             if spoof_status == CvStatus.SPOOF_DETECTED:
                 results.append(_frame_result(idx, spoof_status, quality_score))
                 logger.warning(f"Phát hiện hành vi giả mạo khuôn mặt ở bước 1 (nhìn thẳng)! score={liveness_score}")
@@ -130,11 +129,7 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
                     results,
                 )
         else:
-            # Bước 2..5 (chớp mắt, quay trái, quay phải, ngẩng mặt): Là các bước tương tác chủ động (Active Liveness).
-            # Do người dùng quay đầu / nhắm mắt, góc mặt thay đổi. Tính sống đã được đảm bảo bởi chuỗi
-            # hành vi chuyển động 3D và bước kiểm tra độ tương đồng chéo (Self-Consistency) với bước 1.
-            # Chỉ từ chối nếu điểm liveness bất thường cực kỳ thấp (< 0.20 - hoàn toàn mất đặc trưng người thật).
-            if liveness_score < 0.20:
+            if spoof_status == CvStatus.SPOOF_DETECTED or (not is_real and liveness_score < 0.25):
                 results.append(_frame_result(idx, CvStatus.SPOOF_DETECTED, quality_score))
                 logger.warning(f"Phát hiện hành vi giả mạo khuôn mặt ở bước #{idx + 1}! score={liveness_score}")
                 return respond_fail(
@@ -169,18 +164,18 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
         quality_scores.append(quality_score)
         results.append(_frame_result(idx, CvStatus.VALID, quality_score))
 
-    if len(valid_vectors) < 5:
+    if len(valid_vectors) < settings.MIN_ENROLL_IMAGES:
         return respond_fail(
             CvStatus.LOW_FACE_QUALITY,
-            f"Cần hoàn tất đủ 5 bước hợp lệ (nhận được {len(valid_vectors)}/5 ảnh đạt chuẩn). Vui lòng thử lại.",
+            f"Cần hoàn tất đủ {settings.MIN_ENROLL_IMAGES} bước hợp lệ (nhận được {len(valid_vectors)}/{settings.MIN_ENROLL_IMAGES} ảnh đạt chuẩn). Vui lòng thử lại.",
             results,
         )
 
     # Kiểm tra tính đồng nhất khuôn mặt giữa các frame (Cross-Frame Self-Consistency Check)
     # Tất cả các ảnh trong cùng một phiên eKYC phải thuộc về CÙNG MỘT NGƯỜI.
-    # Ngăn chặn 100% việc dùng ảnh người A ở bước 1, rồi dùng người B ở các bước sau.
+    # Ngăn chặn 100% việc dùng mặt thật ở bước 1 rồi dùng video chớp mắt của người khác ở bước 2.
     if len(valid_vectors) >= 2:
-        # 1. Kiểm tra 2 ảnh chính diện (Frame 0 và Frame 1): cùng 1 người chụp trong 1 phiên bắt buộc sim >= 0.60
+        # 1. Kiểm tra 2 ảnh chính diện (Frame 0 - Nhìn thẳng và Frame 1 - Chớp mắt): cùng 1 người chụp bắt buộc sim >= 0.60
         sim_front = cosine_similarity(valid_vectors[0], valid_vectors[1])
         logger.info(f"[eKYC Self-Consistency] Độ tương đồng 2 ảnh chính diện (Frame #0 vs Frame #1): {sim_front:.4f}")
         if sim_front < 0.60:
@@ -189,7 +184,7 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
             )
             return respond_fail(
                 CvStatus.MULTIPLE_FACES,
-                "Phát hiện khuôn mặt ở các bước không thuộc cùng một người! Vui lòng không đổi người hoặc đổi ảnh giữa chừng.",
+                "Phát hiện khuôn mặt ở bước 1 và bước 2 không thuộc cùng một người! Vui lòng không đổi người hoặc dùng video của người khác.",
                 results,
             )
 
@@ -207,7 +202,7 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
                 )
                 return respond_fail(
                     CvStatus.MULTIPLE_FACES,
-                    "Phát hiện khuôn mặt ở các bước không thuộc cùng một người! Vui lòng không đổi người hoặc đổi ảnh giữa chừng.",
+                    "Phát hiện khuôn mặt ở các bước không thuộc cùng một người! Vui lòng không đổi người hoặc đưa video người khác vào giữa chừng.",
                     results,
                 )
 
@@ -215,14 +210,13 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
         for i in range(len(valid_vectors)):
             for j in range(i + 1, len(valid_vectors)):
                 sim = cosine_similarity(valid_vectors[i], valid_vectors[j])
-                logger.info(f"[eKYC Pairwise] Frame #{i} vs Frame #{j} similarity = {sim:.4f}")
                 if sim < 0.40:
                     logger.warning(
                         f"Phát hiện độ tương đồng thấp giữa Frame #{i} và Frame #{j}: {sim:.4f} < 0.40"
                     )
                     return respond_fail(
                         CvStatus.MULTIPLE_FACES,
-                        "Phát hiện khuôn mặt ở các bước không thuộc cùng một người! Vui lòng không đổi người hoặc đổi ảnh giữa chừng.",
+                        "Phát hiện khuôn mặt ở các bước không thuộc cùng một người! Vui lòng không đổi người hoặc đưa video người khác vào giữa chừng.",
                         results,
                     )
 

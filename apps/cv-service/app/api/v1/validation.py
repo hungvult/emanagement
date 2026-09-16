@@ -86,16 +86,18 @@ def validate_frame(request: ValidateFrameRequest) -> ApiResponse[ValidateFrameRe
             details=quality_details,
         )
 
-    pos_status, _, pos_details = face_position_validator.validate_position(img, face.bbox)
-    if pos_status != CvStatus.VALID:
-        return _fail(
-            request_id,
-            start_time,
-            pos_status,
-            face_count=1,
-            quality_score=quality_score,
-            details={**quality_details, **pos_details},
-        )
+    pos_details: Dict[str, Any] = {}
+    if request.check_pose:
+        pos_status, _, pos_details = face_position_validator.validate_position(img, face.bbox)
+        if pos_status != CvStatus.VALID:
+            return _fail(
+                request_id,
+                start_time,
+                pos_status,
+                face_count=1,
+                quality_score=quality_score,
+                details={**quality_details, **pos_details},
+            )
 
     pose_status, _, pose_data = face_pose_estimator.estimate_pose(face)
     pose_dto = PoseDto(
@@ -104,7 +106,7 @@ def validate_frame(request: ValidateFrameRequest) -> ApiResponse[ValidateFrameRe
         roll=pose_data["roll"],
         is_valid=pose_data["is_valid"],
     )
-    if pose_status != CvStatus.VALID:
+    if request.check_pose and pose_status != CvStatus.VALID:
         return _fail(
             request_id,
             start_time,

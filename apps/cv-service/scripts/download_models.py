@@ -19,10 +19,11 @@ if hasattr(sys.stderr, "reconfigure"):
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 
-# Checksum SHA-256 của model chuẩn từ OpenCV Zoo, dùng để phát hiện file tải lỗi.
+# Checksum SHA-256 của model chuẩn, dùng để phát hiện file tải lỗi.
 MODEL_CHECKSUMS: dict[str, str] = {
     "face_detection_yunet_2023mar.onnx": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
     "face_recognition_sface_2021dec.onnx": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+    "2.7_80x80_MiniFASNetV2.onnx": "0cbe5caec95c31de9d2ef845cb85407d76aecd1b6a2c0e343f7d35306bfbccb8",
 }
 
 BASE_URL = "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models"
@@ -35,6 +36,9 @@ MODELS = {
     "face_recognition_sface_2021dec.onnx": [
         f"{HF_BASE_URL}/face_recognition_sface/resolve/main/face_recognition_sface_2021dec.onnx",
         f"{BASE_URL}/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+    ],
+    "2.7_80x80_MiniFASNetV2.onnx": [
+        "https://raw.githubusercontent.com/QingHeYang/Silent-Face-Anti-Spoofing-onnx/main/onnx/2.7_80x80_MiniFASNetV2.onnx",
     ],
 }
 WEIGHTS_DIR = SERVICE_ROOT / "weights"

@@ -136,12 +136,14 @@ public class KioskServiceImpl implements KioskService {
             String snapshotUrl = null;
             if (cleanBase64 != null && !cleanBase64.isBlank()) {
                 try {
-                    snapshotUrl = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkin_" + user.getEmployeeCode());
+                    snapshotUrl = storageService.uploadBase64Image(cleanBase64, "snapshots",
+                            "checkin_" + user.getEmployeeCode());
                 } catch (Exception e) {
                     snapshotUrl = "minio://fallback/attendance/" + user.getEmployeeCode();
                 }
             }
-            record.setSnapshotUrl(snapshotUrl != null ? snapshotUrl : "minio://fallback/attendance/" + user.getEmployeeCode());
+            record.setSnapshotUrl(
+                    snapshotUrl != null ? snapshotUrl : "minio://fallback/attendance/" + user.getEmployeeCode());
         } else {
             record = todayRecords.get(todayRecords.size() - 1);
 
