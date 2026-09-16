@@ -8,4 +8,6 @@ public interface KioskRepository extends JpaRepository<Kiosk, Long> {
     Optional<Kiosk> findByKioskCode(String kioskCode);
 
     Optional<Kiosk> findByDeviceToken(String deviceToken);
+
+    long countByStatus(String status);
 }

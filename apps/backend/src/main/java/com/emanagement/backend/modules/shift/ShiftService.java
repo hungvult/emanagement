@@ -12,4 +12,6 @@ public interface ShiftService {
     List<ShiftResponseDto> getAllShifts();
 
     void assignShift(AssignShiftDto dto);
+
+    List<com.emanagement.backend.modules.shift.dto.EmployeeScheduleDto> getMySchedule(Long userId, java.time.LocalDate from, java.time.LocalDate to);
 }

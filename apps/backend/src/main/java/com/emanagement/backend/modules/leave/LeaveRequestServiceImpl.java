@@ -88,6 +88,25 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public LeaveRequestResponseDto cancelLeaveRequest(Long id, Long currentUserId, boolean isAdmin) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn xin nghỉ phép với ID: " + id));
+
+        if (!isAdmin && (currentUserId == null || !leaveRequest.getUser().getId().equals(currentUserId))) {
+            throw new com.emanagement.backend.common.exception.BusinessException("Bạn không có quyền hủy đơn xin nghỉ phép này");
+        }
+
+        if (!"PENDING".equalsIgnoreCase(leaveRequest.getStatus())) {
+            throw new com.emanagement.backend.common.exception.BusinessException("Chỉ có thể hủy đơn xin nghỉ phép khi đang ở trạng thái chờ duyệt (PENDING)");
+        }
+
+        leaveRequest.setStatus("CANCELLED");
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        return mapToDto(saved);
+    }
+
     private LeaveRequestResponseDto mapToDto(LeaveRequest leaveRequest) {
         return LeaveRequestResponseDto.builder()
                 .id(leaveRequest.getId())

@@ -15,4 +15,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE u.employeeCode = :identifier OR u.email = :identifier OR u.phone = :identifier")
     Optional<User> findByIdentifier(@Param("identifier") String identifier);
+
+    long countByStatus(String status);
 }

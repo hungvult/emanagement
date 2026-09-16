@@ -48,4 +48,19 @@ public class ShiftController {
         shiftService.assignShift(dto);
         return ResponseEntity.ok(ApiResponse.success("Phân ca thành công cho nhân viên", null));
     }
+
+    @GetMapping("/my-schedule")
+    @Operation(summary = "Lịch phân ca làm việc cá nhân", description = "Nhân viên tra cứu danh sách các ca làm việc được phân công trong khoảng thời gian")
+    public ResponseEntity<ApiResponse<List<com.emanagement.backend.modules.shift.dto.EmployeeScheduleDto>>> getMySchedule(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.emanagement.backend.security.UserPrincipal principal,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Long userId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate from,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
+        Long targetUserId = (userId != null) ? userId : (principal != null ? principal.getId() : null);
+        if (targetUserId == null) {
+            throw new com.emanagement.backend.common.exception.BusinessException("Vui lòng đăng nhập hoặc cung cấp userId");
+        }
+        List<com.emanagement.backend.modules.shift.dto.EmployeeScheduleDto> response = shiftService.getMySchedule(targetUserId, from, to);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

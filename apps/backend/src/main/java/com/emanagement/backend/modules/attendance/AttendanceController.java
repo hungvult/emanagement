@@ -22,12 +22,17 @@ public class AttendanceController {
     private final AttendanceService attendanceService;
 
     @GetMapping("/my-history")
-    @Operation(summary = "Lịch sử chấm công cá nhân", description = "Tra cứu danh sách các lượt chấm công của nhân viên theo userId")
+    @Operation(summary = "Lịch sử chấm công cá nhân", description = "Tra cứu danh sách các lượt chấm công của nhân viên (tự động lấy từ Token hoặc truyền userId)")
     public ResponseEntity<ApiResponse<PageResponse<AttendanceHistoryDto>>> getMyHistory(
-            @RequestParam Long userId,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.emanagement.backend.security.UserPrincipal principal,
+            @RequestParam(required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(userId, page, size);
+        Long targetUserId = (userId != null) ? userId : (principal != null ? principal.getId() : null);
+        if (targetUserId == null) {
+            throw new com.emanagement.backend.common.exception.BusinessException("Vui lòng đăng nhập hoặc cung cấp userId");
+        }
+        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(targetUserId, page, size);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

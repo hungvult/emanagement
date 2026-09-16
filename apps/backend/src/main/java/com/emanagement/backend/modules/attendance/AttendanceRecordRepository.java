@@ -11,4 +11,8 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     List<AttendanceRecord> findByUserIdAndCheckInTimeBetween(Long userId, LocalDateTime start, LocalDateTime and);
 
     Page<AttendanceRecord> findByUserIdOrderByCheckInTimeDesc(Long userId, Pageable pageable);
+
+    long countByCheckInTimeBetween(LocalDateTime start, LocalDateTime end);
+
+    long countByStatusAndCheckInTimeBetween(String status, LocalDateTime start, LocalDateTime end);
 }

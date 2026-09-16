@@ -41,4 +41,36 @@ public class KioskController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Đăng ký trạm Kiosk thành công", kiosk));
     }
+
+    @org.springframework.web.bind.annotation.GetMapping
+    @Operation(summary = "Danh sách trạm Kiosk", description = "Lấy danh sách tất cả các trạm Kiosk trong hệ thống")
+    public ResponseEntity<ApiResponse<java.util.List<com.emanagement.backend.modules.kiosk.dto.KioskResponseDto>>> getAllKiosks() {
+        java.util.List<com.emanagement.backend.modules.kiosk.dto.KioskResponseDto> kiosks = kioskService.getAllKiosks();
+        return ResponseEntity.ok(ApiResponse.success(kiosks));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{id}")
+    @Operation(summary = "Cập nhật thông tin trạm Kiosk", description = "Chỉnh sửa tên và trạng thái hoạt động của trạm Kiosk")
+    public ResponseEntity<ApiResponse<com.emanagement.backend.modules.kiosk.dto.KioskResponseDto>> updateKiosk(
+            @org.springframework.web.bind.annotation.PathVariable Long id,
+            @Valid @RequestBody com.emanagement.backend.modules.kiosk.dto.KioskUpdateDto dto) {
+        com.emanagement.backend.modules.kiosk.dto.KioskResponseDto response = kioskService.updateKiosk(id, dto);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạm Kiosk thành công", response));
+    }
+
+    @PostMapping("/{id}/regenerate-token")
+    @Operation(summary = "Cấp lại Device Token cho trạm Kiosk", description = "Tạo mới Hardware JWT Device Token khi trạm Kiosk cài lại máy hoặc mất cấu hình")
+    public ResponseEntity<ApiResponse<com.emanagement.backend.modules.kiosk.dto.KioskResponseDto>> regenerateToken(
+            @org.springframework.web.bind.annotation.PathVariable Long id) {
+        com.emanagement.backend.modules.kiosk.dto.KioskResponseDto response = kioskService.regenerateKioskToken(id);
+        return ResponseEntity.ok(ApiResponse.success("Cấp lại Token trạm Kiosk thành công", response));
+    }
+
+    @PostMapping("/heartbeat")
+    @Operation(summary = "Heartbeat trạm Kiosk", description = "Trạm Kiosk gửi tín hiệu định kỳ kèm token để xác nhận trạng thái kết nối máy chủ")
+    public ResponseEntity<ApiResponse<com.emanagement.backend.modules.kiosk.dto.KioskHeartbeatResponseDto>> heartbeat(
+            @RequestHeader("X-Kiosk-Token") String deviceToken) {
+        com.emanagement.backend.modules.kiosk.dto.KioskHeartbeatResponseDto response = kioskService.processHeartbeat(deviceToken);
+        return ResponseEntity.ok(ApiResponse.success(response.getMessage(), response));
+    }
 }

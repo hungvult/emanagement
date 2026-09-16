@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -217,5 +218,66 @@ public class KioskServiceImpl implements KioskService {
             defaultKiosk.setStatus("ACTIVE");
             return kioskRepository.save(defaultKiosk);
         });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.emanagement.backend.modules.kiosk.dto.KioskResponseDto> getAllKiosks() {
+        return kioskRepository.findAll().stream()
+                .map(this::mapToKioskDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public com.emanagement.backend.modules.kiosk.dto.KioskResponseDto updateKiosk(Long id, com.emanagement.backend.modules.kiosk.dto.KioskUpdateDto dto) {
+        Kiosk kiosk = kioskRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy trạm Kiosk với ID: " + id));
+
+        if (dto.getName() != null && !dto.getName().isBlank()) {
+            kiosk.setName(dto.getName());
+        }
+        if (dto.getStatus() != null && !dto.getStatus().isBlank()) {
+            kiosk.setStatus(dto.getStatus());
+        }
+
+        Kiosk saved = kioskRepository.save(kiosk);
+        return mapToKioskDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public com.emanagement.backend.modules.kiosk.dto.KioskResponseDto regenerateKioskToken(Long id) {
+        Kiosk kiosk = kioskRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy trạm Kiosk với ID: " + id));
+
+        String newDeviceToken = jwtTokenProvider.generateKioskDeviceToken(kiosk.getKioskCode(), kiosk.getName());
+        kiosk.setDeviceToken(newDeviceToken);
+        Kiosk saved = kioskRepository.save(kiosk);
+        return mapToKioskDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.emanagement.backend.modules.kiosk.dto.KioskHeartbeatResponseDto processHeartbeat(String deviceToken) {
+        Kiosk kiosk = getKioskByToken(deviceToken);
+        return com.emanagement.backend.modules.kiosk.dto.KioskHeartbeatResponseDto.builder()
+                .kioskCode(kiosk.getKioskCode())
+                .name(kiosk.getName())
+                .status(kiosk.getStatus())
+                .serverTime(LocalDateTime.now())
+                .message("Trạm Kiosk kết nối bình thường")
+                .build();
+    }
+
+    private com.emanagement.backend.modules.kiosk.dto.KioskResponseDto mapToKioskDto(Kiosk kiosk) {
+        return com.emanagement.backend.modules.kiosk.dto.KioskResponseDto.builder()
+                .id(kiosk.getId())
+                .kioskCode(kiosk.getKioskCode())
+                .name(kiosk.getName())
+                .deviceToken(kiosk.getDeviceToken())
+                .status(kiosk.getStatus())
+                .createdAt(kiosk.getCreatedAt())
+                .build();
     }
 }

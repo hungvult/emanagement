@@ -69,6 +69,26 @@ public class ShiftServiceImpl implements ShiftService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.emanagement.backend.modules.shift.dto.EmployeeScheduleDto> getMySchedule(Long userId, java.time.LocalDate from, java.time.LocalDate to) {
+        java.time.LocalDate startDate = (from != null) ? from : java.time.LocalDate.now().withDayOfMonth(1);
+        java.time.LocalDate endDate = (to != null) ? to : startDate.plusMonths(1).minusDays(1);
+
+        return employeeShiftRepository.findByUserIdAndAssignedDateBetween(userId, startDate, endDate).stream()
+                .map(es -> com.emanagement.backend.modules.shift.dto.EmployeeScheduleDto.builder()
+                        .id(es.getId())
+                        .shiftId(es.getShift().getId())
+                        .shiftCode(es.getShift().getShiftCode())
+                        .shiftName(es.getShift().getName())
+                        .startTime(es.getShift().getStartTime())
+                        .endTime(es.getShift().getEndTime())
+                        .gracePeriodMinutes(es.getShift().getGracePeriodMinutes())
+                        .assignedDate(es.getAssignedDate())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
     private ShiftResponseDto mapToDto(Shift shift) {
         return ShiftResponseDto.builder()
                 .id(shift.getId())

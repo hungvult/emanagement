@@ -44,6 +44,8 @@ public class SecurityConfig {
                                 "/h2-console/**")
                         .permitAll()
                         .requestMatchers("/api/v1/kiosks/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/shifts/my-schedule").authenticated()
+                        .requestMatchers("/api/v1/dashboard/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/v1/employees/**", "/api/v1/shifts/**", "/api/v1/alerts/**")
                         .hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated())

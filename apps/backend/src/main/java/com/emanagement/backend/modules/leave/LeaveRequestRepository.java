@@ -10,4 +10,6 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
     List<LeaveRequest> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     Page<LeaveRequest> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);
+
+    long countByStatus(String status);
 }

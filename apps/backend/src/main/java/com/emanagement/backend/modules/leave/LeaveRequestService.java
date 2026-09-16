@@ -15,4 +15,6 @@ public interface LeaveRequestService {
     PageResponse<LeaveRequestResponseDto> getAllLeaveRequests(int page, int size, String status);
 
     LeaveRequestResponseDto approveLeaveRequest(Long id, LeaveAprrovalDto dto);
+
+    LeaveRequestResponseDto cancelLeaveRequest(Long id, Long currentUserId, boolean isAdmin);
 }

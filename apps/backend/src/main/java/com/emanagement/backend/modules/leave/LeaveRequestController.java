@@ -41,9 +41,15 @@ public class LeaveRequestController {
     }
 
     @GetMapping("/my-requests")
-    @Operation(summary = "Đơn nghỉ phép của tôi", description = "Lấy danh sách các đơn xin nghỉ phép do nhân viên hiện tại tạo")
-    public ResponseEntity<ApiResponse<List<LeaveRequestResponseDto>>> getMyLeaveRequests(@RequestParam Long userId) {
-        List<LeaveRequestResponseDto> response = leaveRequestService.getMyLeaveRequests(userId);
+    @Operation(summary = "Đơn nghỉ phép của tôi", description = "Lấy danh sách các đơn xin nghỉ phép do nhân viên hiện tại tạo (tự động lấy từ Token hoặc truyền userId)")
+    public ResponseEntity<ApiResponse<List<LeaveRequestResponseDto>>> getMyLeaveRequests(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.emanagement.backend.security.UserPrincipal principal,
+            @RequestParam(required = false) Long userId) {
+        Long targetUserId = (userId != null) ? userId : (principal != null ? principal.getId() : null);
+        if (targetUserId == null) {
+            throw new com.emanagement.backend.common.exception.BusinessException("Vui lòng đăng nhập hoặc cung cấp userId");
+        }
+        List<LeaveRequestResponseDto> response = leaveRequestService.getMyLeaveRequests(targetUserId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -64,5 +70,18 @@ public class LeaveRequestController {
             @Valid @RequestBody LeaveAprrovalDto dto) {
         LeaveRequestResponseDto response = leaveRequestService.approveLeaveRequest(id, dto);
         return ResponseEntity.ok(ApiResponse.success("Duyệt đơn xin nghỉ phép thành công", response));
+    }
+
+    @PutMapping("/{id}/cancel")
+    @Operation(summary = "Hủy đơn xin nghỉ phép", description = "Nhân viên tự hủy đơn xin nghỉ phép khi đơn còn ở trạng thái chờ duyệt (PENDING)")
+    public ResponseEntity<ApiResponse<LeaveRequestResponseDto>> cancelLeaveRequest(
+            @PathVariable Long id,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.emanagement.backend.security.UserPrincipal principal) {
+        boolean isAdmin = principal != null && principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        Long currentUserId = principal != null ? principal.getId() : null;
+
+        LeaveRequestResponseDto response = leaveRequestService.cancelLeaveRequest(id, currentUserId, isAdmin);
+        return ResponseEntity.ok(ApiResponse.success("Hủy đơn xin nghỉ phép thành công", response));
     }
 }
