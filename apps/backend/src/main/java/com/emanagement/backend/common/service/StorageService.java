@@ -14,4 +14,11 @@ public interface StorageService {
      * @return Public URL to access the uploaded image
      */
     String uploadBase64Image(String base64Data, String folder, String fileNamePrefix);
+
+    /**
+     * Delete an image from object storage given its public URL or path.
+     *
+     * @param imageUrl Public URL or object path of the image to delete
+     */
+    void deleteImageByUrl(String imageUrl);
 }

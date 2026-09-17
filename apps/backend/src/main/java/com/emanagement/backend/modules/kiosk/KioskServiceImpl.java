@@ -163,6 +163,12 @@ public class KioskServiceImpl implements KioskService {
             checkType = "CHECK_OUT";
             record.setCheckOutTime(now);
             status = record.getStatus();
+
+            String checkoutSnapshotUrl = null;
+            if (cleanBase64 != null && !cleanBase64.isBlank()) {
+                checkoutSnapshotUrl = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkout_" + user.getEmployeeCode());
+            }
+            record.setCheckoutSnapshotUrl(checkoutSnapshotUrl);
         }
 
         attendanceRecordRepository.save(record);

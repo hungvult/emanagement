@@ -8,4 +8,5 @@ export interface AttendanceHistory {
   checkOutTime: string | null;
   status: "ON_TIME" | "LATE" | "EARLY_LEAVE";
   snapshotUrl: string | null;
+  checkoutSnapshotUrl?: string | null;
 }

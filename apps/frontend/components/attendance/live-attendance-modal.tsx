@@ -12,6 +12,7 @@ import {
   Zap,
   Volume2,
   VolumeX,
+  Eye,
 } from "lucide-react";
 import { kioskService } from "../../services/kiosk.service";
 import { KioskCheckInResponse } from "../../types/kiosk.types";

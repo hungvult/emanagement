@@ -11,6 +11,7 @@ import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.common.exception.BusinessException;
 import com.emanagement.backend.common.exception.ResourceNotFoundException;
 import com.emanagement.backend.common.service.EmailService;
+import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.common.util.CodeGeneratorUtils;
 import com.emanagement.backend.modules.auth.Role;
 import com.emanagement.backend.modules.auth.RoleRepository;
@@ -27,6 +28,7 @@ import com.emanagement.backend.modules.face.dto.AiEnrollResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,6 +43,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final AiFaceService aiFaceService;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final StorageService storageService;
 
     @Override
     @Transactional
@@ -142,6 +145,13 @@ public class EmployeeServiceImpl implements EmployeeService {
     public void deleteEmployee(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+
+        // Xóa ảnh eKYC của nhân viên trên MinIO nếu có
+        List<FaceData> existingFaces = faceDataRepository.findByUserId(user.getId());
+        for (FaceData face : existingFaces) {
+            deleteMinioImagesForFace(face);
+        }
+
         userRepository.delete(user);
     }
 
@@ -150,6 +160,14 @@ public class EmployeeServiceImpl implements EmployeeService {
     public void deleteFaceData(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+
+        // 1. Xóa các file ảnh eKYC trên MinIO
+        List<FaceData> existingFaces = faceDataRepository.findByUserId(user.getId());
+        for (FaceData face : existingFaces) {
+            deleteMinioImagesForFace(face);
+        }
+
+        // 2. Xóa bản ghi trong Database
         faceDataRepository.deleteByUserId(user.getId());
     }
 
@@ -167,12 +185,41 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessException("Dữ liệu vector khuôn mặt không hợp lệ.");
         }
 
-        // Xóa vector cũ của nhân viên để tránh lưu trùng lặp hoặc lẫn lộn nhiều người
+        // Xóa vector cũ và ảnh cũ của nhân viên trên MinIO để tránh lưu trùng lặp hoặc lẫn lộn nhiều người
+        List<FaceData> oldFaces = faceDataRepository.findByUserId(user.getId());
+        for (FaceData oldFace : oldFaces) {
+            deleteMinioImagesForFace(oldFace);
+        }
         faceDataRepository.deleteByUserId(user.getId());
 
         FaceData newFace = new FaceData();
         newFace.setUser(user);
         newFace.setFaceVector(dto.getFaceVector().toString());
+
+        // Lưu 5 ảnh đăng ký vào MinIO và lưu vào 5 trường con tương ứng
+        if (dto.getImages() != null && !dto.getImages().isEmpty()) {
+            String[] stepNames = { "front", "blink", "left", "right", "up" };
+            for (int i = 0; i < dto.getImages().size() && i < stepNames.length; i++) {
+                String base64Img = dto.getImages().get(i);
+                if (base64Img != null && !base64Img.isBlank()) {
+                    String step = stepNames[i];
+                    String prefix = "ekyc_" + user.getEmployeeCode() + "_" + step;
+                    try {
+                        String url = storageService.uploadBase64Image(base64Img, "faces", prefix);
+                        switch (i) {
+                            case 0 -> newFace.setFrontImageUrl(url);
+                            case 1 -> newFace.setBlinkImageUrl(url);
+                            case 2 -> newFace.setLeftImageUrl(url);
+                            case 3 -> newFace.setRightImageUrl(url);
+                            case 4 -> newFace.setUpImageUrl(url);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Không thể lưu ảnh eKYC bước {} cho nhân viên {}: {}", step, user.getEmployeeCode(), e.getMessage());
+                    }
+                }
+            }
+        }
+
         faceDataRepository.save(newFace);
 
         return LiveEkycEnrollResponseDto.builder()
@@ -201,5 +248,26 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .hasRegisteredFace(hasFace)
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    private void deleteMinioImagesForFace(FaceData face) {
+        if (face == null) {
+            return;
+        }
+        List<String> urlsToDelete = java.util.stream.Stream.of(
+                face.getFrontImageUrl(),
+                face.getBlinkImageUrl(),
+                face.getLeftImageUrl(),
+                face.getRightImageUrl(),
+                face.getUpImageUrl()
+        ).filter(url -> url != null && !url.isBlank()).toList();
+
+        for (String url : urlsToDelete) {
+            try {
+                storageService.deleteImageByUrl(url);
+            } catch (Exception e) {
+                log.warn("Lỗi khi xóa ảnh trên MinIO ({}): {}", url, e.getMessage());
+            }
+        }
     }
 }

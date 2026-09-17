@@ -21,7 +21,7 @@ export default function AttendancePage() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [previewSnapshot, setPreviewSnapshot] = useState<string | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceHistory | null>(null);
   const { error } = useToast();
 
   const fetchRecords = async (pageNumber: number) => {
@@ -118,14 +118,17 @@ export default function AttendancePage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {record.snapshotUrl ? (
+                      {record.snapshotUrl || record.checkoutSnapshotUrl ? (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setPreviewSnapshot(record.snapshotUrl)}
-                          className="text-accent hover:bg-accent/10 flex items-center gap-1 h-7 text-xs"
+                          onClick={() => setSelectedRecord(record)}
+                          className="text-accent hover:bg-accent/10 flex items-center gap-1.5 h-7 text-xs font-medium"
                         >
                           <Eye className="h-3.5 w-3.5" /> Xem ảnh
+                          {record.snapshotUrl && record.checkoutSnapshotUrl && (
+                            <span className="px-1 py-0.2 rounded text-[10px] bg-primary/20 text-primary font-semibold">2</span>
+                          )}
                         </Button>
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
@@ -145,27 +148,90 @@ export default function AttendancePage() {
         </>
       )}
 
-      {/* Modal Preview Snapshot */}
+      {/* Modal Preview Snapshot đối soát ảnh Vào/Ra ca */}
       <Modal
-        isOpen={!!previewSnapshot}
-        onClose={() => setPreviewSnapshot(null)}
-        title="Ảnh chụp nhận diện từ camera trạm Kiosk"
+        isOpen={!!selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+        title={`Ảnh đối soát chấm công: ${selectedRecord?.fullName || ""} (${selectedRecord?.employeeCode || ""})`}
       >
-        <div className="flex flex-col items-center space-y-4">
-          <div className="relative aspect-video w-full rounded-lg bg-muted overflow-hidden border border-border flex items-center justify-center">
-            {previewSnapshot ? (
-              <img src={previewSnapshot} alt="Snapshot Kiosk" className="w-full h-full object-contain" />
-            ) : (
-              <ImageIcon className="h-12 w-12 text-muted-foreground" />
-            )}
+        {selectedRecord && (
+          <div className="flex flex-col space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Khung ảnh vào ca */}
+              <div className="flex flex-col space-y-2 rounded-xl border border-border p-3.5 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Ảnh vào ca (Check-in)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {selectedRecord.checkInTime ? formatDateTime(selectedRecord.checkInTime) : "—"}
+                  </span>
+                </div>
+                <div className="relative aspect-video w-full rounded-lg bg-black/5 dark:bg-black/30 overflow-hidden border border-border flex items-center justify-center">
+                  {selectedRecord.snapshotUrl ? (
+                    <img
+                      src={selectedRecord.snapshotUrl}
+                      alt="Ảnh Check-in"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                      <ImageIcon className="h-8 w-8 opacity-40" />
+                      <span className="text-xs">Không có ảnh</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Khung ảnh ra ca */}
+              <div className="flex flex-col space-y-2 rounded-xl border border-border p-3.5 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Ảnh ra ca (Check-out)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {selectedRecord.checkOutTime ? formatDateTime(selectedRecord.checkOutTime) : "Chưa chấm công ra"}
+                  </span>
+                </div>
+                <div className="relative aspect-video w-full rounded-lg bg-black/5 dark:bg-black/30 overflow-hidden border border-border flex items-center justify-center">
+                  {selectedRecord.checkoutSnapshotUrl ? (
+                    <img
+                      src={selectedRecord.checkoutSnapshotUrl}
+                      alt="Ảnh Check-out"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                      <ImageIcon className="h-8 w-8 opacity-40" />
+                      <span className="text-xs">
+                        {selectedRecord.checkOutTime ? "Không có ảnh" : "Chưa hoàn thành ca"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                Trạm: <strong className="text-foreground">{selectedRecord.kioskName}</strong> | Trạng thái:{" "}
+                <strong className={
+                  selectedRecord.status === 'ON_TIME' ? 'text-emerald-600 dark:text-emerald-400' :
+                  selectedRecord.status === 'LATE' ? 'text-amber-500' : 'text-rose-500'
+                }>
+                  {selectedRecord.status === 'ON_TIME' ? 'Đúng giờ' :
+                   selectedRecord.status === 'LATE' ? 'Đi muộn' :
+                   selectedRecord.status === 'EARLY_LEAVE' ? 'Về sớm' : selectedRecord.status}
+                </strong>
+              </span>
+              <Button variant="secondary" size="sm" onClick={() => setSelectedRecord(null)}>
+                Đóng
+              </Button>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground text-center">
-            Đường dẫn snapshot: <code className="bg-muted px-1 py-0.5 rounded">{previewSnapshot}</code>
-          </p>
-          <Button variant="secondary" onClick={() => setPreviewSnapshot(null)}>
-            Đóng
-          </Button>
-        </div>
+        )}
       </Modal>
     </div>
   );

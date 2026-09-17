@@ -50,6 +50,9 @@ public class AttendanceRecord {
     @Column(name = "snapshot_url", columnDefinition = "TEXT")
     private String snapshotUrl;
 
+    @Column(name = "checkout_snapshot_url", columnDefinition = "TEXT")
+    private String checkoutSnapshotUrl;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

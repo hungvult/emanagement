@@ -13,6 +13,7 @@ import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -116,6 +117,40 @@ public class MinioStorageServiceImpl implements StorageService {
         String resultUrl = String.format("%s/%s/%s", publicUrl, bucketName, objectName);
         log.info("Public image URL generated: {}", resultUrl);
         return resultUrl;
+    }
+
+    @Override
+    public void deleteImageByUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.trim().isEmpty()) {
+            return;
+        }
+        String cleanUrl = imageUrl.trim();
+        String objectName = null;
+
+        String bucketPrefix = "/" + bucketName + "/";
+        if (cleanUrl.contains(bucketPrefix)) {
+            int idx = cleanUrl.indexOf(bucketPrefix);
+            objectName = cleanUrl.substring(idx + bucketPrefix.length());
+        } else if (cleanUrl.contains(bucketName + "/")) {
+            int idx = cleanUrl.indexOf(bucketName + "/");
+            objectName = cleanUrl.substring(idx + (bucketName + "/").length());
+        } else if (cleanUrl.startsWith("faces/") || cleanUrl.startsWith("snapshots/")) {
+            objectName = cleanUrl;
+        }
+
+        if (objectName != null && !objectName.isEmpty()) {
+            try {
+                minioClient.removeObject(
+                        RemoveObjectArgs.builder()
+                                .bucket(bucketName)
+                                .object(objectName)
+                                .build()
+                );
+                log.info("Deleted object successfully from MinIO: bucket={}, object={}", bucketName, objectName);
+            } catch (Exception e) {
+                log.warn("Failed to delete object from MinIO bucket '{}', object '{}': {}", bucketName, objectName, e.getMessage());
+            }
+        }
     }
 
     private void ensureBucketExists() {
