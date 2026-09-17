@@ -13,7 +13,6 @@ import com.emanagement.backend.common.exception.ResourceNotFoundException;
 import com.emanagement.backend.common.service.EmailService;
 import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.common.util.CodeGeneratorUtils;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.emanagement.backend.modules.auth.Role;
 import com.emanagement.backend.modules.auth.RoleRepository;
 import com.emanagement.backend.modules.employee.dto.EmployeeCreateDto;
@@ -45,7 +44,6 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final StorageService storageService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
@@ -198,30 +196,26 @@ public class EmployeeServiceImpl implements EmployeeService {
         newFace.setUser(user);
         newFace.setFaceVector(dto.getFaceVector().toString());
 
-        // Lưu 5 ảnh đăng ký vào MinIO và lưu danh sách link URL vào database
+        // Lưu 5 ảnh đăng ký vào MinIO và lưu vào 5 trường con tương ứng
         if (dto.getImages() != null && !dto.getImages().isEmpty()) {
-            List<String> uploadedUrls = new ArrayList<>();
             String[] stepNames = { "front", "blink", "left", "right", "up" };
-            for (int i = 0; i < dto.getImages().size(); i++) {
+            for (int i = 0; i < dto.getImages().size() && i < stepNames.length; i++) {
                 String base64Img = dto.getImages().get(i);
                 if (base64Img != null && !base64Img.isBlank()) {
-                    String step = i < stepNames.length ? stepNames[i] : ("step" + (i + 1));
+                    String step = stepNames[i];
                     String prefix = "ekyc_" + user.getEmployeeCode() + "_" + step;
                     try {
                         String url = storageService.uploadBase64Image(base64Img, "faces", prefix);
-                        uploadedUrls.add(url);
+                        switch (i) {
+                            case 0 -> newFace.setFrontImageUrl(url);
+                            case 1 -> newFace.setBlinkImageUrl(url);
+                            case 2 -> newFace.setLeftImageUrl(url);
+                            case 3 -> newFace.setRightImageUrl(url);
+                            case 4 -> newFace.setUpImageUrl(url);
+                        }
                     } catch (Exception e) {
                         log.warn("Không thể lưu ảnh eKYC bước {} cho nhân viên {}: {}", step, user.getEmployeeCode(), e.getMessage());
                     }
-                }
-            }
-
-            if (!uploadedUrls.isEmpty()) {
-                try {
-                    newFace.setImageSnapshotUrl(objectMapper.writeValueAsString(uploadedUrls));
-                } catch (Exception e) {
-                    log.error("Lỗi parse JSON danh sách URL ảnh eKYC: {}", e.getMessage());
-                    newFace.setImageSnapshotUrl(uploadedUrls.get(0));
                 }
             }
         }
@@ -257,25 +251,16 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private void deleteMinioImagesForFace(FaceData face) {
-        if (face == null || face.getImageSnapshotUrl() == null || face.getImageSnapshotUrl().isBlank()) {
+        if (face == null) {
             return;
         }
-        String urlData = face.getImageSnapshotUrl().trim();
-        List<String> urlsToDelete = new ArrayList<>();
-        if (urlData.startsWith("[") && urlData.endsWith("]")) {
-            try {
-                List<String> list = objectMapper.readValue(
-                        urlData,
-                        new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}
-                );
-                urlsToDelete.addAll(list);
-            } catch (Exception e) {
-                log.warn("Không thể parse JSON danh sách URL ảnh để xóa: {}", e.getMessage());
-                urlsToDelete.add(urlData);
-            }
-        } else {
-            urlsToDelete.add(urlData);
-        }
+        List<String> urlsToDelete = java.util.stream.Stream.of(
+                face.getFrontImageUrl(),
+                face.getBlinkImageUrl(),
+                face.getLeftImageUrl(),
+                face.getRightImageUrl(),
+                face.getUpImageUrl()
+        ).filter(url -> url != null && !url.isBlank()).toList();
 
         for (String url : urlsToDelete) {
             try {
