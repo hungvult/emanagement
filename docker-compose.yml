@@ -22,7 +22,7 @@ services:
       - emanagement-net
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: emanagement-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -44,7 +44,7 @@ services:
       - emanagement-net
 
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: emanagement-minio-init
     depends_on:
       minio:
