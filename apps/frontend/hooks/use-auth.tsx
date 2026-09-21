@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         await authService.logout(refreshToken);
       } catch {
-        // Bỏ qua lỗi kết nối khi đăng xuất
+        // Bỏ qua lỗi mạng khi logout
       }
     }
     if (typeof window !== "undefined") {
@@ -63,7 +63,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else {
       setIsLoading(false);
     }
-  }, [fetchUser]);
+
+    // Đồng bộ trạng thái đăng xuất giữa các tab
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "access_token" && !e.newValue) {
+        setUser(null);
+        if (window.location.pathname !== "/login" && window.location.pathname !== "/forgot-password") {
+          router.push("/login");
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [fetchUser, router]);
 
   const login = async (accessToken: string, refreshToken?: string) => {
     localStorage.setItem("access_token", accessToken);
