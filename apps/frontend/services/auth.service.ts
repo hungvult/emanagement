@@ -8,11 +8,20 @@ import {
   ResetPasswordRequest,
   UserProfile,
   UpdateProfileRequest,
+  TokenRefreshResponse,
 } from "../types/auth.types";
 
 export const authService = {
   login: (data: LoginRequest): Promise<ApiResponse<JwtResponse>> => {
     return apiClient.post<JwtResponse>("/auth/login", data);
+  },
+
+  refreshToken: (refreshToken: string): Promise<ApiResponse<TokenRefreshResponse>> => {
+    return apiClient.post<TokenRefreshResponse>("/auth/refresh-token", { refreshToken });
+  },
+
+  logout: (refreshToken?: string): Promise<ApiResponse<void>> => {
+    return apiClient.post<void>("/auth/logout", { refreshToken });
   },
 
   sendOtp: (data: SendOtpRequest): Promise<ApiResponse<void>> => {
