@@ -45,14 +45,14 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    @DisplayName("createRefreshToken should generate raw token and persist SHA-256 hashed token")
+    @DisplayName("createRefreshToken should generate 32-byte hex raw token and persist SHA-256 hashed token")
     void testCreateRefreshToken() {
         when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         String rawToken = refreshTokenService.createRefreshToken(testUser);
 
         assertNotNull(rawToken);
-        assertFalse(rawToken.isBlank());
+        assertEquals(64, rawToken.length());
 
         verify(refreshTokenRepository, times(1)).save(argThat(token -> 
             token.getUser().equals(testUser) &&
@@ -87,14 +87,37 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    @DisplayName("verifyAndGet should detect replay attack on revoked token and revoke all user tokens")
-    void testVerifyAndGet_ReplayAttackDetected() {
+    @DisplayName("verifyAndGet should allow 30s grace period without revoking user sessions")
+    void testVerifyAndGet_RevokedWithinGracePeriod() {
         RefreshToken revokedToken = RefreshToken.builder()
                 .id(20L)
                 .user(testUser)
                 .tokenHash("somehash")
                 .expiryDate(LocalDateTime.now().plusDays(5))
                 .revoked(true)
+                .revokedAt(LocalDateTime.now().minusSeconds(5)) // Trong vòng 30s
+                .build();
+
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(revokedToken));
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> {
+            refreshTokenService.verifyAndGet("raw-token-rotated-recently");
+        });
+
+        assertTrue(exception.getMessage().contains("Token đã được làm mới"));
+        verify(refreshTokenRepository, never()).revokeAllByUserId(anyLong());
+    }
+
+    @Test
+    @DisplayName("verifyAndGet should detect replay attack on revoked token outside 30s and revoke all user tokens")
+    void testVerifyAndGet_ReplayAttackDetectedOutsideGracePeriod() {
+        RefreshToken revokedToken = RefreshToken.builder()
+                .id(21L)
+                .user(testUser)
+                .tokenHash("somehash")
+                .expiryDate(LocalDateTime.now().plusDays(5))
+                .revoked(true)
+                .revokedAt(LocalDateTime.now().minusSeconds(35)) // Đã quá 30s
                 .build();
 
         when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(revokedToken));
@@ -108,7 +131,7 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    @DisplayName("verifyAndGet should mark expired token as revoked and throw BusinessException")
+    @DisplayName("verifyAndGet should mark expired token as revoked with timestamp and throw BusinessException")
     void testVerifyAndGet_ExpiredToken() {
         RefreshToken expiredToken = RefreshToken.builder()
                 .id(30L)
@@ -126,6 +149,7 @@ class RefreshTokenServiceTest {
 
         assertTrue(exception.getMessage().contains("hết hạn"));
         assertTrue(expiredToken.isRevoked());
+        assertNotNull(expiredToken.getRevokedAt());
         verify(refreshTokenRepository, times(1)).save(expiredToken);
     }
 
@@ -140,7 +164,7 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    @DisplayName("rotateRefreshToken should revoke existing token and generate new token")
+    @DisplayName("rotateRefreshToken should revoke existing token with timestamp and generate new token")
     void testRotateRefreshToken() {
         RefreshToken existingToken = RefreshToken.builder()
                 .id(40L)
@@ -155,12 +179,14 @@ class RefreshTokenServiceTest {
         String newRawToken = refreshTokenService.rotateRefreshToken(existingToken);
 
         assertNotNull(newRawToken);
+        assertEquals(64, newRawToken.length());
         assertTrue(existingToken.isRevoked());
+        assertNotNull(existingToken.getRevokedAt());
         verify(refreshTokenRepository, atLeast(2)).save(any(RefreshToken.class));
     }
 
     @Test
-    @DisplayName("revokeToken should set revoked to true for found token")
+    @DisplayName("revokeToken should set revoked to true and set revokedAt for found token")
     void testRevokeToken() {
         RefreshToken token = RefreshToken.builder()
                 .id(50L)
@@ -175,6 +201,7 @@ class RefreshTokenServiceTest {
         refreshTokenService.revokeToken("raw-token-to-revoke");
 
         assertTrue(token.isRevoked());
+        assertNotNull(token.getRevokedAt());
         verify(refreshTokenRepository, times(1)).save(token);
     }
 }

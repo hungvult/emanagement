@@ -295,6 +295,18 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken verifiedToken = refreshTokenService.verifyAndGet(request.getRefreshToken());
         User user = verifiedToken.getUser();
 
+        // 1. Kiểm tra trạng thái tài khoản
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            refreshTokenService.revokeToken(request.getRefreshToken());
+            throw new BusinessException("Tài khoản của bạn đã bị vô hiệu hóa hoặc không hoạt động.");
+        }
+
+        // 2. Kiểm tra khóa tài khoản
+        if (user.getAccountLockedUntil() != null && user.getAccountLockedUntil().isAfter(LocalDateTime.now())) {
+            refreshTokenService.revokeToken(request.getRefreshToken());
+            throw new BusinessException("Tài khoản đang bị tạm khóa. Vui lòng thử lại sau.");
+        }
+
         UserPrincipal userPrincipal = UserPrincipal.create(user);
         Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
         String newAccessToken = jwtTokenProvider.genarateToken(authentication);

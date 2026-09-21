@@ -3,9 +3,9 @@ package com.emanagement.backend.modules.auth;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
-import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
+    private static final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${jwt.refresh-expiration-ms:604800000}")
     private Long refreshExpirationMs;
@@ -31,7 +32,9 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     @Transactional
     public String createRefreshToken(User user) {
-        String rawToken = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
+        byte[] randomBytes = new byte[32];
+        secureRandom.nextBytes(randomBytes);
+        String rawToken = HexFormat.of().formatHex(randomBytes);
         String tokenHash = hashToken(rawToken);
 
         LocalDateTime expiryDate = LocalDateTime.now().plusSeconds(refreshExpirationMs / 1000);
@@ -59,7 +62,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .orElseThrow(() -> new ResourceNotFoundException("Refresh token không hợp lệ hoặc không tồn tại."));
 
         if (token.isRevoked()) {
-            // Nghi ngờ token bị đánh cắp và tái sử dụng trái phép (Replay Attack)
+            // Kiểm tra grace period 30 giây cho các request đồng thời
+            if (token.getRevokedAt() != null && token.getRevokedAt().plusSeconds(30).isAfter(LocalDateTime.now())) {
+                log.warn("Refresh Token đã được làm mới trong vòng 30s qua (User ID: {}). Từ chối mà không thu hồi toàn bộ session.", token.getUser().getId());
+                throw new BusinessException("Token đã được làm mới. Vui lòng sử dụng token mới nhất.");
+            }
+
+            // Nghi ngờ token bị đánh cắp và tái sử dụng trái phép ngoài cửa sổ grace period (Replay Attack)
             log.warn("Phát hiện tái sử dụng Refresh Token đã bị thu hồi của user ID: {}. Kích hoạt thu hồi toàn bộ session.", token.getUser().getId());
             refreshTokenRepository.revokeAllByUserId(token.getUser().getId());
             throw new BusinessException("Phiên làm việc không an toàn. Vui lòng đăng nhập lại.");
@@ -67,6 +76,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
             token.setRevoked(true);
+            token.setRevokedAt(LocalDateTime.now());
             refreshTokenRepository.save(token);
             throw new BusinessException("Refresh token đã hết hạn. Vui lòng đăng nhập lại.");
         }
@@ -77,8 +87,9 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     @Transactional
     public String rotateRefreshToken(RefreshToken existingToken) {
-        // 1. Thu hồi token hiện tại (Single-use policy)
+        // 1. Thu hồi token hiện tại (Single-use policy) kèm thời điểm thu hồi
         existingToken.setRevoked(true);
+        existingToken.setRevokedAt(LocalDateTime.now());
         refreshTokenRepository.save(existingToken);
 
         // 2. Tạo token mới cho cùng user
@@ -94,6 +105,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         String tokenHash = hashToken(rawToken);
         refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(token -> {
             token.setRevoked(true);
+            token.setRevokedAt(LocalDateTime.now());
             refreshTokenRepository.save(token);
         });
     }
