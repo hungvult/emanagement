@@ -9,7 +9,7 @@ interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string) => Promise<void>;
+  login: (accessToken: string, refreshToken?: string) => Promise<void>;
   logout: () => void;
   hasRole: (role: string) => boolean;
   refreshUser: () => Promise<void>;
@@ -22,8 +22,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("access_token");
+  const logout = useCallback(async () => {
+    const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+    if (refreshToken) {
+      try {
+        await authService.logout(refreshToken);
+      } catch {
+        // Bỏ qua lỗi mạng khi logout
+      }
+    }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+    }
     setUser(null);
     if (typeof window !== "undefined" && window.location.pathname !== "/login" && window.location.pathname !== "/forgot-password") {
       router.push("/login");
@@ -52,10 +63,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else {
       setIsLoading(false);
     }
-  }, [fetchUser]);
 
-  const login = async (token: string) => {
-    localStorage.setItem("access_token", token);
+    // Đồng bộ trạng thái đăng xuất giữa các tab
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "access_token" && !e.newValue) {
+        setUser(null);
+        if (window.location.pathname !== "/login" && window.location.pathname !== "/forgot-password") {
+          router.push("/login");
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [fetchUser, router]);
+
+  const login = async (accessToken: string, refreshToken?: string) => {
+    localStorage.setItem("access_token", accessToken);
+    if (refreshToken) {
+      localStorage.setItem("refresh_token", refreshToken);
+    }
     setIsLoading(true);
     await fetchUser();
   };

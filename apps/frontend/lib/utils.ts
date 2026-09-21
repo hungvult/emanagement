@@ -1,6 +1,6 @@
 export { cn } from "cn"
 
-export function formatDateTime(dateString: string) {
+export function formatDateTime(dateString?: string | null) {
   if (!dateString) return "—";
   const date = new Date(dateString);
   return date.toLocaleString("vi-VN", {

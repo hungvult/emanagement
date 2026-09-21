@@ -34,7 +34,7 @@ export default function LoginPage() {
       const response = await authService.login({ identifier, password });
 
       if (response.status === "SUCCESS" && response.data) {
-        await login(response.data.accessToken);
+        await login(response.data.accessToken, response.data.refreshToken);
         router.push("/dashboard");
       } else {
         error(response.message || "Đăng nhập thất bại");

@@ -5,6 +5,10 @@ import com.emanagement.backend.modules.auth.dto.*;
 public interface AuthService {
     JwtResponse authenticateUser(LoginRequest loginRequest);
 
+    TokenRefreshResponse refreshToken(RefreshTokenRequest request);
+
+    void logout(String refreshToken);
+
     void sendOtp(SendOtpRequest request);
 
     boolean verifyOtp(VerifyOtpRequest request);

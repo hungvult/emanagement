@@ -6,6 +6,7 @@ export interface LoginRequest {
 
 export interface JwtResponse {
   accessToken: string;
+  refreshToken?: string;
   tokenType: string;
   id: number;
   employeeCode: string;
@@ -13,6 +14,17 @@ export interface JwtResponse {
   email: string;
   roles: string[];
 }
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+export interface TokenRefreshResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+}
+
 
 export interface SendOtpRequest {
   identifier: string;
