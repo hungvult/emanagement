@@ -37,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final OtpCodeRepository otpCodeRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final int LOCK_DURATION_MINUTES = 15;
@@ -93,6 +94,7 @@ public class AuthServiceImpl implements AuthService {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtTokenProvider.genarateToken(authentication);
+        String refreshToken = refreshTokenService.createRefreshToken(user);
 
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         Set<String> roles = userPrincipal.getAuthorities().stream()
@@ -101,6 +103,7 @@ public class AuthServiceImpl implements AuthService {
 
         return JwtResponse.builder()
                 .accessToken(jwt)
+                .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .id(userPrincipal.getId())
                 .employeeCode(userPrincipal.getEmployeeCode())
@@ -284,5 +287,30 @@ public class AuthServiceImpl implements AuthService {
             }
         }
         return false;
+    }
+
+    @Override
+    @Transactional
+    public TokenRefreshResponse refreshToken(RefreshTokenRequest request) {
+        RefreshToken verifiedToken = refreshTokenService.verifyAndGet(request.getRefreshToken());
+        User user = verifiedToken.getUser();
+
+        UserPrincipal userPrincipal = UserPrincipal.create(user);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
+        String newAccessToken = jwtTokenProvider.genarateToken(authentication);
+
+        String newRefreshToken = refreshTokenService.rotateRefreshToken(verifiedToken);
+
+        return TokenRefreshResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .tokenType("Bearer")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenService.revokeToken(refreshToken);
     }
 }
