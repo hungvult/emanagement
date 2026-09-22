@@ -2,8 +2,8 @@
 # HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG GIÁM SÁT (PROMETHEUS & GRAFANA)
 # ==============================================================================
 # Điều kiện tiên quyết:
-# - Môi trường Backend (dev hoặc prod) phải đang chạy để khởi tạo network chung:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# - Môi trường hệ thống phải đang chạy để khởi tạo network chung:
+#   docker compose up -d
 #
 # 1. Khởi chạy hệ thống giám sát (Prometheus & Grafana chạy nền):
 #    docker compose -f docker-compose.monitoring.yml up -d
