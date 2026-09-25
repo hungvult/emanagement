@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:prod} # Mặc định là môi trường dev
+    active: ${SPRING_PROFILES_ACTIVE:dev} # Mặc định là môi trường dev
 
   application:
     name: backend
@@ -44,7 +44,7 @@ management:
         http.server.requests: 10s
 
 jwt:
-  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:1800000}
   refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
 
