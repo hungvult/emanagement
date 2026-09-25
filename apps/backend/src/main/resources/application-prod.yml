@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:2504}
+  port: ${PORT:8080}
   forward-headers-strategy: native
 
 spring:
@@ -8,9 +8,9 @@ spring:
       on-profile: prod
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:MYDB}
-    username: ${DB_USER:PHO}
-    password: ${DB_PASSWORD:3110}
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:emanagement_db}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -30,10 +30,10 @@ spring:
 
   # Cấu hình SMTP gửi Email thật qua Gmail
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME:vandunglc2005pro@gmail.com}
-    password: ${MAIL_PASSWORD:nact oolc fsww xnto}
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -44,8 +44,8 @@ spring:
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-  access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
   bucket-name: ${MINIO_BUCKET:attendance-images-prod}
   public-url: ${MINIO_PUBLIC_URL:http://localhost:9000}
 
@@ -58,7 +58,6 @@ ai-service:
   mock-enabled: ${AI_SERVICE_MOCK:false}
 
 jwt:
-  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
-  expiration-ms: 1800000 # 30 phút
-  refresh-expiration-ms: 604800000 # 7 ngày
-
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:1800000} # 30 phút
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 ngày

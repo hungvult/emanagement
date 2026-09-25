@@ -8,8 +8,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:emanagement_db}
-    username: ${DB_USER:PHO}
-    password: ${DB_PASSWORD:3110}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
       data-source-properties:
@@ -26,10 +26,10 @@ spring:
 
   # Cấu hình SMTP gửi Email thật qua Gmail
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME:vandunglc2005pro@gmail.com}
-    password: ${MAIL_PASSWORD:nact oolc fsww xnto}
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -61,6 +61,6 @@ ai-service:
 
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
-  expiration-ms: 1800000 # 30 phút
-  refresh-expiration-ms: 604800000 # 7 ngày
+  expiration-ms: ${JWT_EXPIRATION_MS:1800000} # 30 phút
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 ngày
 
