@@ -22,7 +22,7 @@ services:
       - emanagement-net
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: elestio/minio:latest
     container_name: emanagement-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -44,15 +44,15 @@ services:
       - emanagement-net
 
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: elestio/minio:latest
     container_name: emanagement-minio-init
     depends_on:
       minio:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
-      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET:-attendance-images-prod};
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/$${MINIO_BUCKET:-attendance-images-prod};
       exit 0;
       "
     environment:
