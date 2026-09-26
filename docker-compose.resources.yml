@@ -1,0 +1,85 @@
+# ==============================================================================
+# Docker Compose Resource Profile (1 vCPU, 2GB RAM, 16GB SSD)
+# ==============================================================================
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.resources.yml up -d
+#
+# Purpose:
+#   Enforces resource constraints and lightweight runtime tuning tailored
+#   for a budget 1 vCPU, 2GB RAM, 16GB SSD environment:
+#   - Total container memory capped at ~1.6GB (leaves ~384MB for OS + Docker)
+#   - Hard CPU cap (0.60) on CV-service to prevent single-core starvation
+#   - Single-threaded SerialGC & reduced connection pool for Spring Boot
+#   - Single-threaded OpenCV/ONNX matrix operations
+#   - Strict log rotation (10m x 3 files) to protect the 16GB SSD
+# ==============================================================================
+
+# Global Logging: Protect 16GB SSD from unbounded container log growth
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    logging: *default-logging
+    cpu_shares: 1024
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  minio:
+    logging: *default-logging
+    cpu_shares: 512
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+  cv-service:
+    logging: *default-logging
+    environment:
+      # Keep single-threaded to prevent CPU thrashing on 1 core
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+    cpu_shares: 512
+    deploy:
+      resources:
+        limits:
+          cpus: "0.60"         # Hard cap to prevent CV inference from freezing the system
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  backend:
+    logging: *default-logging
+    environment:
+      # Lightweight SerialGC + 70% RAM limit for 512MB container + small connection pool
+      JAVA_OPTS: -XX:+UseContainerSupport -XX:MaxRAMPercentage=70.0 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
+      DB_POOL_MAX_SIZE: 10
+      DB_POOL_MIN_IDLE: 2
+    cpu_shares: 1024
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  frontend:
+    logging: *default-logging
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=192
+    cpu_shares: 768
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
