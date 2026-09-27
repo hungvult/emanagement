@@ -234,7 +234,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
     if (frameBase64) {
       // 1. Kiểm tra Anti-Spoofing & tính hợp lệ ngay sau mỗi ảnh quét (cả 5 bước)
       try {
-        const valResp = await fetch("http://localhost:8000/api/v1/cv/validate-frame", {
+        const valResp = await fetch("/api/v1/cv/validate-frame", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

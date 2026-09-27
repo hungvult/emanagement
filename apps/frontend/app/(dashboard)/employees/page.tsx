@@ -183,7 +183,7 @@ export default function EmployeesPage() {
     const token = localStorage.getItem("access_token");
 
     // Gửi toàn bộ 5 ảnh của chuỗi eKYC lên CV-Service để kiểm tra tính đồng nhất khuôn mặt và lưu vector
-    const response = await fetch("http://localhost:8000/api/v1/cv/enroll", {
+    const response = await fetch("/api/v1/cv/enroll", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
