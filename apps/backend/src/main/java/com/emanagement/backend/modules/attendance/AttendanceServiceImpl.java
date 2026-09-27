@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.emanagement.backend.common.dto.PageResponse;
+import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.modules.attendance.dto.AttendanceHistoryDto;
 
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceRecordRepository attendanceRecordRepository;
+    private final StorageService storageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -43,8 +45,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .checkInTime(record.getCheckInTime())
                 .checkOutTime(record.getCheckOutTime())
                 .status(record.getStatus())
-                .snapshotUrl(record.getSnapshotUrl())
-                .checkoutSnapshotUrl(record.getCheckoutSnapshotUrl())
+                .snapshotUrl(storageService.getPresignedUrl(record.getSnapshotUrl(), 15))
+                .checkoutSnapshotUrl(storageService.getPresignedUrl(record.getCheckoutSnapshotUrl(), 15))
                 .build();
     }
 }

@@ -242,7 +242,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(storageService.getPresignedUrl(user.getAvatarUrl(), 60))
                 .status(user.getStatus())
                 .roles(roleNames)
                 .hasRegisteredFace(hasFace)
