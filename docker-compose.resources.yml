@@ -74,3 +74,13 @@ services:
           memory: 256M
         reservations:
           memory: 128M
+
+  nginx:
+    logging: *default-logging
+    cpu_shares: 256
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M

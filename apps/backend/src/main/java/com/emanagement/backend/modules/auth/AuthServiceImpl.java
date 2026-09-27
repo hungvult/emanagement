@@ -26,6 +26,8 @@ import com.emanagement.backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import com.emanagement.backend.common.service.StorageService;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
+    private final StorageService storageService;
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final int LOCK_DURATION_MINUTES = 15;
@@ -110,7 +113,7 @@ public class AuthServiceImpl implements AuthService {
                 .fullName(userPrincipal.getFullName())
                 .email(userPrincipal.getEmail())
                 .phone(user.getPhone())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(storageService.getPresignedUrl(user.getAvatarUrl(), 60))
                 .roles(roles)
                 .build();
     }
@@ -193,7 +196,7 @@ public class AuthServiceImpl implements AuthService {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(storageService.getPresignedUrl(user.getAvatarUrl(), 60))
                 .roles(roles)
                 .build();
     }
@@ -250,7 +253,7 @@ public class AuthServiceImpl implements AuthService {
                 .fullName(updated.getFullName())
                 .email(updated.getEmail())
                 .phone(updated.getPhone())
-                .avatarUrl(updated.getAvatarUrl())
+                .avatarUrl(storageService.getPresignedUrl(updated.getAvatarUrl(), 60))
                 .roles(roles)
                 .build();
     }
