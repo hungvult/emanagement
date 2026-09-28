@@ -55,9 +55,20 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByIdentifier(identifier)
                 .orElseThrow(() -> new BusinessException("Mã nhân viên, Email hoặc Số điện thoại không tồn tại trên hệ thống"));
 
-        // 2. Kiểm tra tài khoản có đang bị khóa do nhập sai quá 5 lần hay không
-        if (user.getAccountLockedUntil() != null && user.getAccountLockedUntil().isAfter(LocalDateTime.now())) {
-            throw new BusinessException("Tài khoản tạm thời bị khóa do đăng nhập sai quá 5 lần. Vui lòng thử lại sau.");
+        // 2. Kiểm tra trạng thái tài khoản (ACTIVE, INACTIVE, LOCKED,...)
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new BusinessException("Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động. Vui lòng liên hệ quản trị viên.");
+        }
+
+        // 3. Kiểm tra tài khoản có đang bị tạm khóa do nhập sai mật khẩu quá 5 lần
+        if (user.getAccountLockedUntil() != null) {
+            if (user.getAccountLockedUntil().isAfter(LocalDateTime.now())) {
+                throw new BusinessException("Tài khoản tạm thời bị khóa do đăng nhập sai quá 5 lần. Vui lòng thử lại sau.");
+            } else {
+                user.setAccountLockedUntil(null);
+                user.setFailedLoginAttempts(0);
+                userRepository.save(user);
+            }
         }
 
         // 3. Kiểm tra mật khẩu
@@ -126,8 +137,14 @@ public class AuthServiceImpl implements AuthService {
 
         // Check if user exists (ngoại trừ trường hợp UPDATE_PROFILE gửi đến email/sđt mới)
         if (!"UPDATE_PROFILE".equals(type)) {
-            userRepository.findByIdentifier(identifier)
+            User user = userRepository.findByIdentifier(identifier)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với " + identifier));
+            if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+                throw new BusinessException("Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động.");
+            }
+            if (user.getAccountLockedUntil() != null && user.getAccountLockedUntil().isAfter(LocalDateTime.now())) {
+                throw new BusinessException("Tài khoản đang bị tạm khóa. Vui lòng thử lại sau.");
+            }
         }
 
         // Generate 6-digit random code
@@ -161,14 +178,18 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         String identifier = request.getIdentifier();
-        boolean validOtp = verifyOtpInternal(identifier, request.getOtpCode(), "RESET_PASSWORD");
-
-        if (!validOtp) {
-            throw new BusinessException("Mã OTP xác thực đổi mật khẩu không hợp lệ hoặc đã hết hạn.");
-        }
 
         User user = userRepository.findByIdentifier(identifier)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với " + identifier));
+
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new BusinessException("Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động.");
+        }
+
+        boolean validOtp = verifyOtpInternal(identifier, request.getOtpCode(), "RESET_PASSWORD");
+        if (!validOtp) {
+            throw new BusinessException("Mã OTP xác thực đổi mật khẩu không hợp lệ hoặc đã hết hạn.");
+        }
 
         if (request.getNewPassword().length() < 8) {
             throw new BusinessException("Mật khẩu mới phải có tối thiểu 8 ký tự.");
