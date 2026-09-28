@@ -14,6 +14,7 @@ import com.emanagement.backend.common.exception.ResourceNotFoundException;
 import com.emanagement.backend.common.service.EmailService;
 import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.common.util.CodeGeneratorUtils;
+import com.emanagement.backend.modules.auth.RefreshTokenRepository;
 import com.emanagement.backend.modules.auth.Role;
 import com.emanagement.backend.modules.auth.RoleRepository;
 import com.emanagement.backend.modules.employee.dto.EmployeeCreateDto;
@@ -46,6 +47,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final StorageService storageService;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
     @Transactional
@@ -108,6 +110,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         user.setPhone(dto.getPhone());
         if (dto.getStatus() != null) {
             user.setStatus(dto.getStatus());
+            if (!"ACTIVE".equalsIgnoreCase(dto.getStatus())) {
+                refreshTokenRepository.revokeAllByUserId(user.getId());
+            }
         }
 
         User updated = userRepository.save(user);

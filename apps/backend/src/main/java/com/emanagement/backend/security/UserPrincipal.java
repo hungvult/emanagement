@@ -22,14 +22,28 @@ public class UserPrincipal implements UserDetails {
     private String email;
     private String password;
     private Collection<? extends GrantedAuthority> authorities;
+    private boolean enabled;
+    private boolean accountNonLocked;
 
     public static UserPrincipal create(User user) {
         List<GrantedAuthority> authorities = user.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getName()))
                 .collect(Collectors.toList());
 
-        return new UserPrincipal(user.getId(), user.getEmployeeCode(), user.getFullName(), user.getEmail(),
-                user.getPasswordHash(), authorities);
+        boolean isEnabled = user.getStatus() != null && "ACTIVE".equalsIgnoreCase(user.getStatus());
+        boolean isNonLocked = !"LOCKED".equalsIgnoreCase(user.getStatus())
+                && (user.getAccountLockedUntil() == null || !user.getAccountLockedUntil().isAfter(java.time.LocalDateTime.now()));
+
+        return new UserPrincipal(
+                user.getId(),
+                user.getEmployeeCode(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getPasswordHash(),
+                authorities,
+                isEnabled,
+                isNonLocked
+        );
     }
 
     @Override
@@ -44,7 +58,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return accountNonLocked;
     }
 
     @Override
@@ -54,7 +68,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return enabled;
     }
 
 }
