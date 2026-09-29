@@ -3,6 +3,7 @@ package com.emanagement.backend.modules.employee;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import com.emanagement.backend.modules.auth.RoleRepository;
 import com.emanagement.backend.modules.employee.dto.EmployeeCreateDto;
 import com.emanagement.backend.modules.employee.dto.EmployeeResponseDto;
 import com.emanagement.backend.modules.employee.dto.EmployeeUpdateDto;
+import com.emanagement.backend.modules.employee.dto.FaceImagesResponseDto;
 import com.emanagement.backend.modules.employee.dto.LiveEkycEnrollDto;
 import com.emanagement.backend.modules.employee.dto.LiveEkycEnrollResponseDto;
 import com.emanagement.backend.modules.face.AiFaceService;
@@ -115,8 +117,20 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<EmployeeResponseDto> getAllEmployees(int page, int size) {
+        return getAllEmployees(page, size, null, null, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<EmployeeResponseDto> getAllEmployees(int page, int size, String keyword, String status,
+            Boolean hasRegisteredFace) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<User> usersPage = userRepository.findAll(pageRequest);
+
+        Specification<User> spec = Specification.where(UserSpecification.hasKeyword(keyword))
+                .and(UserSpecification.hasStatus(status))
+                .and(UserSpecification.hasRegisteredFace(hasRegisteredFace));
+
+        Page<User> usersPage = userRepository.findAll(spec, pageRequest);
 
         List<EmployeeResponseDto> dtoList = usersPage.getContent().stream()
                 .map(this::mapToDto)
@@ -227,6 +241,33 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employeeCode(user.getEmployeeCode())
                 .vectorCounterSaved(1)
                 .message("Đăng ký dữ liệu khuôn mặt eKYC Live thành công cho nhân viên " + user.getFullName())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FaceImagesResponseDto getFaceImages(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
+
+        List<FaceData> faceDataList = faceDataRepository.findByUserId(user.getId());
+        if (faceDataList.isEmpty()) {
+            throw new BusinessException("Nhân viên " + user.getFullName() + " chưa đăng ký dữ liệu khuôn mặt eKYC.");
+        }
+
+        FaceData face = faceDataList.get(0);
+        int urlDurationMinutes = 60;
+
+        return FaceImagesResponseDto.builder()
+                .userId(user.getId())
+                .employeeCode(user.getEmployeeCode())
+                .fullName(user.getFullName())
+                .frontImageUrl(storageService.getPresignedUrl(face.getFrontImageUrl(), urlDurationMinutes))
+                .blinkImageUrl(storageService.getPresignedUrl(face.getBlinkImageUrl(), urlDurationMinutes))
+                .leftImageUrl(storageService.getPresignedUrl(face.getLeftImageUrl(), urlDurationMinutes))
+                .rightImageUrl(storageService.getPresignedUrl(face.getRightImageUrl(), urlDurationMinutes))
+                .upImageUrl(storageService.getPresignedUrl(face.getUpImageUrl(), urlDurationMinutes))
+                .registeredAt(face.getCreatedAt())
                 .build();
     }
 

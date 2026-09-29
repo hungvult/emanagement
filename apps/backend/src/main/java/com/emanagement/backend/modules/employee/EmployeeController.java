@@ -17,10 +17,12 @@ import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.modules.employee.dto.EmployeeCreateDto;
 import com.emanagement.backend.modules.employee.dto.EmployeeResponseDto;
 import com.emanagement.backend.modules.employee.dto.EmployeeUpdateDto;
+import com.emanagement.backend.modules.employee.dto.FaceImagesResponseDto;
 import com.emanagement.backend.modules.employee.dto.LiveEkycEnrollDto;
 import com.emanagement.backend.modules.employee.dto.LiveEkycEnrollResponseDto;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,11 +43,15 @@ public class EmployeeController {
     }
 
     @GetMapping
-    @Operation(summary = "Lấy danh sách nhân viên", description = "Lấy danh sách tất cả nhân viên có hỗ trợ phân trang")
+    @Operation(summary = "Lấy danh sách nhân viên", description = "Lấy danh sách tất cả nhân viên có hỗ trợ phân trang và bộ lọc")
     public ResponseEntity<ApiResponse<PageResponse<EmployeeResponseDto>>> getAllEmployees(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        PageResponse<EmployeeResponseDto> response = employeeService.getAllEmployees(page, size);
+            @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "Từ khóa tìm kiếm (tên, mã NV, email, SĐT)") @RequestParam(required = false) String keyword,
+            @Parameter(description = "Lọc theo trạng thái: ACTIVE hoặc INACTIVE") @RequestParam(required = false) String status,
+            @Parameter(description = "Lọc theo đã đăng ký Face ID: true/false") @RequestParam(required = false) Boolean hasRegisteredFace) {
+        PageResponse<EmployeeResponseDto> response = employeeService.getAllEmployees(page, size, keyword, status,
+                hasRegisteredFace);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -71,6 +77,13 @@ public class EmployeeController {
         return ResponseEntity.ok(ApiResponse.success("Vô hiệu hóa tài khoản nhân viên thành công", null));
     }
 
+    @GetMapping("/{id}/face-images")
+    @Operation(summary = "Xem ảnh khuôn mặt eKYC", description = "Lấy Presigned URLs của 5 ảnh khuôn mặt eKYC đã đăng ký")
+    public ResponseEntity<ApiResponse<FaceImagesResponseDto>> getFaceImages(@PathVariable Long id) {
+        FaceImagesResponseDto response = employeeService.getFaceImages(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @DeleteMapping("/{id}/face")
     @Operation(summary = "Xóa dữ liệu khuôn mặt Face ID", description = "Xóa toàn bộ vector đặc trưng khuôn mặt của nhân viên")
     public ResponseEntity<ApiResponse<Void>> deleteFaceData(@PathVariable Long id) {
@@ -87,3 +100,4 @@ public class EmployeeController {
                 .body(ApiResponse.success("Đăng ký dữ liệu khuôn mặt eKYC thành công", response));
     }
 }
+
