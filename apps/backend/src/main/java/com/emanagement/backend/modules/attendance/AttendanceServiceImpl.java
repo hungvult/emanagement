@@ -1,8 +1,10 @@
 package com.emanagement.backend.modules.attendance;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,18 +22,34 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<AttendanceHistoryDto> getUserHistory(Long userId, int page, int size) {
+    public PageResponse<AttendanceHistoryDto> getUserHistory(Long userId, int page, int size,
+            LocalDate startDate, LocalDate endDate, String status) {
         PageRequest pageRequest = PageRequest.of(page, size);
-        Page<AttendanceRecord> records = attendanceRecordRepository.findByUserIdOrderByCheckInTimeDesc(userId,
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
+        LocalDateTime end = endDate != null ? endDate.plusDays(1).atStartOfDay() : null;
+        String statusFilter = (status != null && !status.isBlank()) ? status : null;
+        Page<AttendanceRecord> records = attendanceRecordRepository.findByUserIdWithFilters(
+                userId, 
+                start != null, start, 
+                end != null, end, 
+                statusFilter != null, statusFilter, 
                 pageRequest);
         return PageResponse.from(records.map(this::mapToDto));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<AttendanceHistoryDto> getAllRecords(int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("checkInTime").descending());
-        Page<AttendanceRecord> records = attendanceRecordRepository.findAll(pageRequest);
+    public PageResponse<AttendanceHistoryDto> getAllRecords(int page, int size,
+            LocalDate startDate, LocalDate endDate, String status) {
+        PageRequest pageRequest = PageRequest.of(page, size);
+        LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
+        LocalDateTime end = endDate != null ? endDate.plusDays(1).atStartOfDay() : null;
+        String statusFilter = (status != null && !status.isBlank()) ? status : null;
+        Page<AttendanceRecord> records = attendanceRecordRepository.findAllWithFilters(
+                start != null, start, 
+                end != null, end, 
+                statusFilter != null, statusFilter, 
+                pageRequest);
         return PageResponse.from(records.map(this::mapToDto));
     }
 
@@ -50,3 +68,4 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .build();
     }
 }
+

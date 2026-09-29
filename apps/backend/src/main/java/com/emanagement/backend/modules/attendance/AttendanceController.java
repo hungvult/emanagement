@@ -1,5 +1,8 @@
 package com.emanagement.backend.modules.attendance;
 
+import java.time.LocalDate;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,8 +29,11 @@ public class AttendanceController {
     public ResponseEntity<ApiResponse<PageResponse<AttendanceHistoryDto>>> getMyHistory(
             @RequestParam Long userId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(userId, page, size);
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String status) {
+        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(userId, page, size, startDate, endDate, status);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -35,8 +41,11 @@ public class AttendanceController {
     @Operation(summary = "Danh sách chấm công toàn hệ thống", description = "Dành cho Admin/Quản lý theo dõi toàn bộ dữ liệu vào ra của doanh nghiệp")
     public ResponseEntity<ApiResponse<PageResponse<AttendanceHistoryDto>>> getAllRecords(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getAllRecords(page, size);
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String status) {
+        PageResponse<AttendanceHistoryDto> response = attendanceService.getAllRecords(page, size, startDate, endDate, status);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

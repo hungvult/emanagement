@@ -39,9 +39,10 @@ const buttonVariants = cva(
   }
 )
 
-export interface ButtonProps extends ButtonPrimitive.Props, VariantProps<typeof buttonVariants> {
+export type ButtonProps = React.ComponentProps<typeof ButtonPrimitive> & VariantProps<typeof buttonVariants> & {
   isLoading?: boolean;
 }
+
 
 function Button({
   className,
