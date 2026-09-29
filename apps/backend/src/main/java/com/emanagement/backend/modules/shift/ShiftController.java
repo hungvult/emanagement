@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -72,5 +73,14 @@ public class ShiftController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         List<EmployeeShiftResponseDto> data = shiftService.getMySchedule(principal.getId(), startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success("Lấy lịch làm việc thành công", data));
+    }
+
+    @DeleteMapping("/assign")
+    @Operation(summary = "Hủy ca làm việc của nhân viên", description = "Xóa ca làm việc đã phân cho nhân viên vào ngày cụ thể và gửi thông báo")
+    public ResponseEntity<ApiResponse<Void>> removeAssignedShift(
+            @RequestParam Long userId,
+            @RequestParam String assignedDate) {
+        shiftService.removeAssignedShift(userId, assignedDate);
+        return ResponseEntity.ok(ApiResponse.success("Đã hủy ca làm việc thành công", null));
     }
 }

@@ -12,7 +12,7 @@ import { Badge } from "../../../components/ui/badge";
 import { Input } from "../../../components/ui/input";
 import { Modal } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
-import { Plus, Clock, UserCheck, Calendar, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Plus, Clock, UserCheck, Calendar, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +78,10 @@ export default function ShiftsPage() {
   });
   const [isAssigning, setIsAssigning] = useState(false);
   const [overwriteWarning, setOverwriteWarning] = useState<{ existingShiftName: string } | null>(null);
+
+  // Xác nhận xóa ca
+  const [confirmRemove, setConfirmRemove] = useState<{ userId: number; userName: string; shiftName: string; date: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   // ── Fetch data ──────────────────────────────────────────────────────────────
 
@@ -187,6 +191,25 @@ export default function ShiftsPage() {
       error(err.message || "Lỗi khi phân ca");
     } finally {
       setIsAssigning(false);
+    }
+  };
+
+  const handleRemoveShift = async () => {
+    if (!confirmRemove) return;
+    setIsRemoving(true);
+    try {
+      const res = await shiftService.removeAssignedShift(confirmRemove.userId, confirmRemove.date);
+      if (res.status === "SUCCESS") {
+        success(`Đã hủy ca của ${confirmRemove.userName} vào ngày ${confirmRemove.date}!`);
+        setConfirmRemove(null);
+        fetchSchedule();
+      } else {
+        error(res.message || "Không thể hủy ca làm việc");
+      }
+    } catch (err: any) {
+      error(err.message || "Lỗi khi hủy ca làm việc");
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -336,12 +359,32 @@ export default function ShiftsPage() {
                             <td
                               key={ci}
                               className={`py-2 px-1.5 text-center ${isToday ? "bg-primary/5" : ""}`}
-                              onClick={() => handleCellClick(emp, day)}
+                              onClick={() => !entry && handleCellClick(emp, day)}
                             >
                               {entry && color ? (
-                                <div className={`rounded-md border px-1.5 py-1 cursor-pointer hover:opacity-80 transition-opacity ${color.bg} ${color.border}`}>
-                                  <div className={`text-[11px] font-semibold ${color.text} leading-tight`}>{entry.shiftName}</div>
-                                  <div className={`text-[10px] ${color.text} opacity-80`}>{entry.startTime.slice(0,5)}–{entry.endTime.slice(0,5)}</div>
+                                <div className={`group/cell relative rounded-md border ${color.bg} ${color.border} overflow-hidden`}>
+                                  {/* Thông tin ca */}
+                                  <div className="px-1.5 py-1.5">
+                                    <div className={`text-[11px] font-semibold ${color.text} leading-tight`}>{entry.shiftName}</div>
+                                    <div className={`text-[10px] ${color.text} opacity-80`}>{entry.startTime.slice(0,5)}–{entry.endTime.slice(0,5)}</div>
+                                  </div>
+                                  {/* Action bar – hiện khi hover */}
+                                  <div className="grid grid-cols-2 border-t border-current/10 opacity-0 group-hover/cell:opacity-100 transition-opacity h-0 group-hover/cell:h-auto overflow-hidden">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleCellClick(emp, day); }}
+                                      className={`py-1 text-[10px] font-medium ${color.text} hover:bg-white/20 transition-colors flex items-center justify-center gap-0.5 border-r border-current/10`}
+                                      title="Đổi ca"
+                                    >
+                                      ✏️ Đổi
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setConfirmRemove({ userId: emp.id, userName: emp.fullName, shiftName: entry.shiftName, date: dateStr }); }}
+                                      className="py-1 text-[10px] font-medium text-destructive hover:bg-destructive/10 transition-colors flex items-center justify-center gap-0.5"
+                                      title="Hủy ca"
+                                    >
+                                      🗑 Hủy
+                                    </button>
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="rounded-md border border-dashed border-border/50 py-2 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all opacity-0 group-hover:opacity-100">
@@ -446,6 +489,35 @@ export default function ShiftsPage() {
               )}
             </div>
           </form>
+        </Modal>
+
+        {/* Modal xác nhận hủy ca */}
+        <Modal isOpen={!!confirmRemove} onClose={() => setConfirmRemove(null)} title="Xác nhận hủy ca làm việc">
+          {confirmRemove && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 flex items-start gap-3">
+                <Trash2 className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Bạn có chắc muốn hủy ca này không?</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Nhân viên <strong>{confirmRemove.userName}</strong> sẽ bị xóa ca{" "}
+                    <strong>{confirmRemove.shiftName}</strong> vào ngày <strong>{confirmRemove.date}</strong>.
+                    Nhân viên sẽ nhận được thông báo về việc hủy ca.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" onClick={() => setConfirmRemove(null)}>Hủy bỏ</Button>
+                <Button
+                  variant="destructive"
+                  isLoading={isRemoving}
+                  onClick={handleRemoveShift}
+                >
+                  Xác nhận hủy ca
+                </Button>
+              </div>
+            </div>
+          )}
         </Modal>
       </div>
     </RoleGuard>

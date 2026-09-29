@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/use-auth";
 import { LogOut, User as UserIcon, Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "../ui/sheet";
 import { Sidebar } from "./sidebar";
+import { NotificationBell } from "./notification-bell";
 
 export const Header = () => {
   const { user, logout } = useAuth();
@@ -43,6 +44,8 @@ export const Header = () => {
         </div>
         
         <div className="h-6 w-px bg-border hidden sm:block"></div>
+        
+        <NotificationBell />
         
         <button
           onClick={logout}

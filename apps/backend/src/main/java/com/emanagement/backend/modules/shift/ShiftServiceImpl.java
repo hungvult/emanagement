@@ -73,13 +73,13 @@ public class ShiftServiceImpl implements ShiftService {
                         // Trường hợp 1: phân ca mới
                         notificationService.notifyUser(user, NotificationType.SHIFT_ASSIGNED,
                                         "Bạn được phân ca làm việc",
-                                        "Ca " + shift.getName() + " (" + timeText + ") vào ngày " + dateText + ".",
+                                        shift.getName() + " (" + timeText + ") vào ngày " + dateText + ".",
                                         saved.getId());
                 } else {
                         // Trường hợp 2: đổi từ ca này sang ca khác
                         notificationService.notifyUser(user, NotificationType.SHIFT_CHANGED,
                                         "Ca làm việc của bạn đã thay đổi",
-                                        "Ca ngày " + dateText + " đã đổi từ " + previousShift.getName()
+                                        "Lịch ngày " + dateText + " đã đổi từ " + previousShift.getName()
                                                         + " sang " + shift.getName() + " (" + timeText + ").",
                                         saved.getId());
                 }
@@ -160,5 +160,30 @@ public class ShiftServiceImpl implements ShiftService {
                                 .endTime(shift.getEndTime())
                                 .gracePeriodMinutes(shift.getGracePeriodMinutes())
                                 .build();
+        }
+
+        @Override
+        @Transactional
+        public void removeAssignedShift(Long userId, String assignedDate) {
+                LocalDate date = LocalDate.parse(assignedDate);
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy nhân viên với ID: " + userId));
+
+                EmployeeShift employeeShift = employeeShiftRepository
+                                .findByUserIdAndAssignedDate(userId, date)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Nhân viên này không có ca làm việc vào ngày " + date.format(DATE_FMT)));
+
+                String shiftName = employeeShift.getShift().getName();
+                String dateText = date.format(DATE_FMT);
+
+                employeeShiftRepository.delete(employeeShift);
+
+                // Gửi thông báo cho nhân viên
+                notificationService.notifyUser(user, NotificationType.SHIFT_REMOVED,
+                                "Ca làm việc đã bị hủy",
+                                shiftName + " vào ngày " + dateText + " đã bị hủy bởi quản trị viên.",
+                                null);
         }
 }

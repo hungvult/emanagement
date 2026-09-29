@@ -65,6 +65,14 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.markAllAsRead(userId);
     }
 
+    @Override
+    @Transactional
+    public void deleteNotification(Long userId, Long notificationId) {
+        Notification n = notificationRepository.findByIdAndUserId(notificationId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo với ID: " + notificationId));
+        notificationRepository.delete(n);
+    }
+
     private NotificationResponseDto mapToDto(Notification n) {
         return NotificationResponseDto.builder()
                 .id(n.getId())

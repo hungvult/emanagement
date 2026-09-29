@@ -45,6 +45,12 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
       show: hasRole("ROLE_ADMIN"),
     },
     {
+      title: "Lịch của tôi",
+      icon: Calendar,
+      href: "/my-schedule",
+      show: !hasRole("ROLE_ADMIN"),
+    },
+    {
       title: "Nghỉ phép",
       icon: FileText,
       href: "/leave-requests",
