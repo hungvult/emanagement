@@ -6,11 +6,23 @@ import {
   EmployeeUpdate,
   LiveEkycEnrollRequest,
   LiveEkycEnrollResponse,
+  FaceImagesResponse,
 } from "../types/employee.types";
 
 export const employeeService = {
-  getAll: (page: number = 0, size: number = 10): Promise<ApiResponse<PageResponse<EmployeeResponse>>> => {
-    return apiClient.get<PageResponse<EmployeeResponse>>(`/employees?page=${page}&size=${size}`);
+  getAll: (
+    page: number = 0,
+    size: number = 10,
+    filters?: { keyword?: string; status?: string; hasRegisteredFace?: boolean }
+  ): Promise<ApiResponse<PageResponse<EmployeeResponse>>> => {
+    const params = new URLSearchParams();
+    params.set("page", page.toString());
+    params.set("size", size.toString());
+    if (filters?.keyword) params.set("keyword", filters.keyword);
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.hasRegisteredFace !== undefined)
+      params.set("hasRegisteredFace", filters.hasRegisteredFace.toString());
+    return apiClient.get<PageResponse<EmployeeResponse>>(`/employees?${params.toString()}`);
   },
 
   getById: (id: number): Promise<ApiResponse<EmployeeResponse>> => {
@@ -36,5 +48,8 @@ export const employeeService = {
   deleteFaceData: (id: number): Promise<ApiResponse<void>> => {
     return apiClient.delete<void>(`/employees/${id}/face`);
   },
-};
 
+  getFaceImages: (id: number): Promise<ApiResponse<FaceImagesResponse>> => {
+    return apiClient.get<FaceImagesResponse>(`/employees/${id}/face-images`);
+  },
+};

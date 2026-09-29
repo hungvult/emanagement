@@ -106,6 +106,8 @@ services:
     container_name: emanagement-backend
     restart: unless-stopped
     environment:
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+      JAVA_OPTS: "-Duser.timezone=${TZ:-Asia/Ho_Chi_Minh} -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_HOST: postgres
       DB_PORT: 5432
