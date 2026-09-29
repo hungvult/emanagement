@@ -64,7 +64,7 @@ class AuthServiceRefreshTokenTest {
     void testRefreshToken_Success() {
         RefreshTokenRequest request = new RefreshTokenRequest("raw-refresh-token");
         when(refreshTokenService.verifyAndGet("raw-refresh-token")).thenReturn(validRefreshToken);
-        when(jwtTokenProvider.genarateToken(any(Authentication.class))).thenReturn("new-access-token");
+        when(jwtTokenProvider.generateToken(any(Authentication.class))).thenReturn("new-access-token");
         when(refreshTokenService.rotateRefreshToken(validRefreshToken)).thenReturn("new-rotated-refresh-token");
 
         TokenRefreshResponse response = authService.refreshToken(request);
