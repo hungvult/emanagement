@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/use-auth";
-import { attendanceService } from "../../../services/attendance.service";
+import { attendanceService, AttendanceFilters } from "../../../services/attendance.service";
 import { AttendanceHistory } from "../../../types/attendance.types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { Badge } from "../../../components/ui/badge";
@@ -11,12 +11,12 @@ import { Modal } from "../../../components/ui/modal";
 import { Pagination } from "../../../components/ui/pagination";
 import { useToast } from "../../../components/ui/toast";
 import { formatDateTime } from "../../../lib/utils";
-import { Image as ImageIcon, Eye } from "lucide-react";
+import { Image as ImageIcon, Eye, Search, X } from "lucide-react";
 
 export default function AttendancePage() {
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole("ROLE_ADMIN");
-  
+
   const [records, setRecords] = useState<AttendanceHistory[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -24,14 +24,21 @@ export default function AttendancePage() {
   const [selectedRecord, setSelectedRecord] = useState<AttendanceHistory | null>(null);
   const { error } = useToast();
 
-  const fetchRecords = async (pageNumber: number) => {
+  // --- Filter state (những gì đang nhập) ---
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  // Applied filters (chỉ cập nhật khi bấm "Lọc")
+  const [appliedFilters, setAppliedFilters] = useState<AttendanceFilters>({});
+
+  const fetchRecords = async (pageNumber: number, filters: AttendanceFilters) => {
     setIsLoading(true);
     try {
       let res;
       if (isAdmin) {
-        res = await attendanceService.getAllRecords(pageNumber, 15);
+        res = await attendanceService.getAllRecords(pageNumber, 15, filters);
       } else if (user) {
-        res = await attendanceService.getMyHistory(user.id, pageNumber, 15);
+        res = await attendanceService.getMyHistory(user.id, pageNumber, 15, filters);
       }
 
       if (res && res.status === "SUCCESS" && res.data) {
@@ -48,23 +55,126 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (user) {
-      fetchRecords(page);
+      fetchRecords(page, appliedFilters);
     }
-  }, [page, user, isAdmin]);
+  }, [page, user, isAdmin, appliedFilters]);
+
+  const handleApplyFilters = () => {
+    const filters: AttendanceFilters = {};
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
+    if (statusFilter) filters.status = statusFilter;
+    setAppliedFilters(filters);
+    setPage(0);
+  };
+
+  const handleResetFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setStatusFilter("");
+    setAppliedFilters({});
+    setPage(0);
+  };
+
+  const hasActiveFilter = !!(appliedFilters.startDate || appliedFilters.endDate || appliedFilters.status);
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {isAdmin ? "Nhật ký chấm công" : "Lịch sử chấm công của tôi"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isAdmin ? "Xem và quản lý dữ liệu check-in/out của toàn bộ nhân viên." : "Theo dõi thời gian làm việc của bạn."}
+            {isAdmin
+              ? "Xem và quản lý dữ liệu check-in/out của toàn bộ nhân viên."
+              : "Theo dõi thời gian làm việc của bạn."}
           </p>
         </div>
       </div>
 
+      {/* Thanh bộ lọc */}
+      <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Từ ngày</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Đến ngày</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Trạng thái</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Tất cả</option>
+              <option value="ON_TIME">Đúng giờ</option>
+              <option value="LATE">Đi muộn</option>
+              <option value="EARLY_LEAVE">Về sớm</option>
+            </select>
+          </div>
+          <div className="flex gap-2 items-end">
+            <Button
+              onClick={handleApplyFilters}
+              size="sm"
+              className="flex items-center gap-1.5 h-9"
+            >
+              <Search className="h-3.5 w-3.5" />
+              Lọc
+            </Button>
+            {hasActiveFilter && (
+              <Button
+                onClick={handleResetFilters}
+                variant="secondary"
+                size="sm"
+                className="flex items-center gap-1.5 h-9"
+              >
+                <X className="h-3.5 w-3.5" />
+                Xóa bộ lọc
+              </Button>
+            )}
+          </div>
+        </div>
+        {hasActiveFilter && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Đang lọc:{" "}
+            {appliedFilters.startDate && (
+              <span className="font-medium">Từ {appliedFilters.startDate}</span>
+            )}
+            {appliedFilters.endDate && (
+              <span className="font-medium"> đến {appliedFilters.endDate}</span>
+            )}
+            {appliedFilters.status && (
+              <span className="font-medium">
+                {appliedFilters.startDate || appliedFilters.endDate ? " · " : ""}
+                Trạng thái:{" "}
+                {appliedFilters.status === "ON_TIME"
+                  ? "Đúng giờ"
+                  : appliedFilters.status === "LATE"
+                  ? "Đi muộn"
+                  : "Về sớm"}
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+
+      {/* Bảng dữ liệu */}
       {isLoading ? (
         <div className="flex justify-center py-8">
           <div className="animate-pulse space-y-4 w-full">
@@ -106,15 +216,22 @@ export default function AttendancePage() {
                     <TableCell>{record.checkInTime ? formatDateTime(record.checkInTime) : "—"}</TableCell>
                     <TableCell>{record.checkOutTime ? formatDateTime(record.checkOutTime) : "—"}</TableCell>
                     <TableCell>
-                      <Badge 
+                      <Badge
                         variant={
-                          record.status === 'ON_TIME' ? 'success' : 
-                          record.status === 'LATE' ? 'warning' : 'danger'
+                          record.status === "ON_TIME"
+                            ? "success"
+                            : record.status === "LATE"
+                            ? "warning"
+                            : "danger"
                         }
                       >
-                        {record.status === 'ON_TIME' ? 'Đúng giờ' :
-                         record.status === 'LATE' ? 'Đi muộn' :
-                         record.status === 'EARLY_LEAVE' ? 'Về sớm' : record.status}
+                        {record.status === "ON_TIME"
+                          ? "Đúng giờ"
+                          : record.status === "LATE"
+                          ? "Đi muộn"
+                          : record.status === "EARLY_LEAVE"
+                          ? "Về sớm"
+                          : record.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -127,7 +244,9 @@ export default function AttendancePage() {
                         >
                           <Eye className="h-3.5 w-3.5" /> Xem ảnh
                           {record.snapshotUrl && record.checkoutSnapshotUrl && (
-                            <span className="px-1 py-0.2 rounded text-[10px] bg-primary/20 text-primary font-semibold">2</span>
+                            <span className="px-1 py-0.2 rounded text-[10px] bg-primary/20 text-primary font-semibold">
+                              2
+                            </span>
                           )}
                         </Button>
                       ) : (
@@ -140,10 +259,10 @@ export default function AttendancePage() {
             </TableBody>
           </Table>
 
-          <Pagination 
-            pageNumber={page} 
-            totalPages={totalPages} 
-            onPageChange={setPage} 
+          <Pagination
+            pageNumber={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
           />
         </>
       )}
@@ -192,7 +311,9 @@ export default function AttendancePage() {
                     Ảnh ra ca (Check-out)
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    {selectedRecord.checkOutTime ? formatDateTime(selectedRecord.checkOutTime) : "Chưa chấm công ra"}
+                    {selectedRecord.checkOutTime
+                      ? formatDateTime(selectedRecord.checkOutTime)
+                      : "Chưa chấm công ra"}
                   </span>
                 </div>
                 <div className="relative aspect-video w-full rounded-lg bg-black/5 dark:bg-black/30 overflow-hidden border border-border flex items-center justify-center">
@@ -216,14 +337,24 @@ export default function AttendancePage() {
 
             <div className="flex items-center justify-between pt-3 border-t border-border">
               <span className="text-xs text-muted-foreground">
-                Trạm: <strong className="text-foreground">{selectedRecord.kioskName}</strong> | Trạng thái:{" "}
-                <strong className={
-                  selectedRecord.status === 'ON_TIME' ? 'text-emerald-600 dark:text-emerald-400' :
-                  selectedRecord.status === 'LATE' ? 'text-amber-500' : 'text-rose-500'
-                }>
-                  {selectedRecord.status === 'ON_TIME' ? 'Đúng giờ' :
-                   selectedRecord.status === 'LATE' ? 'Đi muộn' :
-                   selectedRecord.status === 'EARLY_LEAVE' ? 'Về sớm' : selectedRecord.status}
+                Trạm: <strong className="text-foreground">{selectedRecord.kioskName}</strong> | Trạng
+                thái:{" "}
+                <strong
+                  className={
+                    selectedRecord.status === "ON_TIME"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : selectedRecord.status === "LATE"
+                      ? "text-amber-500"
+                      : "text-rose-500"
+                  }
+                >
+                  {selectedRecord.status === "ON_TIME"
+                    ? "Đúng giờ"
+                    : selectedRecord.status === "LATE"
+                    ? "Đi muộn"
+                    : selectedRecord.status === "EARLY_LEAVE"
+                    ? "Về sớm"
+                    : selectedRecord.status}
                 </strong>
               </span>
               <Button variant="secondary" size="sm" onClick={() => setSelectedRecord(null)}>
@@ -236,4 +367,3 @@ export default function AttendancePage() {
     </div>
   );
 }
-

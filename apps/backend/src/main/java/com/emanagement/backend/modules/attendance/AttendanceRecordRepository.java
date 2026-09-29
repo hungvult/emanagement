@@ -14,6 +14,42 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
 
     Page<AttendanceRecord> findByUserIdOrderByCheckInTimeDesc(Long userId, Pageable pageable);
 
+    // Lọc lịch sử chấm công của 1 nhân viên theo ngày và trạng thái
+    @Query("""
+        select a from AttendanceRecord a
+        where a.user.id = :userId
+          and (:hasStartDate = false or a.checkInTime >= :startDate)
+          and (:hasEndDate = false or a.checkInTime < :endDate)
+          and (:hasStatus = false or a.status = :status)
+        order by a.checkInTime desc
+    """)
+    Page<AttendanceRecord> findByUserIdWithFilters(
+            @Param("userId") Long userId,
+            @Param("hasStartDate") boolean hasStartDate,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("hasEndDate") boolean hasEndDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("hasStatus") boolean hasStatus,
+            @Param("status") String status,
+            Pageable pageable);
+
+    // Lọc toàn bộ chấm công (Admin) theo ngày và trạng thái
+    @Query("""
+        select a from AttendanceRecord a
+        where (:hasStartDate = false or a.checkInTime >= :startDate)
+          and (:hasEndDate = false or a.checkInTime < :endDate)
+          and (:hasStatus = false or a.status = :status)
+        order by a.checkInTime desc
+    """)
+    Page<AttendanceRecord> findAllWithFilters(
+            @Param("hasStartDate") boolean hasStartDate,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("hasEndDate") boolean hasEndDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("hasStatus") boolean hasStatus,
+            @Param("status") String status,
+            Pageable pageable);
+
     // Số nhân viên đã check-in trong khoảng [start, end)
     @Query("""
         select count(distinct a.user.id)

@@ -1,0 +1,17 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\apps",
+    "\\apps\\backend",
+    "\\apps\\backend\\.mvn",
+    "\\apps\\backend\\src",
+    "\\apps\\backend\\src\\main",
+    "\\apps\\backend\\src\\main\\java",
+    "\\apps\\backend\\src\\main\\java\\com",
+    "\\apps\\backend\\src\\main\\java\\com\\emanagement",
+    "\\apps\\backend\\src\\main\\java\\com\\emanagement\\backend",
+    "\\apps\\backend\\src\\main\\java\\com\\emanagement\\backend\\modules",
+    "\\apps\\backend\\src\\main\\java\\com\\emanagement\\backend\\modules\\alert"
+  ],
+  "PreviewInSolutionExplorer": false
+}
