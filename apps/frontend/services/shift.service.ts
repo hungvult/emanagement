@@ -18,4 +18,12 @@ export const shiftService = {
   getSchedule: (startDate: string, endDate: string): Promise<ApiResponse<EmployeeShiftResponse[]>> => {
     return apiClient.get<EmployeeShiftResponse[]>(`/shifts/schedule?startDate=${startDate}&endDate=${endDate}`);
   },
+
+  getMySchedule: (startDate: string, endDate: string): Promise<ApiResponse<EmployeeShiftResponse[]>> => {
+    return apiClient.get<EmployeeShiftResponse[]>(`/shifts/my-schedule?startDate=${startDate}&endDate=${endDate}`);
+  },
+
+  removeAssignedShift: (userId: number, assignedDate: string): Promise<ApiResponse<void>> => {
+    return apiClient.delete<void>(`/shifts/assign?userId=${userId}&assignedDate=${assignedDate}`);
+  },
 };
