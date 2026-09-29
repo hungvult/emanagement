@@ -96,7 +96,7 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(user.getEmployeeCode(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtTokenProvider.genarateToken(authentication);
+        String jwt = jwtTokenProvider.generateToken(authentication);
         String refreshToken = refreshTokenService.createRefreshToken(user);
 
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -312,7 +312,7 @@ public class AuthServiceImpl implements AuthService {
 
         UserPrincipal userPrincipal = UserPrincipal.create(user);
         Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
-        String newAccessToken = jwtTokenProvider.genarateToken(authentication);
+        String newAccessToken = jwtTokenProvider.generateToken(authentication);
 
         String newRefreshToken = refreshTokenService.rotateRefreshToken(verifiedToken);
 
