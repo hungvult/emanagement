@@ -17,4 +17,6 @@ public interface ShiftService {
 
     List<EmployeeShiftResponseDto> getSchedule(LocalDate startDate, LocalDate endDate);
     List<EmployeeShiftResponseDto> getMySchedule(Long userId, LocalDate startDate, LocalDate endDate);
+
+    void removeAssignedShift(Long userId, String assignedDate);
 }
