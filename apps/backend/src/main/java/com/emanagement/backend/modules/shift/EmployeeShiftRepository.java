@@ -10,4 +10,8 @@ public interface EmployeeShiftRepository extends JpaRepository<EmployeeShift, Lo
     Optional<EmployeeShift> findByUserIdAndAssignedDate(Long userId, LocalDate assignedDate);
 
     List<EmployeeShift> findByUserIdAndAssignedDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
+
+    List<EmployeeShift> findByAssignedDateBetweenOrderByAssignedDateAsc(LocalDate startDate, LocalDate endDate);
+    List<EmployeeShift> findByUserIdAndAssignedDateBetweenOrderByAssignedDateAsc(
+        Long userId, LocalDate startDate, LocalDate endDate);
 }
