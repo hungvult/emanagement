@@ -1,6 +1,6 @@
 import { apiClient } from "../lib/api-client";
 import { ApiResponse } from "../types/common.types";
-import { ShiftResponse, ShiftCreate, AssignShift } from "../types/shift.types";
+import { ShiftResponse, ShiftCreate, AssignShift, EmployeeShiftResponse } from "../types/shift.types";
 
 export const shiftService = {
   getAll: (): Promise<ApiResponse<ShiftResponse[]>> => {
@@ -14,5 +14,8 @@ export const shiftService = {
   assign: (data: AssignShift): Promise<ApiResponse<void>> => {
     return apiClient.post<void>("/shifts/assign", data);
   },
-};
 
+  getSchedule: (startDate: string, endDate: string): Promise<ApiResponse<EmployeeShiftResponse[]>> => {
+    return apiClient.get<EmployeeShiftResponse[]>(`/shifts/schedule?startDate=${startDate}&endDate=${endDate}`);
+  },
+};
