@@ -9,6 +9,9 @@ venv/
 env/
 ENV/
 
+# Datasets
+data/
+
 # Weights & models (keep directory via .gitkeep)
 weights/*
 !weights/.gitkeep

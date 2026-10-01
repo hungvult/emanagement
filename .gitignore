@@ -1,6 +1,66 @@
+# Environment Variables & Secrets
 .env
 .env.local
 .env.*.local
 !.env.example
 
-.vscode
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Monorepo Dependencies & Packages
+node_modules/
+**/node_modules/
+.pnp
+.pnp.*
+
+# Build Outputs & Caches
+.next/
+**/.next/
+out/
+build/
+dist/
+target/
+**/target/
+*.tsbuildinfo
+
+# Python & Virtual Environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+**/venv/
+**/.venv/
+env/
+ENV/
+
+# Datasets & Heavy Assets (Large files > 100MB)
+data/
+**/data/
+weights/*
+!**/weights/.gitkeep
+*.h5
+*.onnx
+*.pb
+*.tflite
+*.pt
+*.pth
+*.tgz
+*.tar.gz
+
+# Test & Coverage Caches
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+
+# Logs & Temporary Files
+logs/
+**/logs/
+*.log
+*.tmp
