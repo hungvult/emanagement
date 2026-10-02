@@ -28,7 +28,6 @@ import {
   Check,
   RefreshCw,
   Filter,
-  Eye,
   Columns3,
   X,
   ScanFace,
@@ -38,6 +37,7 @@ import {
   Shield,
   Calendar,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { BankingEkycModal } from "../../../components/ekyc/banking-ekyc-modal";
 
@@ -341,104 +341,119 @@ export default function EmployeesPage() {
     <RoleGuard allowedRoles={["ROLE_ADMIN"]} fallback={<p>Không có quyền truy cập</p>}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-xl border border-border shadow-sm">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Quản lý nhân viên</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Quản lý danh sách, hồ sơ và dữ liệu eKYC khuôn mặt.
+        <div className="relative overflow-hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 bg-white p-6 md:p-8 rounded-[24px] border border-slate-100 shadow-sm animate-in fade-in duration-500">
+          <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-indigo-50 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
+          <div className="relative z-10">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Quản lý nhân viên</h1>
+            <p className="text-sm font-medium text-slate-500 mt-1.5 max-w-lg">
+              Quản lý danh sách nhân sự, phân quyền và dữ liệu nhận diện khuôn mặt (eKYC).
             </p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          <div className="relative z-10 flex flex-col lg:flex-row items-stretch lg:items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0">
             {/* Search */}
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="relative w-full lg:w-64 group shrink-0">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
               <input
                 placeholder="Tìm tên, mã, email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-background border border-input rounded-md py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-input transition-all"
+                className="w-full bg-slate-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
               />
             </div>
 
-            {/* Filter toggle */}
-            <Button
-              variant={showFilters ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-1.5 relative"
-              title="Bộ lọc"
-            >
-              <Filter className="h-4 w-4" />
-              <span className="hidden sm:inline">Lọc</span>
-              {activeFilterCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar shrink-0 w-full lg:w-auto">
+              {/* Filter toggle */}
+              <Button
+                variant={showFilters ? "default" : "outline"}
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex shrink-0 items-center gap-2 rounded-xl h-[42px] px-4 font-semibold transition-all ${
+                  showFilters 
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-500/20" 
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Filter className="h-4 w-4" />
+                <span>Bộ lọc</span>
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-extrabold rounded-full h-5 w-5 flex items-center justify-center shadow-sm border-2 border-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
 
-            {/* Column picker toggle */}
-            <Button
-              variant={showColumnPicker ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowColumnPicker(!showColumnPicker)}
-              className="flex items-center gap-1.5"
-              title="Tùy chỉnh cột hiển thị"
-            >
-              <Columns3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Cột</span>
-            </Button>
+              {/* Column picker toggle */}
+              <Button
+                variant={showColumnPicker ? "default" : "outline"}
+                onClick={() => setShowColumnPicker(!showColumnPicker)}
+                className={`flex shrink-0 items-center gap-2 rounded-xl h-[42px] px-4 font-semibold transition-all ${
+                  showColumnPicker 
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-500/20" 
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Columns3 className="h-4 w-4" />
+                <span>Cột hiển thị</span>
+              </Button>
 
-            <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2 whitespace-nowrap">
-              <Plus className="h-4 w-4" /> Thêm mới
-            </Button>
+              <Button onClick={() => setIsCreateOpen(true)} className="flex shrink-0 items-center gap-2 rounded-xl h-[42px] px-5 font-bold bg-slate-900 text-white hover:bg-slate-800 shadow-md hover:shadow-lg transition-all">
+                <Plus className="h-4 w-4" /> Thêm mới
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Filter Bar */}
         {showFilters && (
-          <div className="flex flex-wrap items-center gap-3 bg-card p-4 rounded-xl border border-border shadow-sm animate-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Trạng thái:</label>
-              <select
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                value={filterStatus}
-                onChange={(e) => {
-                  setFilterStatus(e.target.value);
-                  setPage(0);
-                }}
-              >
-                <option value="">Tất cả</option>
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="INACTIVE">INACTIVE</option>
-              </select>
+          <div className="flex flex-wrap items-center gap-4 bg-white p-5 rounded-[20px] border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-indigo-50 flex items-center justify-center">
+                <Filter className="h-4 w-4 text-indigo-500" />
+              </div>
+              <span className="text-sm font-bold text-slate-800">Bộ lọc:</span>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Face ID:</label>
-              <select
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                value={filterFace}
-                onChange={(e) => {
-                  setFilterFace(e.target.value);
-                  setPage(0);
-                }}
-              >
-                <option value="">Tất cả</option>
-                <option value="true">Đã đăng ký</option>
-                <option value="false">Chưa đăng ký</option>
-              </select>
+            <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2.5">
+                <label className="text-sm font-semibold text-slate-500">Trạng thái</label>
+                <select
+                  className="rounded-xl border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white hover:bg-white transition-all shadow-sm"
+                  value={filterStatus}
+                  onChange={(e) => {
+                    setFilterStatus(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="ACTIVE">🟢 Đang hoạt động (ACTIVE)</option>
+                  <option value="INACTIVE">🔴 Vô hiệu hóa (INACTIVE)</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <label className="text-sm font-semibold text-slate-500">Face ID</label>
+                <select
+                  className="rounded-xl border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white hover:bg-white transition-all shadow-sm"
+                  value={filterFace}
+                  onChange={(e) => {
+                    setFilterFace(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <option value="">Tất cả</option>
+                  <option value="true">✅ Đã đăng ký</option>
+                  <option value="false">❌ Chưa đăng ký</option>
+                </select>
+              </div>
             </div>
             {(filterStatus || filterFace) && (
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => {
                   setFilterStatus("");
                   setFilterFace("");
                 }}
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="ml-auto text-sm font-bold text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl px-4"
               >
-                <X className="h-3 w-3 mr-1" /> Xóa bộ lọc
+                <X className="h-4 w-4 mr-1.5" /> Xóa bộ lọc
               </Button>
             )}
           </div>
@@ -446,227 +461,257 @@ export default function EmployeesPage() {
 
         {/* Column Picker */}
         {showColumnPicker && (
-          <div className="flex flex-wrap items-center gap-2 bg-card p-4 rounded-xl border border-border shadow-sm animate-in slide-in-from-top-2 duration-200">
-            <span className="text-xs font-medium text-muted-foreground mr-2">Hiển thị cột:</span>
-            {(Object.keys(COLUMN_LABELS) as Array<keyof EmployeeColumnVisibility>).map((col) => (
-              <button
-                key={col}
-                onClick={() => toggleColumn(col)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all border ${
-                  columnVis[col]
-                    ? "bg-primary/10 text-primary border-primary/30"
-                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
-                }`}
-              >
-                {columnVis[col] && <Check className="h-3 w-3" />}
-                {COLUMN_LABELS[col]}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3 bg-white p-5 rounded-[20px] border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center gap-3 mr-2">
+              <div className="h-8 w-8 rounded-full bg-violet-50 flex items-center justify-center">
+                <Columns3 className="h-4 w-4 text-violet-500" />
+              </div>
+              <span className="text-sm font-bold text-slate-800">Hiển thị cột:</span>
+            </div>
+            <div className="flex flex-wrap gap-2.5">
+              {(Object.keys(COLUMN_LABELS) as Array<keyof EmployeeColumnVisibility>).map((col) => (
+                <button
+                  key={col}
+                  onClick={() => toggleColumn(col)}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all border-2 ${
+                    columnVis[col]
+                      ? "bg-indigo-50/50 text-indigo-700 border-indigo-500/20 hover:border-indigo-500/40"
+                      : "bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600"
+                  }`}
+                >
+                  <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${columnVis[col] ? "bg-indigo-500 border-indigo-500" : "border-slate-300"}`}>
+                    {columnVis[col] && <Check className="h-2.5 w-2.5 text-white" />}
+                  </div>
+                  {COLUMN_LABELS[col]}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {/* Table */}
-        {isLoading ? (
-          <div className="flex justify-center py-8 bg-muted/30 rounded-xl border border-border p-6">
-            <div className="animate-pulse space-y-4 w-full">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-14 bg-muted rounded-md" />
-              ))}
+        <div className="bg-white border border-slate-100 rounded-[24px] shadow-sm overflow-hidden">
+          {isLoading ? (
+            <div className="flex flex-col justify-center items-center py-16 px-6">
+              <Loader2 className="h-10 w-10 animate-spin text-indigo-500 mb-4" />
+              <p className="text-sm font-semibold text-slate-500">Đang tải dữ liệu nhân viên...</p>
             </div>
-          </div>
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {columnVis.employeeCode && <TableHead>Mã NV</TableHead>}
-                  {columnVis.fullName && <TableHead>Họ Tên</TableHead>}
-                  {columnVis.emailPhone && <TableHead>Email / SĐT</TableHead>}
-                  {columnVis.status && <TableHead>Trạng thái</TableHead>}
-                  {columnVis.ekycFaceId && <TableHead>eKYC Face ID</TableHead>}
-                  {columnVis.createdAt && <TableHead>Ngày tạo</TableHead>}
-                  {columnVis.actions && <TableHead className="text-right">Hành động</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {employees.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={Object.values(columnVis).filter(Boolean).length || 7}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      Không tìm thấy nhân viên nào
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  employees.map((emp) => (
-                    <TableRow key={emp.id} className="group cursor-pointer" onClick={() => openDetailModal(emp)}>
-                      {columnVis.employeeCode && (
-                        <TableCell className="font-medium">{emp.employeeCode}</TableCell>
-                      )}
-                      {columnVis.fullName && (
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                              {emp.fullName?.charAt(0) || "U"}
-                            </div>
-                            <span className="font-medium text-foreground">{emp.fullName}</span>
-                            {emp.roles.includes("ROLE_ADMIN") && (
-                              <Badge variant="outline" className="text-[10px] ml-2">
-                                ADMIN
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                      )}
-                      {columnVis.emailPhone && (
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-sm">{emp.email || "—"}</span>
-                            <span className="text-xs text-muted-foreground">{emp.phone || "—"}</span>
-                          </div>
-                        </TableCell>
-                      )}
-                      {columnVis.status && (
-                        <TableCell>
-                          <Badge variant={emp.status === "ACTIVE" ? "default" : "destructive"}>
-                            {emp.status}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {columnVis.ekycFaceId && (
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          {emp.hasRegisteredFace ? (
-                            <div className="flex items-center gap-1.5">
-                              <Badge
-                                variant="outline"
-                                className="text-emerald-400 border-emerald-500/30 bg-emerald-500/10 flex items-center gap-1 w-fit text-xs py-0.5"
-                              >
-                                <Check className="h-3 w-3" /> Đã có Face ID
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openFaceModal(emp)}
-                                title="Xem khuôn mặt"
-                                className="h-7 w-7 p-0 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300"
-                              >
-                                <ScanFace className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEkycModal(emp)}
-                                title="Quét lại Face ID"
-                                className="h-7 w-7 p-0 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300"
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteFace(emp)}
-                                title="Xóa dữ liệu khuôn mặt"
-                                className="h-7 w-7 p-0 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => openEkycModal(emp)}
-                              className="text-xs text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 py-1 h-7 flex items-center gap-1"
-                            >
-                              <Camera className="h-3.5 w-3.5" /> Quét khuôn mặt
-                            </Button>
-                          )}
-                        </TableCell>
-                      )}
-                      {columnVis.createdAt && (
-                        <TableCell className="text-muted-foreground">
-                          {formatDateTime(emp.createdAt)}
-                        </TableCell>
-                      )}
-                      {columnVis.actions && (
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-blue-400 hover:bg-blue-500/10"
-                              onClick={() => openDetailModal(emp)}
-                              title="Xem chi tiết"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => handleOpenEdit(emp)}
-                              title="Chỉnh sửa"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-danger hover:text-danger hover:bg-danger/10"
-                              onClick={() => handleDelete(emp.id)}
-                              disabled={emp.roles.includes("ROLE_ADMIN")}
-                              title="Vô hiệu hóa"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50/50">
+                    <TableRow className="hover:bg-transparent border-slate-100">
+                      {columnVis.employeeCode && <TableHead className="font-bold text-slate-600 h-14">Mã NV</TableHead>}
+                      {columnVis.fullName && <TableHead className="font-bold text-slate-600 h-14">Họ Tên</TableHead>}
+                      {columnVis.emailPhone && <TableHead className="font-bold text-slate-600 h-14">Email / SĐT</TableHead>}
+                      {columnVis.status && <TableHead className="font-bold text-slate-600 h-14">Trạng thái</TableHead>}
+                      {columnVis.ekycFaceId && <TableHead className="font-bold text-slate-600 h-14">eKYC Face ID</TableHead>}
+                      {columnVis.createdAt && <TableHead className="font-bold text-slate-600 h-14">Ngày tạo</TableHead>}
+                      {columnVis.actions && <TableHead className="text-right font-bold text-slate-600 h-14 pr-6">Hành động</TableHead>}
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {employees.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={Object.values(columnVis).filter(Boolean).length || 7}
+                          className="text-center py-16 text-slate-400 font-medium h-32"
+                        >
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center">
+                              <Search className="h-6 w-6 text-slate-300" />
+                            </div>
+                            <p>Không tìm thấy nhân viên nào phù hợp</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      employees.map((emp) => (
+                        <TableRow 
+                          key={emp.id} 
+                          className="group cursor-pointer hover:bg-slate-50/80 transition-colors border-slate-100 h-16" 
+                          onClick={() => openDetailModal(emp)}
+                        >
+                          {columnVis.employeeCode && (
+                            <TableCell className="font-bold text-slate-700">{emp.employeeCode}</TableCell>
+                          )}
+                          {columnVis.fullName && (
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
+                                  {emp.fullName?.charAt(0) || "U"}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-900 block">{emp.fullName}</span>
+                                  {emp.roles.includes("ROLE_ADMIN") && (
+                                    <span className="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 ring-1 ring-inset ring-rose-500/20 mt-0.5">
+                                      ADMIN
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnVis.emailPhone && (
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-slate-700">{emp.email || "—"}</span>
+                                <span className="text-[13px] font-medium text-slate-400">{emp.phone || "—"}</span>
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnVis.status && (
+                            <TableCell>
+                              {emp.status === "ACTIVE" ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200 shadow-sm">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                  ACTIVE
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 border border-rose-200 shadow-sm">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                                  INACTIVE
+                                </span>
+                              )}
+                            </TableCell>
+                          )}
+                          {columnVis.ekycFaceId && (
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              {emp.hasRegisteredFace ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-600 border border-emerald-100 shadow-sm">
+                                    <Check className="h-3 w-3" /> Đã có Face ID
+                                  </span>
+                                  <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-slate-100 rounded-lg shadow-sm overflow-hidden">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => openFaceModal(emp)}
+                                      title="Xem khuôn mặt"
+                                      className="h-8 w-8 p-0 text-indigo-500 hover:bg-indigo-50 hover:text-indigo-700 rounded-none border-r border-slate-100"
+                                    >
+                                      <ScanFace className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => openEkycModal(emp)}
+                                      title="Quét lại Face ID"
+                                      className="h-8 w-8 p-0 text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700 rounded-none border-r border-slate-100"
+                                    >
+                                      <RefreshCw className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteFace(emp)}
+                                      title="Xóa dữ liệu khuôn mặt"
+                                      className="h-8 w-8 p-0 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded-none"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openEkycModal(emp)}
+                                  className="text-xs font-bold text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 shadow-sm h-7 rounded-md px-2.5 flex items-center gap-1.5"
+                                >
+                                  <Camera className="h-3.5 w-3.5" /> Quét khuôn mặt
+                                </Button>
+                              )}
+                            </TableCell>
+                          )}
+                          {columnVis.createdAt && (
+                            <TableCell className="text-[13px] font-medium text-slate-500">
+                              {formatDateTime(emp.createdAt)}
+                            </TableCell>
+                          )}
+                          {columnVis.actions && (
+                            <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-end gap-1.5">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  onClick={() => handleOpenEdit(emp)}
+                                  title="Chỉnh sửa"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  onClick={() => handleDelete(emp.id)}
+                                  disabled={emp.roles.includes("ROLE_ADMIN")}
+                                  title="Vô hiệu hóa"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
 
-            <Pagination pageNumber={page} totalPages={totalPages} onPageChange={setPage} />
-          </>
-        )}
+              <div className="border-t border-slate-100 p-4 bg-slate-50/30">
+                <Pagination pageNumber={page} totalPages={totalPages} onPageChange={setPage} />
+              </div>
+            </>
+          )}
+        </div>
 
         {/* ============================================== */}
         {/* Modal: Thêm nhân viên mới                      */}
         {/* ============================================== */}
         <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Thêm nhân viên mới">
-          <form onSubmit={handleCreateSubmit} className="space-y-4">
-            <Input
-              label="Họ và tên *"
-              placeholder="VD: Nguyễn Văn A"
-              value={createForm.fullName}
-              onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
-              required
-            />
-            <Input
-              label="Email (Tùy chọn)"
-              type="email"
-              placeholder="VD: nhanvien@congty.com"
-              value={createForm.email || ""}
-              onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-            />
-            <Input
-              label="Số điện thoại (Tùy chọn)"
-              placeholder="VD: 0912345678"
-              value={createForm.phone || ""}
-              onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-            />
+          <form onSubmit={handleCreateSubmit} className="space-y-5 px-1 py-2">
+            <div className="space-y-4">
+              <Input
+                label="Họ và tên *"
+                placeholder="VD: Nguyễn Văn A"
+                value={createForm.fullName}
+                onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
+                required
+                className="bg-slate-50 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl transition-all"
+              />
+              <Input
+                label="Email (Tùy chọn)"
+                type="email"
+                placeholder="VD: nhanvien@congty.com"
+                value={createForm.email || ""}
+                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                className="bg-slate-50 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl transition-all"
+              />
+              <Input
+                label="Số điện thoại (Tùy chọn)"
+                placeholder="VD: 0912345678"
+                value={createForm.phone || ""}
+                onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                className="bg-slate-50 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl transition-all"
+              />
+            </div>
 
-            <p className="text-xs text-muted-foreground">
-              Mã nhân viên sẽ được hệ thống tự động sinh theo chuẩn EMP26XXXX.
-            </p>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>
+            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3">
+              <p className="text-xs font-medium text-blue-600 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                Mã nhân viên sẽ được hệ thống tự động sinh theo chuẩn EMP26XXXX.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)} className="rounded-xl font-semibold hover:bg-slate-100">
                 Hủy
               </Button>
-              <Button type="submit" isLoading={isCreating}>
+              <Button type="submit" isLoading={isCreating} className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 px-6">
                 Tạo nhân viên
               </Button>
             </div>
@@ -679,38 +724,43 @@ export default function EmployeesPage() {
         <Modal
           isOpen={isEditOpen}
           onClose={() => setIsEditOpen(false)}
-          title={`Chỉnh sửa nhân viên: ${editingEmployee?.employeeCode}`}
+          title={`Chỉnh sửa: ${editingEmployee?.employeeCode}`}
         >
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <Input
-              label="Họ và tên *"
-              value={editForm.fullName}
-              onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-              required
-            />
-            <Input
-              label="Số điện thoại"
-              value={editForm.phone || ""}
-              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-            />
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-muted-foreground">Trạng thái tài khoản</label>
-              <select
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                value={editForm.status}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, status: e.target.value as "ACTIVE" | "INACTIVE" })
-                }
-              >
-                <option value="ACTIVE">ACTIVE (Hoạt động)</option>
-                <option value="INACTIVE">INACTIVE (Vô hiệu hóa)</option>
-              </select>
+          <form onSubmit={handleEditSubmit} className="space-y-5 px-1 py-2">
+            <div className="space-y-4">
+              <Input
+                label="Họ và tên *"
+                value={editForm.fullName}
+                onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                required
+                className="bg-slate-50 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl transition-all"
+              />
+              <Input
+                label="Số điện thoại"
+                value={editForm.phone || ""}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className="bg-slate-50 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl transition-all"
+              />
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">Trạng thái tài khoản</label>
+                <select
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                  value={editForm.status}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, status: e.target.value as "ACTIVE" | "INACTIVE" })
+                  }
+                >
+                  <option value="ACTIVE">🟢 Đang hoạt động (ACTIVE)</option>
+                  <option value="INACTIVE">🔴 Vô hiệu hóa (INACTIVE)</option>
+                </select>
+              </div>
             </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsEditOpen(false)}>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="ghost" onClick={() => setIsEditOpen(false)} className="rounded-xl font-semibold hover:bg-slate-100">
                 Hủy
               </Button>
-              <Button type="submit" isLoading={isUpdating}>
+              <Button type="submit" isLoading={isUpdating} className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 px-6">
                 Lưu thay đổi
               </Button>
             </div>
@@ -723,96 +773,97 @@ export default function EmployeesPage() {
         <Modal
           isOpen={isDetailOpen}
           onClose={() => setIsDetailOpen(false)}
-          title="Thông tin chi tiết nhân viên"
-          className="max-w-xl"
+          title="Thông tin chi tiết"
+          className="max-w-2xl"
         >
           {detailEmployee && (
-            <div className="space-y-5">
-              {/* Header */}
-              <div className="flex items-center gap-4 pb-4 border-b border-border">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl shrink-0">
+            <div className="space-y-4">
+              {/* Header Profile */}
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100/50 rounded-2xl shadow-sm">
+                <div className="h-14 w-14 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-xl shrink-0 shadow-inner">
                   {detailEmployee.fullName?.charAt(0) || "U"}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-lg font-semibold text-foreground truncate">{detailEmployee.fullName}</h3>
-                  <p className="text-sm text-muted-foreground">{detailEmployee.employeeCode}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant={detailEmployee.status === "ACTIVE" ? "default" : "destructive"}>
-                      {detailEmployee.status}
-                    </Badge>
+                  <h3 className="text-lg font-extrabold text-slate-900 truncate">{detailEmployee.fullName}</h3>
+                  <p className="text-sm font-semibold text-slate-500">{detailEmployee.employeeCode}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    {detailEmployee.status === "ACTIVE" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> ACTIVE
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span> INACTIVE
+                      </span>
+                    )}
                     {detailEmployee.roles.includes("ROLE_ADMIN") && (
-                      <Badge variant="outline" className="text-[10px]">
+                      <span className="inline-flex items-center rounded-lg bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 ring-1 ring-inset ring-rose-500/20">
                         ADMIN
-                      </Badge>
+                      </span>
                     )}
                     {detailEmployee.hasRegisteredFace && (
-                      <Badge
-                        variant="outline"
-                        className="text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-[10px]"
-                      >
-                        <Check className="h-3 w-3 mr-0.5" /> Face ID
-                      </Badge>
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 border border-emerald-100">
+                        <Check className="h-2.5 w-2.5" /> Face ID
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Info rows */}
-              <div className="grid gap-3">
-                <InfoRow icon={<User className="h-4 w-4" />} label="Họ và tên" value={detailEmployee.fullName} />
+              {/* Info grid rows */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <InfoRow icon={<User className="h-3.5 w-3.5" />} label="Họ và tên" value={detailEmployee.fullName} />
                 <InfoRow
-                  icon={<Shield className="h-4 w-4" />}
+                  icon={<Shield className="h-3.5 w-3.5" />}
                   label="Mã nhân viên"
                   value={detailEmployee.employeeCode}
                 />
                 <InfoRow
-                  icon={<Mail className="h-4 w-4" />}
+                  icon={<Mail className="h-3.5 w-3.5" />}
                   label="Email"
                   value={detailEmployee.email || "Chưa cập nhật"}
                 />
                 <InfoRow
-                  icon={<Phone className="h-4 w-4" />}
+                  icon={<Phone className="h-3.5 w-3.5" />}
                   label="Số điện thoại"
                   value={detailEmployee.phone || "Chưa cập nhật"}
                 />
                 <InfoRow
-                  icon={<ScanFace className="h-4 w-4" />}
-                  label="eKYC Face ID"
+                  icon={<ScanFace className="h-3.5 w-3.5" />}
+                  label="Face ID"
                   value={detailEmployee.hasRegisteredFace ? "Đã đăng ký" : "Chưa đăng ký"}
-                  valueClassName={detailEmployee.hasRegisteredFace ? "text-emerald-400" : "text-amber-400"}
+                  valueClassName={detailEmployee.hasRegisteredFace ? "text-emerald-600 font-bold" : "text-amber-500 font-medium"}
                 />
                 <InfoRow
-                  icon={<Calendar className="h-4 w-4" />}
-                  label="Ngày tạo"
+                  icon={<Calendar className="h-3.5 w-3.5" />}
+                  label="Ngày tạo tài khoản"
                   value={formatDateTime(detailEmployee.createdAt)}
                 />
               </div>
 
               {/* Actions */}
-              <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
+              <div className="flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 {detailEmployee.hasRegisteredFace && (
                   <Button
                     variant="outline"
-                    size="sm"
                     onClick={() => {
                       setIsDetailOpen(false);
                       openFaceModal(detailEmployee);
                     }}
-                    className="flex items-center gap-1.5 text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                    className="flex items-center gap-2 rounded-xl text-indigo-600 font-bold border-indigo-200 bg-indigo-50 hover:bg-indigo-100 shadow-sm"
                   >
-                    <ScanFace className="h-3.5 w-3.5" /> Xem khuôn mặt
+                    <ScanFace className="h-4 w-4" /> Xem ảnh khuôn mặt
                   </Button>
                 )}
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={() => {
                     setIsDetailOpen(false);
                     handleOpenEdit(detailEmployee);
                   }}
-                  className="flex items-center gap-1.5"
+                  className="flex items-center gap-2 rounded-xl font-bold bg-white border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm"
                 >
-                  <Edit className="h-3.5 w-3.5" /> Chỉnh sửa
+                  <Edit className="h-4 w-4" /> Chỉnh sửa hồ sơ
                 </Button>
               </div>
             </div>
@@ -825,21 +876,25 @@ export default function EmployeesPage() {
         <Modal
           isOpen={isFaceModalOpen}
           onClose={() => setIsFaceModalOpen(false)}
-          title={`Ảnh khuôn mặt eKYC${faceImages ? ` — ${faceImages.fullName}` : ""}`}
-          className="max-w-2xl"
+          title={`Dữ liệu khuôn mặt eKYC`}
+          className="max-w-3xl"
         >
           {isFaceLoading ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Đang tải ảnh khuôn mặt...</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />
+              <p className="text-sm font-semibold text-slate-500">Đang tải dữ liệu nhận diện...</p>
             </div>
           ) : faceImages ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Nhân viên: <span className="font-medium text-foreground">{faceImages.fullName}</span> ({faceImages.employeeCode})
-                — Đăng ký lúc: <span className="font-medium text-foreground">{formatDateTime(faceImages.registeredAt)}</span>
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="space-y-6">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <p className="text-sm font-medium text-slate-500">
+                  Nhân viên: <span className="font-bold text-slate-900">{faceImages.fullName}</span> ({faceImages.employeeCode})
+                  <br className="sm:hidden" />
+                  <span className="hidden sm:inline"> — </span>
+                  Đăng ký lúc: <span className="font-bold text-slate-900">{formatDateTime(faceImages.registeredAt)}</span>
+                </p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <FaceImageCard label="Chính diện" url={faceImages.frontImageUrl} />
                 <FaceImageCard label="Nháy mắt" url={faceImages.blinkImageUrl} />
                 <FaceImageCard label="Quay trái" url={faceImages.leftImageUrl} />
@@ -848,7 +903,12 @@ export default function EmployeesPage() {
               </div>
             </div>
           ) : (
-            <p className="text-center text-muted-foreground py-8">Không có dữ liệu ảnh khuôn mặt.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="h-16 w-16 rounded-full bg-slate-50 flex items-center justify-center mb-2">
+                <ScanFace className="h-8 w-8 text-slate-300" />
+              </div>
+              <p className="text-center font-semibold text-slate-500">Không tìm thấy dữ liệu ảnh khuôn mặt.</p>
+            </div>
           )}
         </Modal>
 
@@ -881,11 +941,11 @@ function InfoRow({
   valueClassName?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-      <div className="text-muted-foreground shrink-0">{icon}</div>
+    <div className="flex items-center gap-3 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 transition-colors border border-transparent hover:border-slate-100 group">
+      <div className="text-slate-400 shrink-0 group-hover:text-indigo-500 transition-colors bg-white p-1.5 rounded-md shadow-sm">{icon}</div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={`text-sm font-medium text-foreground truncate ${valueClassName || ""}`}>{value}</p>
+        <p className="text-[12px] font-semibold text-slate-500 mb-0.5">{label}</p>
+        <p className={`text-sm font-bold text-slate-900 truncate ${valueClassName || ""}`}>{value}</p>
       </div>
     </div>
   );
@@ -893,19 +953,20 @@ function InfoRow({
 
 function FaceImageCard({ label, url }: { label: string; url: string | null }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
-      <div className="aspect-[4/3] bg-muted/50 flex items-center justify-center">
+    <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all group">
+      <div className="aspect-[4/3] bg-slate-50 flex items-center justify-center overflow-hidden relative">
         {url ? (
-          <img src={url} alt={label} className="w-full h-full object-cover" loading="lazy" />
+          <img src={url} alt={label} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
         ) : (
-          <div className="flex flex-col items-center justify-center gap-1 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
             <ScanFace className="h-8 w-8 opacity-30" />
-            <span className="text-xs">Không có ảnh</span>
+            <span className="text-[11px] font-semibold">Chưa có ảnh</span>
           </div>
         )}
+        <div className="absolute inset-0 ring-1 ring-inset ring-slate-900/5 pointer-events-none"></div>
       </div>
-      <div className="px-2 py-1.5 text-center">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="px-3 py-2.5 bg-white text-center border-t border-slate-50">
+        <span className="text-sm font-bold text-slate-700">{label}</span>
       </div>
     </div>
   );

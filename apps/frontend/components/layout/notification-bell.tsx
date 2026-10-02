@@ -97,12 +97,12 @@ export const NotificationBell = () => {
       {/* Nút chuông */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative rounded-md p-2 text-muted-foreground hover:bg-muted transition-all duration-200 focus:outline-none"
+        className="relative rounded-full p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200 focus:outline-none"
         aria-label="Thông báo"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -110,13 +110,13 @@ export const NotificationBell = () => {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[340px] bg-popover rounded-xl shadow-lg ring-1 ring-border z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-2 w-[360px] bg-white rounded-[24px] shadow-2xl ring-1 ring-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 bg-white">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-sm text-foreground">Thông báo</h3>
+              <h3 className="font-extrabold text-base text-slate-900">Thông báo</h3>
               {unreadCount > 0 && (
-                <span className="inline-flex items-center justify-center h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                <span className="inline-flex items-center justify-center h-5 px-2 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold">
                   {unreadCount}
                 </span>
               )}
@@ -126,7 +126,7 @@ export const NotificationBell = () => {
                 variant="ghost"
                 size="sm"
                 onClick={handleMarkAllAsRead}
-                className="h-auto p-0 text-xs text-primary hover:bg-transparent hover:underline"
+                className="h-auto p-0 text-xs font-bold text-indigo-600 hover:bg-transparent hover:text-indigo-800 transition-colors"
               >
                 Đánh dấu tất cả đã đọc
               </Button>
@@ -134,11 +134,13 @@ export const NotificationBell = () => {
           </div>
 
           {/* Danh sách thông báo */}
-          <div className="max-h-[360px] overflow-y-auto divide-y divide-border/50">
+          <div className="max-h-[380px] overflow-y-auto px-2 py-2 space-y-1">
             {notifications.length === 0 ? (
-              <div className="py-10 flex flex-col items-center gap-2 text-muted-foreground">
-                <Bell className="h-8 w-8 opacity-20" />
-                <p className="text-sm">Không có thông báo nào.</p>
+              <div className="py-12 flex flex-col items-center gap-3 text-slate-400">
+                <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center">
+                  <Bell className="h-6 w-6 text-slate-300" />
+                </div>
+                <p className="text-sm font-semibold">Không có thông báo nào.</p>
               </div>
             ) : (
               notifications.map((notif) => {
@@ -146,17 +148,17 @@ export const NotificationBell = () => {
                 return (
                   <div
                     key={notif.id}
-                    className={`group relative flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer ${
+                    className={`group relative flex items-start gap-3 p-3 rounded-2xl transition-all cursor-pointer ${
                       !notif.read
-                        ? "bg-primary/5 hover:bg-primary/10"
-                        : "hover:bg-muted/40"
+                        ? "bg-indigo-50/50 hover:bg-indigo-50"
+                        : "hover:bg-slate-50"
                     }`}
                     onClick={() => !notif.read && handleMarkAsRead(notif.id)}
                   >
                     {/* Chấm chưa đọc */}
-                    <div className="mt-1.5 shrink-0">
+                    <div className="mt-2 shrink-0">
                       {!notif.read ? (
-                        <div className="h-2 w-2 rounded-full bg-primary" />
+                        <div className="h-2 w-2 rounded-full bg-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.4)]" />
                       ) : (
                         <div className="h-2 w-2 rounded-full bg-transparent" />
                       )}
@@ -164,13 +166,13 @@ export const NotificationBell = () => {
 
                     {/* Nội dung */}
                     <div className="flex-1 min-w-0 pr-6">
-                      <p className={`text-sm leading-snug ${!notif.read ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
+                      <p className={`text-sm leading-snug ${!notif.read ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
                         {notif.title}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      <p className={`text-[13px] mt-1 line-clamp-2 ${!notif.read ? "text-slate-600 font-medium" : "text-slate-500"}`}>
                         {notif.message}
                       </p>
-                      <p className="text-[11px] text-muted-foreground/60 mt-1">
+                      <p className="text-[11px] font-semibold text-slate-400 mt-1.5">
                         {formatDistanceToNow(date, { addSuffix: true, locale: vi })}
                       </p>
                     </div>
@@ -178,10 +180,10 @@ export const NotificationBell = () => {
                     {/* Nút xóa – hiện khi hover */}
                     <button
                       onClick={(e) => handleDelete(e, notif.id)}
-                      className="absolute top-2.5 right-3 h-6 w-6 rounded-full flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all opacity-0 group-hover:opacity-100"
+                      className="absolute top-3 right-3 h-7 w-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100"
                       title="Xóa thông báo"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                 );

@@ -307,27 +307,27 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-md transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-card border border-border text-foreground shadow-xl flex flex-col z-10">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-[32px] bg-white/95 backdrop-blur-xl border border-white shadow-2xl flex flex-col z-10 animate-in zoom-in-95 duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/50">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/80">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+            <div className="h-10 w-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
               <Zap className="h-5 w-5 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-foreground">
-                Chấm công Face ID Trực tuyến
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                Chấm công Face ID
               </h3>
-              <p className="text-xs text-muted-foreground">
-                Nhận diện sinh trắc học AI tự động
+              <p className="text-xs text-slate-500 font-medium">
+                Nhận diện sinh trắc học AI
               </p>
             </div>
           </div>
@@ -339,18 +339,18 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 setIsMuted(nextMuted);
                 ekycAudio.setMuted(nextMuted);
               }}
-              className="p-2 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-all border border-border"
+              className="p-2 rounded-full bg-white hover:bg-slate-50 text-slate-600 transition-all border border-slate-200 shadow-sm hover:text-indigo-600"
               title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
             >
               {isMuted ? (
-                <VolumeX className="h-4 w-4 text-destructive" />
+                <VolumeX className="h-4 w-4 text-rose-500" />
               ) : (
-                <Volume2 className="h-4 w-4 text-primary animate-pulse" />
+                <Volume2 className="h-4 w-4 text-indigo-500 animate-pulse" />
               )}
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-all border border-border"
+              className="p-2 rounded-full bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-600 transition-all border border-slate-200 shadow-sm"
             >
               <X className="h-4 w-4" />
             </button>
@@ -358,27 +358,27 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         </div>
 
         {/* Camera Scanner View */}
-        <div className="relative p-6 flex flex-col items-center justify-center bg-card">
+        <div className="relative p-6 sm:p-8 flex flex-col items-center justify-center bg-transparent">
           {/* Flash */}
           {isFlashing && (
-            <div className="absolute inset-0 bg-white z-40 pointer-events-none animate-out fade-out duration-200" />
+            <div className="absolute inset-0 bg-white z-40 pointer-events-none animate-out fade-out duration-300" />
           )}
 
           {/* Scanner Circular Ring */}
-          <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
+          <div className="relative w-64 h-64 sm:w-[300px] sm:h-[300px] flex items-center justify-center">
             {/* Outer Ring */}
             <div
-              className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${
+              className={`absolute inset-0 rounded-full border-[3px] transition-all duration-300 ${
                 scanResult
-                  ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                  ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.4)] bg-emerald-500/5"
                   : errorMessage
-                  ? "border-destructive shadow-[0_0_20px_rgba(239,68,68,0.3)]"
-                  : "border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.2)] animate-pulse"
+                  ? "border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)] bg-rose-500/5"
+                  : "border-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.25)] animate-pulse bg-indigo-500/5"
               }`}
             />
 
             {/* Video Feed */}
-            <div className="relative w-[230px] h-[230px] sm:w-[260px] sm:h-[260px] rounded-full overflow-hidden bg-black flex items-center justify-center">
+            <div className="relative w-[230px] h-[230px] sm:w-[270px] sm:h-[270px] rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shadow-inner">
               <video
                 ref={videoRef}
                 autoPlay
@@ -391,26 +391,26 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
               {/* Laser Scan Line */}
               {isCameraActive && !scanResult && (
-                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_15px_rgba(79,70,229,0.8)] animate-bounce pointer-events-none opacity-80" />
+                <div className="absolute inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-indigo-500 to-transparent shadow-[0_0_20px_rgba(99,102,241,0.8)] animate-bounce pointer-events-none opacity-80" />
               )}
 
               {/* Loading State */}
               {!isCameraActive && !cameraError && (
-                <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                  <Camera className="h-8 w-8 text-primary animate-pulse" />
-                  <p className="text-xs">Đang mở máy ảnh...</p>
+                <div className="flex flex-col items-center gap-3 text-slate-400">
+                  <Camera className="h-10 w-10 text-indigo-400 animate-pulse" />
+                  <p className="text-xs font-medium">Đang khởi động Camera AI...</p>
                 </div>
               )}
 
               {/* Error State */}
               {cameraError && (
-                <div className="flex flex-col items-center gap-2 text-destructive p-4 text-center">
-                  <p className="text-xs">{cameraError}</p>
+                <div className="flex flex-col items-center gap-2 text-rose-500 p-4 text-center">
+                  <p className="text-xs font-medium">{cameraError}</p>
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="outline"
                     onClick={startCamera}
-                    className="mt-1 text-xs"
+                    className="mt-2 text-xs border-rose-200 hover:bg-rose-50 text-rose-600"
                   >
                     Thử lại
                   </Button>
@@ -420,40 +420,40 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
           </div>
 
           {/* Result Card or Guidance */}
-          <div className="w-full max-w-sm mt-5 text-center">
+          <div className="w-full max-w-sm mt-6 text-center">
             {scanResult ? (
-              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 shadow-sm animate-in zoom-in-95 duration-200">
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 shadow-sm animate-in zoom-in-95 duration-300">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <CheckCircle2 className="h-6 w-6 text-emerald-600 animate-bounce" />
-                  <span className="text-base font-bold text-emerald-800">
+                  <span className="text-base font-bold text-emerald-900 tracking-tight">
                     {scanResult.checkType === "CHECK_IN" ? "CHECK-IN THÀNH CÔNG" : "CHECK-OUT THÀNH CÔNG"}
                   </span>
                 </div>
-                <div className="text-sm font-semibold text-emerald-900">
+                <div className="text-sm font-semibold text-emerald-800">
                   {scanResult.fullName} ({scanResult.employeeCode})
                 </div>
-                <div className="mt-1 flex items-center justify-center gap-3 text-xs text-emerald-700">
-                  <span className="flex items-center gap-1">
+                <div className="mt-2 flex items-center justify-center gap-3 text-xs font-medium text-emerald-700">
+                  <span className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-full border border-emerald-100 shadow-sm">
                     <Clock className="h-3.5 w-3.5" />
                     {new Date(scanResult.checkTime).toLocaleTimeString("vi-VN")}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 font-semibold border border-emerald-500/30">
+                  <span className={`px-2.5 py-1 rounded-full border shadow-sm ${scanResult.attendanceStatus === "ON_TIME" ? "bg-emerald-100 border-emerald-200 text-emerald-700" : "bg-amber-100 border-amber-200 text-amber-700"}`}>
                     {scanResult.attendanceStatus === "ON_TIME" ? "Đúng giờ" : "Đi muộn"}
                   </span>
                 </div>
               </div>
             ) : errorMessage ? (
-              <div className="p-3 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center justify-center gap-2 animate-in shake duration-200">
-                <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center justify-center gap-2 animate-in shake duration-300 shadow-sm">
+                <XCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
                 <span>{errorMessage}</span>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-2.5 py-1">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium shadow-sm">
-                  <Eye className="h-3.5 w-3.5 text-primary" />
+              <div className="flex flex-col items-center gap-3 py-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-xs font-semibold shadow-sm">
+                  <Eye className="h-3.5 w-3.5" />
                   <span>Xác thực tính sống AI (Liveness Detection)</span>
                 </div>
-                <p className="text-xs text-muted-foreground font-medium tracking-wide">
+                <p className="text-sm text-slate-600 font-medium tracking-wide">
                   {promptMessage}
                 </p>
               </div>

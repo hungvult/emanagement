@@ -32,7 +32,10 @@ function addDays(date: Date, n: number): Date {
 }
 
 function toISODate(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 const DAY_NAMES = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -245,16 +248,28 @@ export default function ShiftsPage() {
       <div className="space-y-6">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-indigo-50/80 via-white to-white p-6 rounded-[32px] border border-indigo-100/50 shadow-sm">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Quản lý Ca làm việc</h1>
-            <p className="text-muted-foreground text-sm mt-1">Tạo danh mục ca làm việc và phân ca cho nhân sự.</p>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+              <Calendar className="h-8 w-8 text-indigo-600" />
+              Quản lý Ca làm việc
+            </h1>
+            <p className="text-sm font-medium text-slate-500 mt-1.5 ml-11">
+              Tạo danh mục ca làm việc và phân ca cho nhân sự.
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setIsAssignOpen(true)} className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsAssignOpen(true)}
+              className="flex items-center gap-2 h-11 px-5 rounded-xl font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200"
+            >
               <UserCheck className="h-4 w-4" /> Phân ca
             </Button>
-            <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 h-11 px-5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20"
+            >
               <Plus className="h-4 w-4" /> Tạo ca mới
             </Button>
           </div>
@@ -265,19 +280,19 @@ export default function ShiftsPage() {
           {shifts.map((shift, i) => {
             const color = SHIFT_COLORS[i % SHIFT_COLORS.length];
             return (
-              <Card key={shift.id} className="hover:border-primary/50 transition-colors shadow-sm bg-card border-border">
-                <CardHeader className="pb-2 pt-4">
+              <Card key={shift.id} className="hover:border-indigo-200 hover:shadow-md transition-all shadow-sm bg-white border-slate-100 rounded-2xl">
+                <CardHeader className="pb-2 pt-4 px-5">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-base text-foreground">{shift.name}</CardTitle>
-                    <Badge variant="outline" className={`text-xs ${color.text}`}>{shift.shiftCode}</Badge>
+                    <CardTitle className="text-base font-bold text-slate-800">{shift.name}</CardTitle>
+                    <Badge variant="outline" className={`text-xs font-semibold ${color.text} ${color.border} ${color.bg}`}>{shift.shiftCode}</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="pb-4">
-                  <div className="flex items-center gap-2 text-muted-foreground">
+                <CardContent className="pb-4 px-5">
+                  <div className="flex items-center gap-2 text-slate-500">
                     <Clock className={`h-4 w-4 ${color.text}`} />
-                    <span className="text-sm font-medium text-foreground">{shift.startTime} – {shift.endTime}</span>
+                    <span className="text-sm font-bold text-slate-700">{shift.startTime} – {shift.endTime}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Cho phép trễ: <strong>{shift.gracePeriodMinutes} phút</strong></p>
+                  <p className="text-[13px] text-slate-500 mt-1.5 font-medium">Cho phép trễ: <strong className="text-slate-700">{shift.gracePeriodMinutes} phút</strong></p>
                 </CardContent>
               </Card>
             );
@@ -285,8 +300,8 @@ export default function ShiftsPage() {
         </div>
 
         {/* Lịch phân ca tuần */}
-        <Card className="border-border bg-card shadow-sm">
-          <CardHeader className="border-b border-border pb-3 pt-4">
+        <Card className="border-slate-100 bg-white shadow-sm rounded-3xl overflow-hidden">
+          <CardHeader className="border-b border-slate-100 pb-4 pt-5 px-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -309,16 +324,16 @@ export default function ShiftsPage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[700px] text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-44 min-w-[160px] bg-muted/30">Nhân viên</th>
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="text-left py-4 px-5 font-bold text-slate-700 w-44 min-w-[160px]">Nhân viên</th>
                     {weekDays.map((day, i) => {
                       const dateStr = toISODate(day);
                       const isToday = dateStr === today;
                       return (
-                        <th key={i} className={`text-center py-3 px-2 font-medium w-[calc((100%-160px)/7)] ${isToday ? "bg-primary/5" : ""}`}>
-                          <div className={`text-xs ${isToday ? "text-primary font-bold" : "text-muted-foreground"}`}>{DAY_NAMES[i]}</div>
-                          <div className={`text-sm mt-0.5 ${isToday ? "text-primary font-bold" : "text-foreground"}`}>
+                        <th key={i} className={`text-center py-4 px-2 font-medium w-[calc((100%-160px)/7)] border-l border-slate-100 ${isToday ? "bg-indigo-50/50" : ""}`}>
+                          <div className={`text-xs uppercase tracking-wider ${isToday ? "text-indigo-600 font-extrabold" : "text-slate-500 font-bold"}`}>{DAY_NAMES[i]}</div>
+                          <div className={`text-[15px] mt-1 ${isToday ? "text-indigo-600 font-extrabold" : "text-slate-800 font-semibold"}`}>
                             {day.getDate()}/{day.getMonth() + 1}
                           </div>
                         </th>
@@ -345,10 +360,10 @@ export default function ShiftsPage() {
                     </tr>
                   ) : (
                     displayEmployees.map((emp) => (
-                      <tr key={emp.id} className="border-b border-border hover:bg-muted/30 transition-colors group">
-                        <td className="py-2 px-4 bg-muted/10 group-hover:bg-muted/30">
-                          <div className="font-medium text-foreground text-sm truncate max-w-[140px]">{emp.fullName}</div>
-                          <div className="text-xs text-muted-foreground">{emp.employeeCode}</div>
+                      <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
+                        <td className="py-3 px-5 bg-white group-hover:bg-transparent">
+                          <div className="font-bold text-slate-800 text-sm truncate max-w-[140px]">{emp.fullName}</div>
+                          <div className="text-xs font-semibold text-slate-500 mt-0.5">{emp.employeeCode}</div>
                         </td>
                         {weekDays.map((day, ci) => {
                           const dateStr = toISODate(day);
@@ -358,28 +373,28 @@ export default function ShiftsPage() {
                           return (
                             <td
                               key={ci}
-                              className={`py-2 px-1.5 text-center ${isToday ? "bg-primary/5" : ""}`}
+                              className={`py-3 px-2 text-center border-l border-slate-100 ${isToday ? "bg-indigo-50/30" : ""}`}
                               onClick={() => !entry && handleCellClick(emp, day)}
                             >
                               {entry && color ? (
-                                <div className={`group/cell relative rounded-md border ${color.bg} ${color.border} overflow-hidden`}>
+                                <div className={`group/cell relative rounded-xl border-2 ${color.bg} ${color.border} overflow-hidden shadow-sm`}>
                                   {/* Thông tin ca */}
-                                  <div className="px-1.5 py-1.5">
-                                    <div className={`text-[11px] font-semibold ${color.text} leading-tight`}>{entry.shiftName}</div>
-                                    <div className={`text-[10px] ${color.text} opacity-80`}>{entry.startTime.slice(0,5)}–{entry.endTime.slice(0,5)}</div>
+                                  <div className="px-2 py-2">
+                                    <div className={`text-[11px] font-extrabold ${color.text} leading-tight mb-0.5 uppercase tracking-wide`}>{entry.shiftName}</div>
+                                    <div className={`text-[11px] font-bold ${color.text} opacity-90`}>{entry.startTime.slice(0,5)} – {entry.endTime.slice(0,5)}</div>
                                   </div>
                                   {/* Action bar – hiện khi hover */}
-                                  <div className="grid grid-cols-2 border-t border-current/10 opacity-0 group-hover/cell:opacity-100 transition-opacity h-0 group-hover/cell:h-auto overflow-hidden">
+                                  <div className="grid grid-cols-2 border-t border-current/10 opacity-0 group-hover/cell:opacity-100 transition-opacity h-0 group-hover/cell:h-auto overflow-hidden bg-white/50 backdrop-blur-sm">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleCellClick(emp, day); }}
-                                      className={`py-1 text-[10px] font-medium ${color.text} hover:bg-white/20 transition-colors flex items-center justify-center gap-0.5 border-r border-current/10`}
+                                      className={`py-1.5 text-[11px] font-bold ${color.text} hover:bg-white/50 transition-colors flex items-center justify-center gap-1 border-r border-current/10`}
                                       title="Đổi ca"
                                     >
                                       ✏️ Đổi
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setConfirmRemove({ userId: emp.id, userName: emp.fullName, shiftName: entry.shiftName, date: dateStr }); }}
-                                      className="py-1 text-[10px] font-medium text-destructive hover:bg-destructive/10 transition-colors flex items-center justify-center gap-0.5"
+                                      className="py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-colors flex items-center justify-center gap-1"
                                       title="Hủy ca"
                                     >
                                       🗑 Hủy
@@ -387,8 +402,8 @@ export default function ShiftsPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="rounded-md border border-dashed border-border/50 py-2 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all opacity-0 group-hover:opacity-100">
-                                  <Plus className="h-3 w-3 mx-auto text-muted-foreground" />
+                                <div className="rounded-xl border-2 border-dashed border-slate-200 py-3 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition-all opacity-0 group-hover:opacity-100">
+                                  <Plus className="h-4 w-4 mx-auto text-indigo-400" />
                                 </div>
                               )}
                             </td>

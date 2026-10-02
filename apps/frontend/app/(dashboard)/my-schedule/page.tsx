@@ -27,7 +27,10 @@ function addDays(date: Date, n: number): Date {
 }
 
 function toISODate(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 const DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"];
@@ -84,23 +87,28 @@ export default function MySchedulePage() {
     <RoleGuard allowedRoles={["ROLE_USER", "ROLE_ADMIN"]} fallback={<p>Không có quyền truy cập</p>}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-indigo-50/80 via-white to-white p-6 rounded-[32px] border border-indigo-100/50 shadow-sm">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Lịch làm việc của tôi</h1>
-            <p className="text-muted-foreground text-sm mt-1">Xem chi tiết các ca làm việc đã được phân công.</p>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+              <Calendar className="h-8 w-8 text-indigo-600" />
+              Lịch làm việc của tôi
+            </h1>
+            <p className="text-sm font-medium text-slate-500 mt-1.5 ml-11">
+              Xem chi tiết các ca làm việc đã được phân công.
+            </p>
           </div>
-          <div className="flex items-center gap-2 bg-card p-1.5 rounded-lg border border-border shadow-sm">
-            <Button variant="ghost" size="sm" onClick={() => setWeekStart(d => addDays(d, -7))} className="h-8 w-8 p-0">
-              <ChevronLeft className="h-4 w-4" />
+          <div className="flex items-center gap-2 bg-slate-50/50 p-1.5 rounded-[20px] w-fit border border-slate-100 shadow-sm">
+            <Button variant="ghost" size="sm" onClick={() => setWeekStart(d => addDays(d, -7))} className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm">
+              <ChevronLeft className="h-5 w-5" />
             </Button>
-            <div className="px-3 flex items-center gap-2 text-sm font-medium">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+            <div className="px-4 flex items-center gap-2 text-sm font-extrabold text-slate-700 bg-white h-10 rounded-[14px] shadow-sm border border-slate-100">
+              <Calendar className="h-4 w-4 text-indigo-500" />
               {weekLabel}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setWeekStart(d => addDays(d, 7))} className="h-8 w-8 p-0">
-              <ChevronRight className="h-4 w-4" />
+            <Button variant="ghost" size="sm" onClick={() => setWeekStart(d => addDays(d, 7))} className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm">
+              <ChevronRight className="h-5 w-5" />
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => setWeekStart(getMondayOfWeek(new Date()))} className="h-8 ml-2 px-3 text-xs">
+            <Button variant="outline" size="sm" onClick={() => setWeekStart(getMondayOfWeek(new Date()))} className="h-10 ml-2 px-5 text-[13px] font-bold rounded-[14px] text-indigo-600 border-indigo-100 hover:bg-indigo-50">
               Hôm nay
             </Button>
           </div>
@@ -129,20 +137,20 @@ export default function MySchedulePage() {
               const color = entry ? SHIFT_COLORS[entry.shiftId % SHIFT_COLORS.length] : null;
 
               return (
-                <Card key={i} className={`border-border transition-colors ${isToday ? "border-primary/50 shadow-md ring-1 ring-primary/20" : "hover:border-primary/30"}`}>
-                  <CardHeader className={`pb-2 pt-4 border-b ${isToday ? "bg-primary/5" : "bg-muted/10"}`}>
+                <Card key={i} className={`border-slate-100 transition-all rounded-[24px] ${isToday ? "border-indigo-200 shadow-md ring-2 ring-indigo-50 bg-white" : "hover:border-indigo-100 hover:shadow-sm bg-slate-50/30"}`}>
+                  <CardHeader className={`pb-3 pt-5 border-b border-slate-100 px-5 ${isToday ? "bg-indigo-50/50" : "bg-transparent"}`}>
                     <div className="flex justify-between items-center">
-                      <span className={`text-sm font-semibold ${isToday ? "text-primary" : "text-foreground"}`}>
+                      <span className={`text-[15px] font-extrabold ${isToday ? "text-indigo-600" : "text-slate-700"}`}>
                         {DAY_NAMES[i]}
                       </span>
-                      <span className={`text-sm ${isToday ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                      <span className={`text-sm font-bold ${isToday ? "text-indigo-600" : "text-slate-500"}`}>
                         {day.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
                       </span>
                     </div>
                   </CardHeader>
-                  <CardContent className="pt-4 pb-4">
+                  <CardContent className="p-5">
                     {entry && color ? (
-                      <div className={`p-3 rounded-lg border ${color.bg} ${color.border}`}>
+                      <div className={`p-4 rounded-2xl border-2 shadow-sm ${color.bg} ${color.border}`}>
                         <div className="flex items-center justify-between mb-2">
                           <h4 className={`font-bold text-sm ${color.text}`}>{entry.shiftName}</h4>
                           <Badge variant="outline" className={`text-[10px] ${color.text}`}>{entry.shiftCode}</Badge>
@@ -155,8 +163,8 @@ export default function MySchedulePage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-[76px] rounded-lg border border-dashed border-border bg-muted/20">
-                        <span className="text-sm text-muted-foreground">Không có ca làm việc</span>
+                      <div className="flex flex-col items-center justify-center h-[88px] rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
+                        <span className="text-sm font-semibold text-slate-400">Không có ca làm việc</span>
                       </div>
                     )}
                   </CardContent>

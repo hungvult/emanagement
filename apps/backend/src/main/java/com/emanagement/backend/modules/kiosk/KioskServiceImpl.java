@@ -19,6 +19,8 @@ import com.emanagement.backend.modules.kiosk.dto.KioskCheckInResponseDto;
 import com.emanagement.backend.modules.kiosk.dto.KioskRegisterDto;
 import com.emanagement.backend.modules.shift.Shift;
 import com.emanagement.backend.modules.shift.ShiftRepository;
+import com.emanagement.backend.modules.shift.EmployeeShift;
+import com.emanagement.backend.modules.shift.EmployeeShiftRepository;
 import com.emanagement.backend.security.JwtTokenProvider;
 
 import com.emanagement.backend.common.service.StorageService;
@@ -41,6 +43,7 @@ public class KioskServiceImpl implements KioskService {
     private final UserRepository userRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final ShiftRepository shiftRepository;
+    private final EmployeeShiftRepository employeeShiftRepository;
     private final AiFaceService aiFaceService;
     private final com.emanagement.backend.modules.alert.AlertService alertService;
     private final JwtTokenProvider jwtTokenProvider;
@@ -126,9 +129,19 @@ public class KioskServiceImpl implements KioskService {
         String status = "ON_TIME";
         AttendanceRecord record;
 
-        Shift defaultShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
-        LocalTime shiftStart = defaultShift != null ? defaultShift.getStartTime() : LocalTime.of(8, 0);
-        int graceMinutes = defaultShift != null ? defaultShift.getGracePeriodMinutes() : 15;
+        // Tìm ca làm việc được phân công cho nhân viên hôm nay
+        Shift assignedShift = employeeShiftRepository
+                .findByUserIdAndAssignedDate(user.getId(), today)
+                .map(EmployeeShift::getShift)
+                .orElse(null);
+
+        // Fallback: nếu không có ca được phân công riêng, dùng SHIFT-001 làm mặc định
+        if (assignedShift == null) {
+            assignedShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+        }
+
+        LocalTime shiftStart = assignedShift != null ? assignedShift.getStartTime() : LocalTime.of(8, 0);
+        int graceMinutes = assignedShift != null ? assignedShift.getGracePeriodMinutes() : 15;
 
         if (todayRecords.isEmpty()) {
             checkType = "CHECK_IN";
