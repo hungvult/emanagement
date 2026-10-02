@@ -72,17 +72,17 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
 
   const content = (
     <>
-      <div className="flex h-16 items-center border-b border-border px-6 shrink-0">
-        <div className="flex items-center gap-3 font-bold text-xl text-foreground">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm bg-gradient-to-br from-indigo-500 to-primary">
+      <div className="flex h-20 items-center border-b border-slate-100 px-6 shrink-0">
+        <div className="flex items-center gap-3 font-extrabold text-xl text-slate-900 tracking-tight">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/20">
             <Briefcase className="h-5 w-5" />
           </div>
-          <span className="tracking-tight">eManagement</span>
+          <span>eManagement</span>
         </div>
       </div>
       
       <div className="flex flex-col py-6 px-4 space-y-1.5 overflow-y-auto h-full">
-        <div className="text-xs font-semibold text-muted-foreground mb-2 px-2 uppercase tracking-wider">Menu</div>
+        <div className="text-[11px] font-bold text-slate-400 mb-3 px-3 uppercase tracking-widest">Menu</div>
         {menuItems.filter(item => item.show).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           const Icon = item.icon;
@@ -92,13 +92,13 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
               key={item.href}
               href={item.href}
               className={cn(
-                "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200",
                 isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-indigo-50 text-indigo-600 shadow-sm" 
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive ? "scale-105" : "group-hover:scale-105")} />
+              <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive ? "scale-105" : "group-hover:scale-110")} />
               {item.title}
             </Link>
           );
@@ -109,14 +109,14 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
 
   if (isMobile) {
     return (
-      <div className="flex flex-col h-full bg-card">
+      <div className="flex flex-col h-full bg-white">
         {content}
       </div>
     );
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r border-border bg-card text-card-foreground transition-all duration-300 hidden lg:flex flex-col">
+    <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r border-slate-100 bg-white transition-all duration-300 hidden lg:flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
       {content}
     </aside>
   );
