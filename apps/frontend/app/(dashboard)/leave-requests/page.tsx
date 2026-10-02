@@ -12,7 +12,7 @@ import { Modal } from "../../../components/ui/modal";
 import { Pagination } from "../../../components/ui/pagination";
 import { useToast } from "../../../components/ui/toast";
 import { formatDateTime } from "../../../lib/utils";
-import { Check, X, Plus } from "lucide-react";
+import { Check, X, Plus, CalendarRange } from "lucide-react";
 
 export default function LeaveRequestsPage() {
   const { user, hasRole } = useAuth();
@@ -127,19 +127,20 @@ export default function LeaveRequestsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-indigo-50/80 via-white to-white p-6 rounded-[32px] border border-indigo-100/50 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+            <CalendarRange className="h-8 w-8 text-indigo-600" />
             {isAdmin ? "Quản lý đơn phép" : "Đơn phép của tôi"}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm font-medium text-slate-500 mt-1.5 ml-11">
             {isAdmin ? "Xét duyệt đơn xin nghỉ phép của nhân viên." : "Tạo và theo dõi đơn xin nghỉ phép."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           {isAdmin && (
             <select
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all w-[200px]"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
@@ -147,13 +148,16 @@ export default function LeaveRequestsPage() {
               }}
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="PENDING">Chờ duyệt (PENDING)</option>
-              <option value="APPROVED">Đã duyệt (APPROVED)</option>
-              <option value="REJECTED">Từ chối (REJECTED)</option>
+              <option value="PENDING">Chờ duyệt</option>
+              <option value="APPROVED">Đã duyệt</option>
+              <option value="REJECTED">Từ chối</option>
             </select>
           )}
           {!isAdmin && (
-            <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 h-11 px-5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20"
+            >
               <Plus className="h-4 w-4" /> Tạo đơn mới
             </Button>
           )}
@@ -270,39 +274,46 @@ export default function LeaveRequestsPage() {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         title="Tạo đơn xin nghỉ phép"
+        className="max-w-md"
       >
-        <form onSubmit={handleCreateSubmit} className="space-y-4">
+        <form onSubmit={handleCreateSubmit} className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Từ ngày *"
-              type="date"
-              value={createForm.startDate}
-              onChange={(e) => setCreateForm({ ...createForm, startDate: e.target.value })}
-              required
-            />
-            <Input
-              label="Đến ngày *"
-              type="date"
-              value={createForm.endDate}
-              onChange={(e) => setCreateForm({ ...createForm, endDate: e.target.value })}
-              required
-            />
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Từ ngày <span className="text-rose-500">*</span></label>
+              <input
+                type="date"
+                value={createForm.startDate}
+                onChange={(e) => setCreateForm({ ...createForm, startDate: e.target.value })}
+                className="w-full h-11 rounded-xl border border-transparent bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Đến ngày <span className="text-rose-500">*</span></label>
+              <input
+                type="date"
+                value={createForm.endDate}
+                onChange={(e) => setCreateForm({ ...createForm, endDate: e.target.value })}
+                className="w-full h-11 rounded-xl border border-transparent bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
+                required
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-muted-foreground">Lý do xin nghỉ *</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Lý do xin nghỉ <span className="text-rose-500">*</span></label>
             <textarea
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[100px]"
+              className="w-full rounded-xl border border-transparent bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all min-h-[120px] resize-none"
               placeholder="VD: Nghỉ phép cá nhân giải quyết việc gia đình..."
               value={createForm.reason}
               onChange={(e) => setCreateForm({ ...createForm, reason: e.target.value })}
               required
             />
           </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)} className="rounded-xl font-semibold hover:bg-slate-100">
               Hủy
             </Button>
-            <Button type="submit" isLoading={isSubmitting}>
+            <Button type="submit" isLoading={isSubmitting} className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 px-6">
               Gửi đơn
             </Button>
           </div>

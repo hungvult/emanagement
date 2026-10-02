@@ -11,7 +11,7 @@ import { Modal } from "../../../components/ui/modal";
 import { Pagination } from "../../../components/ui/pagination";
 import { useToast } from "../../../components/ui/toast";
 import { formatDateTime } from "../../../lib/utils";
-import { Image as ImageIcon, Eye, Search, X } from "lucide-react";
+import { Image as ImageIcon, Eye, Search, X, Clock } from "lucide-react";
 
 export default function AttendancePage() {
   const { user, hasRole } = useAuth();
@@ -81,12 +81,13 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-indigo-50/80 via-white to-white p-6 rounded-[32px] border border-indigo-100/50 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+            <Clock className="h-8 w-8 text-indigo-600" />
             {isAdmin ? "Nhật ký chấm công" : "Lịch sử chấm công của tôi"}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm font-medium text-slate-500 mt-1.5 ml-11">
             {isAdmin
               ? "Xem và quản lý dữ liệu check-in/out của toàn bộ nhân viên."
               : "Theo dõi thời gian làm việc của bạn."}
@@ -95,32 +96,32 @@ export default function AttendancePage() {
       </div>
 
       {/* Thanh bộ lọc */}
-      <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">Từ ngày</label>
+      <div className="bg-white border border-slate-100 rounded-[24px] p-5 shadow-sm flex flex-col md:flex-row items-center gap-4">
+        <div className="flex-1 flex flex-wrap gap-4 w-full">
+          <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Từ ngày</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all w-full"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">Đến ngày</label>
+          <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Đến ngày</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all w-full"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">Trạng thái</label>
+          <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Trạng thái</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all w-full"
             >
               <option value="">Tất cả</option>
               <option value="ON_TIME">Đúng giờ</option>
@@ -128,50 +129,27 @@ export default function AttendancePage() {
               <option value="EARLY_LEAVE">Về sớm</option>
             </select>
           </div>
-          <div className="flex gap-2 items-end">
-            <Button
-              onClick={handleApplyFilters}
-              size="sm"
-              className="flex items-center gap-1.5 h-9"
-            >
-              <Search className="h-3.5 w-3.5" />
-              Lọc
-            </Button>
-            {hasActiveFilter && (
-              <Button
-                onClick={handleResetFilters}
-                variant="secondary"
-                size="sm"
-                className="flex items-center gap-1.5 h-9"
-              >
-                <X className="h-3.5 w-3.5" />
-                Xóa bộ lọc
-              </Button>
-            )}
-          </div>
         </div>
-        {hasActiveFilter && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Đang lọc:{" "}
-            {appliedFilters.startDate && (
-              <span className="font-medium">Từ {appliedFilters.startDate}</span>
-            )}
-            {appliedFilters.endDate && (
-              <span className="font-medium"> đến {appliedFilters.endDate}</span>
-            )}
-            {appliedFilters.status && (
-              <span className="font-medium">
-                {appliedFilters.startDate || appliedFilters.endDate ? " · " : ""}
-                Trạng thái:{" "}
-                {appliedFilters.status === "ON_TIME"
-                  ? "Đúng giờ"
-                  : appliedFilters.status === "LATE"
-                  ? "Đi muộn"
-                  : "Về sớm"}
-              </span>
-            )}
-          </p>
-        )}
+
+        <div className="flex items-center gap-3 self-end w-full md:w-auto h-11">
+          <Button
+            onClick={handleApplyFilters}
+            className="flex items-center justify-center gap-2 h-full px-6 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 flex-1 md:flex-none"
+          >
+            <Search className="h-4 w-4" />
+            Lọc
+          </Button>
+          {hasActiveFilter && (
+            <Button
+              onClick={handleResetFilters}
+              variant="outline"
+              className="flex items-center justify-center gap-2 h-full px-4 rounded-xl font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 border-slate-200"
+              title="Xóa bộ lọc"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Bảng dữ liệu */}
@@ -240,17 +218,17 @@ export default function AttendancePage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedRecord(record)}
-                          className="text-accent hover:bg-accent/10 flex items-center gap-1.5 h-7 text-xs font-medium"
+                          className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-1.5 h-8 text-xs font-bold rounded-lg transition-colors"
                         >
                           <Eye className="h-3.5 w-3.5" /> Xem ảnh
                           {record.snapshotUrl && record.checkoutSnapshotUrl && (
-                            <span className="px-1 py-0.2 rounded text-[10px] bg-primary/20 text-primary font-semibold">
+                            <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-indigo-100 text-indigo-700 font-extrabold ml-1">
                               2
                             </span>
                           )}
                         </Button>
                       ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
+                        <span className="text-slate-400 text-sm font-medium">—</span>
                       )}
                     </TableCell>
                   </TableRow>
