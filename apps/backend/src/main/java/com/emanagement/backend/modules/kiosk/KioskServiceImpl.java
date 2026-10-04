@@ -129,19 +129,23 @@ public class KioskServiceImpl implements KioskService {
         String status = "ON_TIME";
         AttendanceRecord record;
 
-        // Tìm ca làm việc được phân công cho nhân viên hôm nay
-        Shift assignedShift = employeeShiftRepository
+        // Ưu tiên giờ ca đã snapshot trong lịch phân công (không bị ảnh hưởng nếu ca gốc bị sửa sau này)
+        EmployeeShift todayShift = employeeShiftRepository
                 .findByUserIdAndAssignedDate(user.getId(), today)
-                .map(EmployeeShift::getShift)
                 .orElse(null);
 
-        // Fallback: nếu không có ca được phân công riêng, dùng SHIFT-001 làm mặc định
-        if (assignedShift == null) {
-            assignedShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+        LocalTime shiftStart;
+        int graceMinutes;
+        if (todayShift != null) {
+            shiftStart = todayShift.getStartTime();
+            graceMinutes = todayShift.getGracePeriodMinutes();
+        } else {
+            // Fallback: không có ca được phân công thì dùng SHIFT-001 làm mặc định
+            Shift fallback = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+            shiftStart = fallback != null ? fallback.getStartTime() : LocalTime.of(8, 0);
+            graceMinutes = fallback != null && fallback.getGracePeriodMinutes() != null
+                    ? fallback.getGracePeriodMinutes() : 15;
         }
-
-        LocalTime shiftStart = assignedShift != null ? assignedShift.getStartTime() : LocalTime.of(8, 0);
-        int graceMinutes = assignedShift != null ? assignedShift.getGracePeriodMinutes() : 15;
 
         if (todayRecords.isEmpty()) {
             checkType = "CHECK_IN";
