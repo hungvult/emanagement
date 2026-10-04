@@ -534,10 +534,12 @@ export default function EmployeesPage() {
                           onClick={() => openDetailModal(emp)}
                         >
                           {columnVis.employeeCode && (
-                            <TableCell className="font-bold text-slate-700">{emp.employeeCode}</TableCell>
+                            <TableCell className="font-bold text-slate-700" onClick={() => openDetailModal(emp)}>
+                              {emp.employeeCode}
+                            </TableCell>
                           )}
                           {columnVis.fullName && (
-                            <TableCell>
+                            <TableCell onClick={() => openDetailModal(emp)}>
                               <div className="flex items-center gap-3">
                                 <div className="h-9 w-9 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
                                   {emp.fullName?.charAt(0) || "U"}
@@ -554,7 +556,7 @@ export default function EmployeesPage() {
                             </TableCell>
                           )}
                           {columnVis.emailPhone && (
-                            <TableCell>
+                            <TableCell onClick={() => openDetailModal(emp)}>
                               <div className="flex flex-col">
                                 <span className="text-sm font-semibold text-slate-700">{emp.email || "—"}</span>
                                 <span className="text-[13px] font-medium text-slate-400">{emp.phone || "—"}</span>
@@ -562,7 +564,7 @@ export default function EmployeesPage() {
                             </TableCell>
                           )}
                           {columnVis.status && (
-                            <TableCell>
+                            <TableCell onClick={() => openDetailModal(emp)}>
                               {emp.status === "ACTIVE" ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200 shadow-sm">
                                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
@@ -577,13 +579,16 @@ export default function EmployeesPage() {
                             </TableCell>
                           )}
                           {columnVis.ekycFaceId && (
-                            <TableCell onClick={(e) => e.stopPropagation()}>
+                            <TableCell onClick={() => openDetailModal(emp)}>
                               {emp.hasRegisteredFace ? (
                                 <div className="flex items-center gap-2">
                                   <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-600 border border-emerald-100 shadow-sm">
                                     <Check className="h-3 w-3" /> Đã có Face ID
                                   </span>
-                                  <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-slate-100 rounded-lg shadow-sm overflow-hidden">
+                                  <div
+                                    className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-slate-100 rounded-lg shadow-sm overflow-hidden"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -614,25 +619,27 @@ export default function EmployeesPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openEkycModal(emp)}
-                                  className="text-xs font-bold text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 shadow-sm h-7 rounded-md px-2.5 flex items-center gap-1.5"
-                                >
-                                  <Camera className="h-3.5 w-3.5" /> Quét khuôn mặt
-                                </Button>
+                                <div className="inline-flex items-center" onClick={(e) => e.stopPropagation()}>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openEkycModal(emp)}
+                                    className="text-xs font-bold text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 shadow-sm h-7 rounded-md px-2.5 flex items-center gap-1.5"
+                                  >
+                                    <Camera className="h-3.5 w-3.5" /> Quét khuôn mặt
+                                  </Button>
+                                </div>
                               )}
                             </TableCell>
                           )}
                           {columnVis.createdAt && (
-                            <TableCell className="text-[13px] font-medium text-slate-500">
+                            <TableCell className="text-[13px] font-medium text-slate-500" onClick={() => openDetailModal(emp)}>
                               {formatDateTime(emp.createdAt)}
                             </TableCell>
                           )}
                           {columnVis.actions && (
-                            <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex justify-end gap-1.5">
+                            <TableCell className="text-right pr-6" onClick={() => openDetailModal(emp)}>
+                              <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                                 <Button
                                   variant="ghost"
                                   size="sm"
