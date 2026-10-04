@@ -1,5 +1,8 @@
 package com.emanagement.backend.modules.alert;
 
+import java.time.LocalDate;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,12 +30,15 @@ public class AlertController {
     private final AlertService alertService;
 
     @GetMapping
-    @Operation(summary = "Danh sách cảnh báo bất thường", description = "Lấy danh sách các cảnh báo sự cố do hệ thống ghi nhận, có thể lọc theo trạng thái đã giải quyết hay chưa")
+    @Operation(summary = "Danh sách cảnh báo bất thường", description = "Lấy danh sách các cảnh báo sự cố do hệ thống ghi nhận, có thể lọc theo trạng thái, ngày và ca làm việc")
     public ResponseEntity<ApiResponse<PageResponse<AnomalyAlertResponseDto>>> getAlerts(
             @RequestParam(required = false) Boolean isResolved,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long shiftId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        PageResponse<AnomalyAlertResponseDto> response = alertService.getAlerts(isResolved, page, size);
+        PageResponse<AnomalyAlertResponseDto> response = alertService.getAlerts(isResolved, startDate, endDate, shiftId, page, size);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

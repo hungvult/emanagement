@@ -1,5 +1,7 @@
 package com.emanagement.backend.modules.alert;
 
+import java.time.LocalDate;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -11,6 +13,10 @@ import com.emanagement.backend.modules.alert.dto.AnomalyAlertResponseDto;
 import com.emanagement.backend.modules.alert.dto.ResolveAlertRequestDto;
 import com.emanagement.backend.modules.employee.User;
 import com.emanagement.backend.modules.employee.UserRepository;
+import com.emanagement.backend.modules.shift.EmployeeShift;
+import com.emanagement.backend.modules.shift.EmployeeShiftRepository;
+import com.emanagement.backend.modules.shift.Shift;
+import com.emanagement.backend.modules.shift.ShiftRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,18 +25,24 @@ import lombok.RequiredArgsConstructor;
 public class AlertServiceImpl implements AlertService {
     private final AnomalyAlertRepository anomalyAlertRepository;
     private final UserRepository userRepository;
+    private final EmployeeShiftRepository employeeShiftRepository;
+    private final ShiftRepository shiftRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<AnomalyAlertResponseDto> getAlerts(Boolean isResolved, int page, int size) {
+    public PageResponse<AnomalyAlertResponseDto> getAlerts(Boolean isResolved, LocalDate startDate, LocalDate endDate, Long shiftId, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size);
-        Page<AnomalyAlert> alertPage;
+        
+        Long defaultShiftId = shiftRepository.findByShiftCode("SHIFT-001").map(Shift::getId).orElse(1L);
+        boolean isFallbackShift = shiftId != null && shiftId.equals(defaultShiftId);
 
-        if (isResolved != null) {
-            alertPage = anomalyAlertRepository.findByIsResolvedOrderByCreatedAtDesc(isResolved, pageRequest);
-        } else {
-            alertPage = anomalyAlertRepository.findAll(pageRequest);
-        }
+        Page<AnomalyAlert> alertPage = anomalyAlertRepository.findWithFilters(
+                isResolved != null, isResolved,
+                startDate != null, startDate,
+                endDate != null, endDate,
+                shiftId != null, shiftId,
+                isFallbackShift,
+                pageRequest);
         return PageResponse.from(alertPage.map(this::mapToDto));
     }
 
@@ -51,11 +63,31 @@ public class AlertServiceImpl implements AlertService {
     }
 
     private AnomalyAlertResponseDto mapToDto(AnomalyAlert alert) {
+        Long shiftId = null;
+        String shiftName = null;
+        if (alert.getUser() != null && alert.getAlertDate() != null) {
+            EmployeeShift es = employeeShiftRepository
+                    .findByUserIdAndAssignedDate(alert.getUser().getId(), alert.getAlertDate())
+                    .orElse(null);
+            if (es != null) {
+                shiftId = es.getShift() != null ? es.getShift().getId() : null;
+                shiftName = es.getShiftName();
+            } else {
+                Shift fallback = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+                if (fallback != null) {
+                    shiftId = fallback.getId();
+                    shiftName = fallback.getName();
+                }
+            }
+        }
+
         return AnomalyAlertResponseDto.builder()
                 .id(alert.getId())
                 .userId(alert.getUser() != null ? alert.getUser().getId() : null)
                 .employeeCode(alert.getUser() != null ? alert.getUser().getEmployeeCode() : "N/A")
                 .fullName(alert.getUser() != null ? alert.getUser().getFullName() : "N/A")
+                .shiftId(shiftId)
+                .shiftName(shiftName)
                 .alertType(alert.getAlertType())
                 .alertDate(alert.getAlertDate())
                 .description(alert.getDescription())
