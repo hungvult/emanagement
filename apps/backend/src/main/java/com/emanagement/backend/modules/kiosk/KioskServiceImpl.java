@@ -136,15 +136,17 @@ public class KioskServiceImpl implements KioskService {
 
         LocalTime shiftStart;
         int graceMinutes;
+        Shift assignedShift;
         if (todayShift != null) {
+            assignedShift = todayShift.getShift();
             shiftStart = todayShift.getStartTime();
             graceMinutes = todayShift.getGracePeriodMinutes();
         } else {
             // Fallback: không có ca được phân công thì dùng SHIFT-001 làm mặc định
-            Shift fallback = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
-            shiftStart = fallback != null ? fallback.getStartTime() : LocalTime.of(8, 0);
-            graceMinutes = fallback != null && fallback.getGracePeriodMinutes() != null
-                    ? fallback.getGracePeriodMinutes() : 15;
+            assignedShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+            shiftStart = assignedShift != null ? assignedShift.getStartTime() : LocalTime.of(8, 0);
+            graceMinutes = assignedShift != null && assignedShift.getGracePeriodMinutes() != null
+                    ? assignedShift.getGracePeriodMinutes() : 15;
         }
 
         if (todayRecords.isEmpty()) {
@@ -156,6 +158,7 @@ public class KioskServiceImpl implements KioskService {
 
             record = new AttendanceRecord();
             record.setUser(user);
+            record.setShift(assignedShift);
             record.setKiosk(kiosk);
             record.setCheckInTime(now);
             record.setStatus(status);
