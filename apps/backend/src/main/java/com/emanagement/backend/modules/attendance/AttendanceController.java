@@ -32,8 +32,9 @@ public class AttendanceController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) String status) {
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(userId, page, size, startDate, endDate, status);
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long shiftId) {
+        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(userId, page, size, startDate, endDate, status, shiftId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -44,8 +45,9 @@ public class AttendanceController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) String status) {
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getAllRecords(page, size, startDate, endDate, status);
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long shiftId) {
+        PageResponse<AttendanceHistoryDto> response = attendanceService.getAllRecords(page, size, startDate, endDate, status, shiftId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

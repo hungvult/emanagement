@@ -19,13 +19,14 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
 
     Page<AttendanceRecord> findByUserIdOrderByCheckInTimeDesc(Long userId, Pageable pageable);
 
-    // Lọc lịch sử chấm công của 1 nhân viên theo ngày và trạng thái
+    // Lọc lịch sử chấm công của 1 nhân viên theo ngày, trạng thái và ca
     @Query("""
         select a from AttendanceRecord a
         where a.user.id = :userId
           and (:hasStartDate = false or a.checkInTime >= :startDate)
           and (:hasEndDate = false or a.checkInTime < :endDate)
           and (:hasStatus = false or a.status = :status)
+          and (:hasShiftId = false or (a.shift is not null and a.shift.id = :shiftId))
         order by a.checkInTime desc
     """)
     Page<AttendanceRecord> findByUserIdWithFilters(
@@ -36,14 +37,17 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("endDate") LocalDateTime endDate,
             @Param("hasStatus") boolean hasStatus,
             @Param("status") String status,
+            @Param("hasShiftId") boolean hasShiftId,
+            @Param("shiftId") Long shiftId,
             Pageable pageable);
 
-    // Lọc toàn bộ chấm công (Admin) theo ngày và trạng thái
+    // Lọc toàn bộ chấm công (Admin) theo ngày, trạng thái và ca
     @Query("""
         select a from AttendanceRecord a
         where (:hasStartDate = false or a.checkInTime >= :startDate)
           and (:hasEndDate = false or a.checkInTime < :endDate)
           and (:hasStatus = false or a.status = :status)
+          and (:hasShiftId = false or (a.shift is not null and a.shift.id = :shiftId))
         order by a.checkInTime desc
     """)
     Page<AttendanceRecord> findAllWithFilters(
@@ -53,6 +57,8 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("endDate") LocalDateTime endDate,
             @Param("hasStatus") boolean hasStatus,
             @Param("status") String status,
+            @Param("hasShiftId") boolean hasShiftId,
+            @Param("shiftId") Long shiftId,
             Pageable pageable);
 
     // Số nhân viên đã check-in trong khoảng [start, end)

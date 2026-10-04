@@ -38,6 +38,10 @@ public class AttendanceRecord {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shift_id")
+    private com.emanagement.backend.modules.shift.Shift shift;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "kiosk_id")
     private Kiosk kiosk;
 
@@ -47,6 +51,7 @@ public class AttendanceRecord {
     @Column(name = "check_out_time")
     private LocalDateTime checkOutTime;
 
+    @Builder.Default
     @Column(length = 20)
     private String status = "ON_TIME";
 
@@ -56,6 +61,7 @@ public class AttendanceRecord {
     @Column(name = "checkout_snapshot_url", columnDefinition = "TEXT")
     private String checkoutSnapshotUrl;
 
+    @Builder.Default
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

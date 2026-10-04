@@ -161,6 +161,11 @@ export default function MySchedulePage() {
                             {entry.startTime.slice(0, 5)} - {entry.endTime.slice(0, 5)}
                           </span>
                         </div>
+                        {entry.gracePeriodMinutes !== undefined && entry.gracePeriodMinutes !== null && (
+                          <div className={`text-[11px] font-semibold mt-1 opacity-80 ${color.text}`}>
+                            Cho phép trễ: {entry.gracePeriodMinutes} phút
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center h-[88px] rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">

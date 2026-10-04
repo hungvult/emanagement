@@ -5,7 +5,8 @@ import { AttendanceHistory } from "../types/attendance.types";
 export interface AttendanceFilters {
   startDate?: string; // YYYY-MM-DD
   endDate?: string;   // YYYY-MM-DD
-  status?: string;    // ON_TIME | LATE | EARLY_LEAVE
+  status?: string;    // ON_TIME | LATE | EARLY_LEAVE | NO_DATA
+  shiftId?: number | string;
 }
 
 export const attendanceService = {
@@ -19,6 +20,7 @@ export const attendanceService = {
     if (filters?.startDate) params.append("startDate", filters.startDate);
     if (filters?.endDate) params.append("endDate", filters.endDate);
     if (filters?.status) params.append("status", filters.status);
+    if (filters?.shiftId) params.append("shiftId", String(filters.shiftId));
     return apiClient.get<PageResponse<AttendanceHistory>>(`/attendances/my-history?${params.toString()}`);
   },
 
@@ -31,6 +33,7 @@ export const attendanceService = {
     if (filters?.startDate) params.append("startDate", filters.startDate);
     if (filters?.endDate) params.append("endDate", filters.endDate);
     if (filters?.status) params.append("status", filters.status);
+    if (filters?.shiftId) params.append("shiftId", String(filters.shiftId));
     return apiClient.get<PageResponse<AttendanceHistory>>(`/attendances/records?${params.toString()}`);
   },
 };

@@ -17,6 +17,8 @@ public class AnomalyAlertResponseDto {
     private Long userId;
     private String employeeCode;
     private String fullName;
+    private Long shiftId;
+    private String shiftName;
     private String alertType;
     private LocalDate alertDate;
     private String description;
