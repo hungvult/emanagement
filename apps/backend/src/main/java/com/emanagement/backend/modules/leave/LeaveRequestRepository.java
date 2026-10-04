@@ -24,5 +24,16 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
     """)
     long countApprovedLeaveOnDate(@Param("status") String status,
                                   @Param("date") LocalDate date);
-}
 
+    // Các đơn nghỉ APPROVED của nhóm nhân viên có giao với khoảng [start, end]
+    @Query("""
+        select l from LeaveRequest l
+        where l.status = 'APPROVED'
+          and l.user.id in :userIds
+          and l.startDate <= :end
+          and l.endDate >= :start
+    """)
+    List<LeaveRequest> findApprovedOverlapping(@Param("userIds") java.util.Collection<Long> userIds,
+                                               @Param("start") LocalDate start,
+                                               @Param("end") LocalDate end);
+}

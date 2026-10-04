@@ -8,7 +8,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,9 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.emanagement.backend.common.dto.ApiResponse;
 import com.emanagement.backend.modules.shift.dto.AssignShiftDto;
+import com.emanagement.backend.modules.shift.dto.BulkAssignDto;
+import com.emanagement.backend.modules.shift.dto.BulkAssignResultDto;
+import com.emanagement.backend.modules.shift.dto.CopyWeekDto;
 import com.emanagement.backend.modules.shift.dto.EmployeeShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftCreateDto;
 import com.emanagement.backend.modules.shift.dto.ShiftResponseDto;
+import com.emanagement.backend.modules.shift.dto.ShiftUpdateDto;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.emanagement.backend.security.UserPrincipal;
 
@@ -44,8 +50,9 @@ public class ShiftController {
 
     @GetMapping
     @Operation(summary = "Danh sách ca làm việc", description = "Lấy danh sách tất cả các ca làm việc trong hệ thống")
-    public ResponseEntity<ApiResponse<List<ShiftResponseDto>>> getAllShifts() {
-        List<ShiftResponseDto> response = shiftService.getAllShifts();
+    public ResponseEntity<ApiResponse<List<ShiftResponseDto>>> getAllShifts(
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        List<ShiftResponseDto> response = shiftService.getAllShifts(includeInactive);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -54,6 +61,39 @@ public class ShiftController {
     public ResponseEntity<ApiResponse<Void>> assignShift(@Valid @RequestBody AssignShiftDto dto) {
         shiftService.assignShift(dto);
         return ResponseEntity.ok(ApiResponse.success("Phân ca thành công cho nhân viên", null));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Chỉnh sửa ca làm việc", description = "Sửa tên/giờ/grace. Đổi giờ chỉ áp dụng cho lịch từ ngày mai (hoặc effectiveFrom) trở đi")
+    public ResponseEntity<ApiResponse<ShiftResponseDto>> updateShift(
+            @PathVariable Long id, @Valid @RequestBody ShiftUpdateDto dto) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật ca làm việc thành công", shiftService.updateShift(id, dto)));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Xóa / ngừng sử dụng ca", description = "Chưa từng dùng: xóa hẳn. Đã dùng: ngừng sử dụng (giữ lịch sử). Nếu còn lịch tương lai phải truyền replaceWithShiftId")
+    public ResponseEntity<ApiResponse<String>> removeShift(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long replaceWithShiftId) {
+        String action = shiftService.removeShift(id, replaceWithShiftId);
+        String msg = "DELETED".equals(action) ? "Đã xóa ca làm việc" : "Ca làm việc đã được ngừng sử dụng";
+        return ResponseEntity.ok(ApiResponse.success(msg, action));
+    }
+
+    @PostMapping("/bulk-assign")
+    @Operation(summary = "Phân ca hàng loạt", description = "Nhiều nhân viên x khoảng ngày x các thứ trong tuần. dryRun=true để xem trước")
+    public ResponseEntity<ApiResponse<BulkAssignResultDto>> bulkAssign(@Valid @RequestBody BulkAssignDto dto) {
+        return ResponseEntity.ok(ApiResponse.success(
+                Boolean.TRUE.equals(dto.getDryRun()) ? "Xem trước kết quả phân ca" : "Phân ca hàng loạt hoàn tất",
+                shiftService.bulkAssign(dto)));
+    }
+
+    @PostMapping("/copy-week")
+    @Operation(summary = "Sao chép lịch tuần", description = "Sao chép lịch 7 ngày từ tuần nguồn sang tuần đích. dryRun=true để xem trước")
+    public ResponseEntity<ApiResponse<BulkAssignResultDto>> copyWeek(@Valid @RequestBody CopyWeekDto dto) {
+        return ResponseEntity.ok(ApiResponse.success(
+                Boolean.TRUE.equals(dto.getDryRun()) ? "Xem trước kết quả sao chép" : "Sao chép lịch hoàn tất",
+                shiftService.copyWeek(dto)));
     }
 
     @GetMapping("/schedule")
@@ -79,7 +119,7 @@ public class ShiftController {
     @Operation(summary = "Hủy ca làm việc của nhân viên", description = "Xóa ca làm việc đã phân cho nhân viên vào ngày cụ thể và gửi thông báo")
     public ResponseEntity<ApiResponse<Void>> removeAssignedShift(
             @RequestParam Long userId,
-            @RequestParam String assignedDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate assignedDate) {
         shiftService.removeAssignedShift(userId, assignedDate);
         return ResponseEntity.ok(ApiResponse.success("Đã hủy ca làm việc thành công", null));
     }

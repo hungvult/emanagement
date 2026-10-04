@@ -12,6 +12,11 @@ import org.springframework.data.repository.query.Param;
 public interface AttendanceRecordRepository extends JpaRepository<AttendanceRecord, Long> {
     List<AttendanceRecord> findByUserIdAndCheckInTimeBetween(Long userId, LocalDateTime start, LocalDateTime and);
 
+    boolean existsByUserIdAndCheckInTimeBetween(Long userId, LocalDateTime start, LocalDateTime end);
+
+    List<AttendanceRecord> findByUserIdInAndCheckInTimeBetween(java.util.Collection<Long> userIds,
+            LocalDateTime start, LocalDateTime end);
+
     Page<AttendanceRecord> findByUserIdOrderByCheckInTimeDesc(Long userId, Pageable pageable);
 
     // Lọc lịch sử chấm công của 1 nhân viên theo ngày và trạng thái

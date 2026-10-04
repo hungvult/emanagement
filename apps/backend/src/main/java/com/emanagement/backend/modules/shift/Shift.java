@@ -43,7 +43,16 @@ public class Shift {
     @Builder.Default
     private Integer gracePeriodMinutes = 15;
 
+    /** false = ca đã ngừng sử dụng (xóa mềm): không phân mới được nhưng vẫn giữ lịch sử. */
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean active = true;
+
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "updated_at")
+    @Builder.Default
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }

@@ -22,5 +22,6 @@ public class EmployeeShiftResponseDto {
     private String shiftCode;
     private LocalTime startTime;
     private LocalTime endTime;
+    private Integer gracePeriodMinutes;
     private LocalDate assignedDate;
 }
