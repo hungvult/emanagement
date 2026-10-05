@@ -1,6 +1,6 @@
-"""Nạp và quản lý các model ONNX của OpenCV Zoo dùng chung cho toàn service.
+"""Nạp và quản lý các model ONNX (YuNet, SFace, MiniFASNet) dùng chung cho toàn service.
 
-Cả hai model đều được nạp một lần duy nhất khi ứng dụng khởi động (lifespan),
+Các model đều được nạp một lần duy nhất khi ứng dụng khởi động (lifespan),
 không nạp lại theo request. Nếu file model không tồn tại, service vẫn khởi động
 được nhưng mọi endpoint xử lý ảnh sẽ trả về MODEL_NOT_READY thay vì âm thầm
 dùng một thuật toán thay thế kém chính xác.
@@ -11,16 +11,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 import cv2
-import numpy as np
 
 from app.core.config import settings
 from app.core.logging import logger
-
-# Checksum SHA-256 của model chuẩn từ OpenCV Zoo, dùng để phát hiện file tải lỗi.
-MODEL_CHECKSUMS: dict[str, str] = {
-    "face_detection_yunet_2023mar.onnx": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
-    "face_recognition_sface_2021dec.onnx": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
-}
 
 # Gốc của cv-service (thư mục chứa app/), để đường dẫn model trong .env viết tương
 # đối vẫn hoạt động bất kể tiến trình được khởi động từ thư mục nào.
@@ -30,38 +23,6 @@ SERVICE_ROOT = Path(__file__).resolve().parents[2]
 def resolve_model_path(raw_path: str) -> Path:
     path = Path(raw_path)
     return path if path.is_absolute() else SERVICE_ROOT / path
-
-
-class ArcFaceRecognizer:
-    def __init__(self, path: str):
-        self.net = cv2.dnn.readNetFromONNX(path)
-        # 5 landmark chuẩn của ArcFace trên ảnh 112x112
-        self.src_pts = np.array([
-            [38.2946, 51.6963],
-            [73.5318, 51.5014],
-            [56.0252, 71.7366],
-            [41.5493, 92.3655],
-            [70.7299, 92.2041]
-        ], dtype=np.float32)
-
-    def alignCrop(self, img: Any, face_row: Any) -> Any:
-        # face_row: landmarks 4..13 từ YuNet
-        pts = np.array([
-            [face_row[4], face_row[5]],
-            [face_row[6], face_row[7]],
-            [face_row[8], face_row[9]],
-            [face_row[10], face_row[11]],
-            [face_row[12], face_row[13]]
-        ], dtype=np.float32)
-        M, _ = cv2.estimateAffinePartial2D(pts, self.src_pts, method=cv2.LMEDS)
-        return cv2.warpAffine(img, M, (112, 112), borderValue=0.0)
-
-    def feature(self, aligned_face: Any) -> Any:
-        blob = cv2.dnn.blobFromImage(
-            aligned_face, 1.0/127.5, (112, 112), (127.5, 127.5, 127.5), swapRB=True
-        )
-        self.net.setInput(blob)
-        return self.net.forward()
 
 
 
@@ -145,8 +106,6 @@ class ModelRegistry:
 
     def _create_recognizer(self, path: Path) -> Any:
         self._require_file(path)
-        if "arcface" in str(path).lower():
-            return ArcFaceRecognizer(str(path))
         return cv2.FaceRecognizerSF.create(str(path), "")
 
     @staticmethod
