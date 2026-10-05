@@ -100,7 +100,7 @@ public class KioskServiceImpl implements KioskService {
             } else if ("IMAGE_TOO_BLURRY".equals(status)) {
                 throw new BusinessException("Hình ảnh bị mờ. Vui lòng giữ yên hoặc kiểm tra ống kính camera.");
             } else if ("IMAGE_TOO_DARK".equals(status)) {
-                throw new BusinessException("Môi trường quá tối. Vui lòng điều chỉnh ánh sáng.");
+                throw new BusinessException("Chưa đủ ánh sáng để chấm công. Vui lòng điều chỉnh ánh sáng để khuôn mặt được chiếu sáng rõ.");
             } else if ("FACE_NOT_CENTERED".equals(status)) {
                 throw new BusinessException("Khuôn mặt nằm ngoài vùng quét hợp lệ. Vui lòng di chuyển vào giữa.");
             } else if ("FACE_POSE_INVALID".equals(status)) {
