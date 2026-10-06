@@ -26,7 +26,6 @@
 # - Grafana tự động nạp Prometheus datasource và dashboard Spring Boot/JVM qua provisioning.
 # ==============================================================================
 
-name: emanagement-monitoring
 
 services:
   prometheus:
@@ -73,7 +72,6 @@ services:
 networks:
   emanagement-net:
     name: emanagement_emanagement-net
-    external: true
 
 volumes:
   prometheus_data:
