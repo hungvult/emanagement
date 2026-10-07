@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -11,7 +13,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -19,6 +22,12 @@ import java.util.List;
 @EnableWebSecurity
 @Profile("dev")
 public class DevSecurityConfig {
+
+    /**
+     * Extra origins to allow in addition to the self-derived origin.
+     * The self-origin (derived from X-Forwarded-Host + X-Forwarded-Proto) is
+     * always added dynamically per-request.
+     */
     @Value("${CORS_ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}")
     private String corsAllowedOrigins;
 
@@ -37,23 +46,47 @@ public class DevSecurityConfig {
         return http.build();
     }
 
+    /**
+     * Dynamic CORS source: per request, derives the public self-origin from
+     * X-Forwarded-Host and X-Forwarded-Proto headers set by Nginx.
+     * This automatically allows any reverse-proxy domain (tunnel, VPS, CDN)
+     * without restarting the backend or editing any configuration.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        List<String> origins = (corsAllowedOrigins == null || corsAllowedOrigins.isBlank())
+        List<String> staticOrigins = (corsAllowedOrigins == null || corsAllowedOrigins.isBlank())
                 ? List.of("http://localhost:[*]", "http://127.0.0.1:[*]")
                 : Arrays.stream(corsAllowedOrigins.split(","))
                         .map(String::trim)
-                        .filter(origin -> !origin.isEmpty())
+                        .filter(o -> !o.isEmpty())
                         .toList();
-        configuration.setAllowedOriginPatterns(origins);
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
-        configuration.setAllowCredentials(true);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+
+        return request -> {
+            String forwardedHost = request.getHeader("X-Forwarded-Host");
+            if (forwardedHost == null || forwardedHost.isBlank()) {
+                forwardedHost = request.getHeader("Host");
+            }
+            String forwardedProto = request.getHeader("X-Forwarded-Proto");
+
+            List<String> allowedPatterns = new ArrayList<>(staticOrigins);
+
+            if (forwardedHost != null && !forwardedHost.isBlank()) {
+                String host = forwardedHost.split(",")[0].trim();
+                String proto = (forwardedProto != null && !forwardedProto.isBlank())
+                        ? forwardedProto.split(",")[0].trim()
+                        : "https";
+                allowedPatterns.add(proto + "://" + host);
+            }
+
+            CorsConfiguration config = new CorsConfiguration();
+            config.setAllowedOriginPatterns(allowedPatterns);
+            config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+            config.setAllowedHeaders(Arrays.asList("*"));
+            config.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
+            config.setAllowCredentials(true);
+            config.setMaxAge(3600L);
+            return config;
+        };
     }
 
     @Bean
@@ -62,8 +95,8 @@ public class DevSecurityConfig {
     }
 
     @Bean
-    public org.springframework.security.authentication.AuthenticationManager authenticationManager(
-            org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration authConfig)
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration authConfig)
             throws Exception {
         return authConfig.getAuthenticationManager();
     }
