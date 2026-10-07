@@ -62,23 +62,7 @@ docker run --rm \
 
 `cloudflared` sẽ in URL `https://<tên-ngẫu-nhiên>.trycloudflare.com` trong log. Mở URL đó để truy cập qua Nginx. Giữ terminal và container chạy để URL còn hoạt động; nhấn `Ctrl+C` sẽ dừng tunnel. Quick Tunnel là URL tạm, thay đổi khi tạo tunnel mới.
 
-Backend kiểm tra origin qua biến `CORS_ALLOWED_ORIGINS`. Sau khi có URL tunnel, thêm origin chính xác (không có dấu `/` ở cuối) vào `.env`, giữ các origin local nếu vẫn cần dùng local:
-
-```dotenv
-CORS_ALLOWED_ORIGINS=http://localhost:[*],http://127.0.0.1:[*],https://<ten-tunnel>.trycloudflare.com
-```
-
-Sau khi sửa `.env`, tạo lại riêng backend để nạp cấu hình mới:
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.resources.yml \
-  -f docker-compose.monitoring.yml \
-  up -d --no-deps backend
-```
-
-Khi Quick Tunnel đổi URL, cập nhật lại origin này và chạy lại lệnh trên. Không dùng wildcard cho toàn bộ `trycloudflare.com`.
+Hệ thống tự động nhận diện và cho phép origin của tunnel (Dynamic Self-Origin) qua Nginx forward headers, do đó bạn có thể truy cập và đăng nhập ngay mà không cần cấu hình lại `.env` hay khởi động lại backend. Nếu muốn cho phép thêm các origin độc lập bên ngoài (ví dụ frontend dev chạy trên máy khác), bạn có thể khai báo bổ sung qua biến `CORS_ALLOWED_ORIGINS` trong `.env`.
 
 Firewall cần cho phép **outbound UDP/7844** từ máy chạy Docker tới các endpoint Cloudflare; DNS cũng cần phân giải được. Tunnel đi từ máy này ra Cloudflare nên không cần mở cổng inbound 7844. Cấu hình tham khảo: [Cloudflare Tunnel firewall requirements](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/).
 
