@@ -1,5 +1,6 @@
 package com.emanagement.backend.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -15,13 +16,15 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import java.util.Arrays;
 
 import com.emanagement.backend.security.CustomJwtAuthenticationEntryPoint;
 import com.emanagement.backend.security.JwtAuthenticationFilter;
 
 import lombok.RequiredArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -31,6 +34,15 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomJwtAuthenticationEntryPoint customEntryPoint;
+
+    /**
+     * Extra origins to allow in addition to the self-derived origin.
+     * Defaults to localhost patterns only — no need to hardcode tunnel URLs.
+     * The self-origin (derived from X-Forwarded-Host + X-Forwarded-Proto) is
+     * always added dynamically per-request.
+     */
+    @Value("${CORS_ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}")
+    private String corsAllowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -55,21 +67,51 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Dynamic CORS source: per request, derives the public self-origin from
+     * X-Forwarded-Host and X-Forwarded-Proto headers set by Nginx.
+     * This automatically allows any reverse-proxy domain (tunnel, VPS, CDN)
+     * without restarting the backend or editing any configuration.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(java.util.List.of(
-            "http://localhost:[*]",
-            "http://127.0.0.1:[*]"
-        ));
-        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(java.util.List.of("*"));
-        configuration.setExposedHeaders(java.util.List.of("Authorization", "Content-Disposition"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+        // Parse static extra origins from env (e.g. localhost dev origins)
+        List<String> staticOrigins = (corsAllowedOrigins == null || corsAllowedOrigins.isBlank())
+                ? List.of("http://localhost:[*]", "http://127.0.0.1:[*]")
+                : Arrays.stream(corsAllowedOrigins.split(","))
+                        .map(String::trim)
+                        .filter(o -> !o.isEmpty())
+                        .toList();
+
+        return request -> {
+            // Derive the self-origin from forwarded headers provided by Nginx.
+            // When behind Nginx: X-Forwarded-Host = public hostname, X-Forwarded-Proto = https.
+            String forwardedHost = request.getHeader("X-Forwarded-Host");
+            if (forwardedHost == null || forwardedHost.isBlank()) {
+                forwardedHost = request.getHeader("Host");
+            }
+            String forwardedProto = request.getHeader("X-Forwarded-Proto");
+
+            List<String> allowedPatterns = new ArrayList<>(staticOrigins);
+
+            if (forwardedHost != null && !forwardedHost.isBlank()) {
+                // Strip port if bundled in header (e.g. "example.com:443" -> "example.com")
+                String host = forwardedHost.split(",")[0].trim();
+                String proto = (forwardedProto != null && !forwardedProto.isBlank())
+                        ? forwardedProto.split(",")[0].trim()
+                        : "https";
+                allowedPatterns.add(proto + "://" + host);
+            }
+
+            CorsConfiguration config = new CorsConfiguration();
+            config.setAllowedOriginPatterns(allowedPatterns);
+            config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+            config.setAllowedHeaders(List.of("*"));
+            config.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
+            config.setAllowCredentials(true);
+            config.setMaxAge(3600L);
+            return config;
+        };
     }
 
     @Bean
