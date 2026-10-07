@@ -1,5 +1,6 @@
 "use client";
 
+import { useLatestRequest } from "../../../hooks/use-latest-request";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/use-auth";
 import { leaveService } from "../../../services/leave.service";
@@ -15,6 +16,7 @@ import { formatDateTime } from "../../../lib/utils";
 import { Check, X, Plus, CalendarRange } from "lucide-react";
 
 export default function LeaveRequestsPage() {
+  const beginRequest = useLatestRequest();
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole("ROLE_ADMIN");
   
@@ -39,10 +41,12 @@ export default function LeaveRequestsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchRequests = async (pageNumber: number) => {
+    const isCurrent = beginRequest();
     setIsLoading(true);
     try {
       if (isAdmin) {
         const res = await leaveService.getAll(pageNumber, 15, statusFilter || undefined);
+        if (!isCurrent()) return;
         if (res.status === "SUCCESS" && res.data) {
           setRequests(res.data.content || []);
           setTotalPages(res.data.totalPages || 1);
@@ -50,15 +54,17 @@ export default function LeaveRequestsPage() {
         }
       } else if (user) {
         const res = await leaveService.getMyRequests(user.id);
+        if (!isCurrent()) return;
         if (res.status === "SUCCESS" && res.data) {
           setRequests(res.data || []);
           setTotalPages(1);
         }
       }
     } catch (err: any) {
+      if (!isCurrent()) return;
       error("Lỗi khi tải danh sách đơn phép");
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 

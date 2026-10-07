@@ -11,6 +11,7 @@ import {
   Volume2,
   VolumeX,
   Eye,
+  RefreshCw,
 } from "lucide-react";
 import { kioskService } from "../../services/kiosk.service";
 import { KioskCheckInResponse } from "../../types/kiosk.types";
@@ -23,6 +24,8 @@ import {
 } from "../../lib/camera-utils";
 import { ekycMediaPipe, BiometricAnalysisResult } from "../../lib/ekyc-mediapipe";
 import { Button } from "../ui/button";
+import { AsyncSession, openSessionCamera } from "../../lib/async-session";
+import { AttendanceScanGate } from "../../lib/attendance-scan-gate";
 
 interface LiveAttendanceModalProps {
   isOpen: boolean;
@@ -51,9 +54,13 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   const isProcessingRef = useRef<boolean>(false);
   const steadyCountRef = useRef<number>(0);
   const lastVoiceTimeRef = useRef<number>(0);
+  const sessionRef = useRef(new AsyncSession());
+  const scanGateRef = useRef(new AttendanceScanGate());
+  const [waitingForDeparture, setWaitingForDeparture] = useState(false);
 
   // Stop camera & loops
   const stopCamera = useCallback(() => {
+    sessionRef.current.cancel();
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
@@ -74,11 +81,13 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
   // Start Camera
   const startCamera = useCallback(async () => {
+    const session = sessionRef.current;
+    const revision = session.current;
     setCameraError(null);
     setScanResult(null);
     setErrorMessage(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await openSessionCamera(session, {
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
@@ -87,6 +96,8 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         audio: false,
       });
 
+      if (!stream) return;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = stream;
       setIsCameraActive(true);
 
@@ -95,6 +106,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         videoRef.current.play().catch(() => {});
       }
     } catch (err: any) {
+      if (!session.isCurrent(revision)) return;
       console.error("Camera error:", err);
       setCameraError(
         "Không thể kết nối máy ảnh. Vui lòng cấp quyền truy cập camera trong trình duyệt."
@@ -108,8 +120,9 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     return captureOptimizedFrame(videoRef.current);
   }, []);
 
-  // Restart scan manually or auto-reset after showing result
+  // Clear the previous result after departure or an explicit retry of a failed scan.
   const handleReset = useCallback(() => {
+    setWaitingForDeparture(false);
     setScanResult(null);
     setErrorMessage(null);
     ekycMediaPipe.resetBlink();
@@ -119,8 +132,18 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     setPromptMessage("Vui lòng nhìn thẳng vào camera để chấm công");
   }, []);
 
+  const handleRetry = useCallback(() => {
+    if (!isOpen || !isCameraActive || !errorMessage || scanResult || isProcessingRef.current) return;
+    scanGateRef.current.reset();
+    lastVoiceTimeRef.current = 0;
+    ekycAudio.stopSpeaking();
+    handleReset();
+  }, [isOpen, isCameraActive, errorMessage, scanResult, handleReset]);
+
   // Perform Attendance Check-in (chụp và gửi lên backend xác thực MiniFASNet & SFace)
   const executeCheckIn = useCallback(async () => {
+    const session = sessionRef.current;
+    const revision = session.current;
     const frameBase64 = captureFrame();
     if (!frameBase64) {
       isProcessingRef.current = false;
@@ -132,13 +155,14 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
     // Flash & chime
     setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 200);
+    session.schedule(() => setIsFlashing(false), 200);
     ekycAudio.playShutterSound();
 
     try {
       const res = await kioskService.checkIn("WEB_KIOSK_DEFAULT", {
         imageFrameBase64: frameBase64,
       });
+      if (!session.isCurrent(revision)) return;
 
       if (res.status === "SUCCESS" && res.data) {
         setScanResult(res.data);
@@ -156,6 +180,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         );
       }
     } catch (err: any) {
+      if (!session.isCurrent(revision)) return;
       const msg =
         err.response?.data?.message || err.message || "Không tìm thấy khuôn mặt phù hợp trong hệ thống";
       setErrorMessage(msg);
@@ -175,17 +200,23 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
       ekycAudio.speak(spokenError);
     } finally {
-      setIsScanning(false);
-      // Giữ kết quả hiển thị 3.5 giây rồi tự động reset cho người tiếp theo
-      setTimeout(() => {
-        handleReset();
-      }, 3500);
+      if (session.isCurrent(revision)) {
+        setIsScanning(false);
+        isProcessingRef.current = false;
+        scanGateRef.current.waitForDeparture(Date.now());
+        setWaitingForDeparture(true);
+        setPromptMessage("Vui lòng rời khỏi khung hình để bắt đầu lượt chấm công tiếp theo");
+      }
     }
-  }, [captureFrame, handleReset]);
+  }, [captureFrame]);
 
   // Initialize
   useEffect(() => {
     if (isOpen) {
+      scanGateRef.current.reset();
+      setWaitingForDeparture(false);
+      setIsScanning(false);
+      setIsFlashing(false);
       ekycMediaPipe.loadModel().catch(() => {});
       ekycMediaPipe.clearReferenceFace();
       setScanResult(null);
@@ -234,9 +265,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
       if (
         delta >= 45 &&
         videoRef.current &&
-        !isProcessingRef.current &&
-        !scanResult &&
-        !errorMessage
+        !isProcessingRef.current
       ) {
         lastTime = now;
         const video = videoRef.current;
@@ -249,6 +278,15 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               "front"
             );
             if (!isSubscribed) return;
+
+            if (scanGateRef.current.waiting) {
+              if (scanGateRef.current.observe(res.facePresence, Date.now())) {
+                handleReset();
+              }
+              // Continue detecting departure even while showing the previous result.
+              animFrameRef.current = requestAnimationFrame(processFrame);
+              return;
+            }
 
             const brightness = measureFrameBrightness(video, lightingCanvas, res.landmarks);
             const tooDark = brightness !== null && brightness < ATTENDANCE_BRIGHTNESS_MIN;
@@ -284,6 +322,8 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                   isProcessingRef.current = true;
                   setPromptMessage("Đang nhận diện khuôn mặt...");
                   executeCheckIn();
+                  // Keep the loop alive, including when frame capture fails.
+                  animFrameRef.current = requestAnimationFrame(processFrame);
                   return;
                 } else {
                   setPromptMessage("Giữ yên khuôn mặt...");
@@ -323,7 +363,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [isOpen, isCameraActive, scanResult, errorMessage, executeCheckIn]);
+  }, [isOpen, isCameraActive, executeCheckIn, handleReset]);
 
   if (!isOpen) return null;
 
@@ -413,7 +453,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               />
 
               {/* Laser Scan Line */}
-              {isCameraActive && !scanResult && (
+              {isCameraActive && !scanResult && !waitingForDeparture && (
                 <div className="absolute inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-indigo-500 to-transparent shadow-[0_0_20px_rgba(99,102,241,0.8)] animate-bounce pointer-events-none opacity-80" />
               )}
 
@@ -444,6 +484,11 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
           {/* Result Card or Guidance */}
           <div className="w-full max-w-sm mt-6 text-center">
+            {waitingForDeparture && !errorMessage && (
+              <p role="status" className="mb-3 text-sm font-medium text-slate-600">
+                Vui lòng rời khỏi khung hình để bắt đầu lượt chấm công tiếp theo.
+              </p>
+            )}
             {scanResult ? (
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 shadow-sm animate-in zoom-in-95 duration-300">
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -466,9 +511,20 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 </div>
               </div>
             ) : errorMessage ? (
-              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center justify-center gap-2 animate-in shake duration-300 shadow-sm">
-                <XCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
-                <span>{errorMessage}</span>
+              <div className="space-y-3">
+                <div role="alert" className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center justify-center gap-2 animate-in shake duration-300 shadow-sm">
+                  <XCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleRetry}
+                  disabled={isScanning || !isCameraActive}
+                  className="gap-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Quét lại
+                </Button>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 py-1">

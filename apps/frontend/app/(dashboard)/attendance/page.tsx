@@ -1,5 +1,6 @@
 "use client";
 
+import { useLatestRequest } from "../../../hooks/use-latest-request";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/use-auth";
 import { attendanceService, AttendanceFilters } from "../../../services/attendance.service";
@@ -26,6 +27,7 @@ function formatDateVi(dateStr?: string | null) {
 }
 
 export default function AttendancePage() {
+  const beginRequest = useLatestRequest();
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole("ROLE_ADMIN");
 
@@ -58,6 +60,7 @@ export default function AttendancePage() {
   }, []);
 
   const fetchRecords = async (pageNumber: number, filters: AttendanceFilters) => {
+    const isCurrent = beginRequest();
     setIsLoading(true);
     try {
       let res;
@@ -67,15 +70,17 @@ export default function AttendancePage() {
         res = await attendanceService.getMyHistory(user.id, pageNumber, 15, filters);
       }
 
+      if (!isCurrent()) return;
       if (res && res.status === "SUCCESS" && res.data) {
         setRecords(res.data.content);
         setTotalPages(res.data.totalPages);
         setPage(res.data.pageNumber);
       }
     } catch (err: any) {
+      if (!isCurrent()) return;
       error("Lỗi khi tải dữ liệu chấm công");
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 

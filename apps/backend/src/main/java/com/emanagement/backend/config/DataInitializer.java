@@ -20,8 +20,6 @@ import com.emanagement.backend.security.JwtTokenProvider;
 
 import lombok.RequiredArgsConstructor;
 
-import com.emanagement.backend.modules.attendance.AttendanceRecordRepository;
-
 @Component
 @Profile({"dev", "prod"})
 @RequiredArgsConstructor
@@ -30,7 +28,6 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ShiftRepository shiftRepository;
     private final KioskRepository kioskRepository;
-    private final AttendanceRecordRepository attendanceRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -95,50 +92,6 @@ public class DataInitializer implements CommandLineRunner {
             kioskRepository.save(kiosk);
         }
 
-        // Tạo dữ liệu chấm công giả (nếu chưa có)
-        if (attendanceRepo.count() == 0) {
-            User adminUser = userRepository.findByEmail("admin@emanagement.com").orElse(null);
-            User normalUser = userRepository.findByEmail("nhanvien@emanagement.com").orElse(null);
-            Kiosk demoKiosk = kioskRepository.findByKioskCode("KSK-2608-001").orElse(null);
-            Shift mainShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
-
-            if (adminUser != null && normalUser != null && demoKiosk != null && mainShift != null) {
-                java.time.LocalDate today = java.time.LocalDate.now();
-                
-                // Record 1: Admin, Hôm nay, Đúng giờ
-                attendanceRepo.save(com.emanagement.backend.modules.attendance.AttendanceRecord.builder()
-                        .user(adminUser).kiosk(demoKiosk)
-                        .checkInTime(today.atTime(7, 50))
-                        .checkOutTime(today.atTime(17, 5))
-                        .status("ON_TIME")
-                        .build());
-                        
-                // Record 2: Nhân viên, Hôm nay, Đi muộn
-                attendanceRepo.save(com.emanagement.backend.modules.attendance.AttendanceRecord.builder()
-                        .user(normalUser).kiosk(demoKiosk)
-                        .checkInTime(today.atTime(8, 20))
-                        .checkOutTime(today.atTime(17, 0))
-                        .status("LATE")
-                        .build());
-
-                // Record 3: Admin, Hôm qua, Về sớm
-                attendanceRepo.save(com.emanagement.backend.modules.attendance.AttendanceRecord.builder()
-                        .user(adminUser).kiosk(demoKiosk)
-                        .checkInTime(today.minusDays(1).atTime(7, 55))
-                        .checkOutTime(today.minusDays(1).atTime(16, 30))
-                        .status("EARLY_LEAVE")
-                        .build());
-                        
-                // Record 4: Nhân viên, Hôm qua, Đúng giờ
-                attendanceRepo.save(com.emanagement.backend.modules.attendance.AttendanceRecord.builder()
-                        .user(normalUser).kiosk(demoKiosk)
-                        .checkInTime(today.minusDays(1).atTime(7, 45))
-                        .checkOutTime(today.minusDays(1).atTime(17, 30))
-                        .status("ON_TIME")
-                        .build());
-            }
-        }
-
-        System.out.println("DataInitializer: Nạp dữ liệu mẫu ban đầu thành công.");
+        System.out.println("DataInitializer: Khởi tạo tài khoản, ca làm việc và kiosk thành công.");
     }
 }

@@ -17,6 +17,7 @@ import { ekycAudio } from "../../lib/ekyc-audio";
 import { ekycMediaPipe, BiometricAnalysisResult, Landmark3D } from "../../lib/ekyc-mediapipe";
 import { captureOptimizedFrame } from "../../lib/camera-utils";
 import { Button } from "../ui/button";
+import { AsyncSession, openSessionCamera } from "../../lib/async-session";
 
 export interface EkycStep {
   id: "front" | "left" | "right" | "up" | "smile" | "blink";
@@ -88,6 +89,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const sessionRef = useRef(new AsyncSession());
   const animFrameRef = useRef<number | null>(null);
   const poseHoldTimeRef = useRef<number>(0);
   const isTransitioningRef = useRef<boolean>(false);
@@ -100,6 +102,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
   // Stop camera & audio
   const stopEverything = useCallback(() => {
+    sessionRef.current.cancel();
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
@@ -117,9 +120,11 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
   // Start Camera
   const startCamera = useCallback(async () => {
+    const session = sessionRef.current;
+    const revision = session.current;
     setCameraError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await openSessionCamera(session, {
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
@@ -128,6 +133,8 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
         audio: false,
       });
 
+      if (!stream) return;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = stream;
       setIsCameraActive(true);
 
@@ -136,6 +143,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
         videoRef.current.play().catch(() => {});
       }
     } catch (err: any) {
+      if (!session.isCurrent(revision)) return;
       console.error("Camera error:", err);
       setCameraError(
         "Không thể mở Camera. Vui lòng kiểm tra quyền truy cập máy ảnh."
@@ -186,7 +194,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
   // Speak step prompt when step changes
   useEffect(() => {
     if (isOpen && isCameraActive && !isDoneAll) {
-      const timer = setTimeout(() => {
+      const timer = sessionRef.current.schedule(() => {
         ekycAudio.speak(currentStep.voicePrompt, true);
         lastVoiceTimeRef.current = Date.now();
       }, 350);
@@ -208,6 +216,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
   // Restart scan về đầu bước 1
   const handleRestart = useCallback(() => {
+    sessionRef.current.cancel();
     noFaceDurationRef.current = 0;
     faceMismatchDurationRef.current = 0;
     lastLandmarksRef.current = null;
@@ -227,6 +236,8 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
   // Step success transition
   const handleStepSuccess = useCallback(async () => {
+    const session = sessionRef.current;
+    const revision = session.current;
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
 
@@ -243,33 +254,40 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
           }),
         });
         const valData = await valResp.json();
+        if (!session.isCurrent(revision)) return;
         if (valData.status === "SPOOF_DETECTED") {
           const stepNum = currentStepIdx + 1;
           const errText = `Phát hiện giả mạo khuôn mặt (ảnh điện thoại/ảnh in) ở bước ${stepNum}!`;
           setPromptMessage(errText);
           ekycAudio.speak("Phát hiện giả mạo khuôn mặt, vui lòng quét lại từ đầu", true);
-          setTimeout(() => {
+          sessionRef.current.schedule(() => {
             handleRestart();
           }, 2500);
           return;
         }
-        if (valData.status && valData.status !== "VALID") {
+        if (!valResp.ok || valData.status !== "VALID") {
           const stepNum = currentStepIdx + 1;
           const errText = valData.message || `Ảnh ở bước ${stepNum} không hợp lệ! Vui lòng quét lại.`;
           setPromptMessage(errText);
           ekycAudio.speak(errText, true);
-          setTimeout(() => {
+          sessionRef.current.schedule(() => {
             handleRestart();
           }, 2500);
           return;
         }
       } catch (e) {
+        if (!session.isCurrent(revision)) return;
         console.error("Lỗi khi validate-frame:", e);
+        const errText = "Không thể kiểm tra ảnh. Vui lòng kiểm tra kết nối và quét lại.";
+        setPromptMessage(errText);
+        ekycAudio.speak(errText, true);
+        sessionRef.current.schedule(handleRestart, 2500);
+        return;
       }
 
       // Chớp sáng và phát âm thanh chụp ảnh
       setIsFlashing(true);
-      setTimeout(() => setIsFlashing(false), 200);
+      sessionRef.current.schedule(() => setIsFlashing(false), 200);
       ekycAudio.playShutterSound();
       ekycAudio.playSuccessChime();
 
@@ -289,7 +307,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
       // 3. Xử lý chuyển bước tiếp theo hoặc hoàn tất chuỗi 5 bước
       if (currentStepIdx + 1 < EKYC_STEPS.length) {
         setPromptMessage(`Chuẩn bị bước ${currentStepIdx + 2}/5...`);
-        setTimeout(() => {
+        sessionRef.current.schedule(() => {
           ekycMediaPipe.resetBlink();
           setCurrentStepIdx((s) => s + 1);
           setStepProgress(0);
@@ -306,16 +324,17 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
         ekycAudio.speak("Xác thực hoàn tất, đang lưu dữ liệu", true);
 
         // Gửi toàn bộ 5 ảnh để kiểm tra đồng nhất khuôn mặt và lưu vector
-        setTimeout(async () => {
+        sessionRef.current.schedule(async () => {
           try {
             await onCompleteAll(nextList);
           } catch (error: any) {
+            if (!session.isCurrent(revision)) return;
             setIsDoneAll(false);
             const errText = error.message || "Xác thực thất bại! Vui lòng quét lại từ đầu.";
             setPromptMessage(errText);
             ekycAudio.speak(errText, true);
             // TỰ ĐỘNG RESET VỀ ĐẦU BƯỚC 1 ĐỂ QUÉT LẠI
-            setTimeout(() => {
+            sessionRef.current.schedule(() => {
               handleRestart();
             }, 2500);
           }
@@ -351,6 +370,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
               video,
               currentStep.id
             );
+            if (!isSubscribed) return;
 
             if (res.landmarks) {
               lastLandmarksRef.current = res.landmarks;
@@ -669,7 +689,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
                     <CheckCircle2 className="h-8 w-8" />
                   </div>
                   <p className="text-sm font-extrabold text-slate-800">
-                    Xác thực thành công
+                    Đang lưu dữ liệu
                   </p>
                 </div>
               )}
@@ -722,7 +742,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             type="button"
             variant="ghost"
             onClick={handleRestart}
-            disabled={capturedImages.length === 0}
+            disabled={capturedImages.length === 0 || isDoneAll}
             className="text-slate-500 hover:text-slate-900 hover:bg-white text-sm font-bold flex items-center gap-2 rounded-xl h-10 px-4 transition-all"
           >
             <RefreshCw className="h-4 w-4" /> Quét lại
@@ -730,19 +750,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
 
           <Button
             type="button"
-            onClick={async () => {
-              try {
-                await onCompleteAll(capturedImages);
-              } catch (err: any) {
-                const errText = err.message || "Xác thực thất bại! Vui lòng quét lại từ đầu.";
-                setPromptMessage(errText);
-                ekycAudio.speak(errText, true);
-                setTimeout(() => {
-                  handleRestart();
-                }, 2500);
-              }
-            }}
-            disabled={capturedImages.length < EKYC_STEPS.length}
+            disabled
             className={`font-bold px-6 text-sm h-10 rounded-xl flex items-center shadow-lg transition-all ${
               capturedImages.length < EKYC_STEPS.length
                 ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
@@ -750,7 +758,7 @@ export const BankingEkycModal: React.FC<BankingEkycModalProps> = ({
             }`}
           >
             <Sparkles className="h-4 w-4 mr-1.5" />
-            Hoàn tất ({capturedImages.length}/5)
+            {isDoneAll ? "Đang lưu..." : `Hoàn tất (${capturedImages.length}/5)`}
           </Button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLatestRequest } from "../../../hooks/use-latest-request";
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { RoleGuard } from "../../../components/shared/role-guard";
 import { shiftService } from "../../../services/shift.service";
@@ -89,6 +90,8 @@ const SHIFT_COLORS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ShiftsPage() {
+  const beginScheduleRequest = useLatestRequest();
+  const beginShiftsRequest = useLatestRequest();
   const [shifts, setShifts] = useState<ShiftResponse[]>([]);
   const [includeInactive, setIncludeInactive] = useState(false);
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
@@ -176,33 +179,39 @@ export default function ShiftsPage() {
   // ── Fetch data ──────────────────────────────────────────────────────────────
 
   const fetchShifts = useCallback(async () => {
+    const isCurrent = beginShiftsRequest();
     try {
       const res = await shiftService.getAll(includeInactive);
+      if (!isCurrent()) return;
       if (res.status === "SUCCESS" && res.data) {
         setShifts(res.data);
       }
     } catch {
+      if (!isCurrent()) return;
       error("Lỗi khi tải danh mục ca làm việc");
     }
-  }, [includeInactive]);
+  }, [includeInactive, beginShiftsRequest]);
 
   const fetchSchedule = useCallback(async () => {
+    const isCurrent = beginScheduleRequest();
     setIsLoadingSchedule(true);
     try {
       const start = toISODate(weekStart);
       const end = toISODate(addDays(weekStart, 6));
       const res = await shiftService.getSchedule(start, end);
+      if (!isCurrent()) return;
       if (res.status === "SUCCESS" && res.data) {
         setSchedule(res.data);
       } else {
         setSchedule([]);
       }
     } catch {
+      if (!isCurrent()) return;
       setSchedule([]);
     } finally {
-      setIsLoadingSchedule(false);
+      if (isCurrent()) setIsLoadingSchedule(false);
     }
-  }, [weekStart]);
+  }, [weekStart, beginScheduleRequest]);
 
   useEffect(() => {
     const loadInit = async () => {
