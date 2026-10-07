@@ -1,20 +1,34 @@
 "use client";
+import { getErrorMessage } from "@/lib/errors";
 
-import { useLatestRequest } from "../../../hooks/use-latest-request";
-import React, { useEffect, useState } from "react";
-import { RoleGuard } from "../../../components/shared/role-guard";
-import { useAuth } from "../../../hooks/use-auth";
-import { alertService } from "../../../services/alert.service";
-import { shiftService } from "../../../services/shift.service";
-import { AnomalyAlert, AlertFilters } from "../../../types/alert.types";
-import { ShiftResponse } from "../../../types/shift.types";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
-import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
-import { Pagination } from "../../../components/ui/pagination";
-import { useToast } from "../../../components/ui/toast";
-import { CheckCircle2, AlertTriangle, ShieldCheck, Search, X } from "lucide-react";
-import { DatePicker } from "../../../components/ui/date-picker";
+import { RoleGuard } from "@/components/shared/role-guard";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Pagination } from "@/components/ui/pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useLatestRequest } from "@/hooks/use-latest-request";
+import { alertService } from "@/services/alert.service";
+import { shiftService } from "@/services/shift.service";
+import { AlertFilters, AnomalyAlert } from "@/types/alert.types";
+import { ShiftResponse } from "@/types/shift.types";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Search,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 function formatDateVi(dateStr?: string | null) {
   if (!dateStr) return "—";
@@ -32,7 +46,9 @@ export default function AlertsPage() {
   const [shifts, setShifts] = useState<ShiftResponse[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [filter, setFilter] = useState<"ALL" | "UNRESOLVED" | "RESOLVED">("UNRESOLVED");
+  const [filter, setFilter] = useState<"ALL" | "UNRESOLVED" | "RESOLVED">(
+    "UNRESOLVED",
+  );
   const [isLoading, setIsLoading] = useState(true);
   const { error, success } = useToast();
 
@@ -58,41 +74,51 @@ export default function AlertsPage() {
       .catch(() => {});
   }, []);
 
-  const fetchAlerts = async (
-    pageNumber: number,
-    currentFilter: string,
-    extraFilters: { startDate?: string; endDate?: string; shiftId?: string }
-  ) => {
-    const isCurrent = beginRequest();
-    setIsLoading(true);
-    try {
-      const isResolved = currentFilter === "ALL" ? undefined : currentFilter === "RESOLVED" ? true : false;
-      const apiFilters: AlertFilters = {
-        isResolved,
-        startDate: extraFilters.startDate || undefined,
-        endDate: extraFilters.endDate || undefined,
-        shiftId: extraFilters.shiftId || undefined,
-      };
+  const fetchAlerts = useCallback(
+    async (
+      pageNumber: number,
+      currentFilter: string,
+      extraFilters: { startDate?: string; endDate?: string; shiftId?: string },
+    ) => {
+      const isCurrent = beginRequest();
+      setIsLoading(true);
+      try {
+        const isResolved =
+          currentFilter === "ALL"
+            ? undefined
+            : currentFilter === "RESOLVED"
+              ? true
+              : false;
+        const apiFilters: AlertFilters = {
+          isResolved,
+          startDate: extraFilters.startDate || undefined,
+          endDate: extraFilters.endDate || undefined,
+          shiftId: extraFilters.shiftId || undefined,
+        };
 
-      const res = await alertService.getAll(pageNumber, 15, apiFilters);
+        const res = await alertService.getAll(pageNumber, 15, apiFilters);
 
-      if (!isCurrent()) return;
-      if (res.status === "SUCCESS" && res.data) {
-        setAlerts(res.data.content || []);
-        setTotalPages(res.data.totalPages || 1);
-        setPage(res.data.pageNumber || 0);
+        if (!isCurrent()) return;
+        if (res.status === "SUCCESS" && res.data) {
+          setAlerts(res.data.content || []);
+          setTotalPages(res.data.totalPages || 1);
+          setPage(res.data.pageNumber || 0);
+        }
+      } catch {
+        if (!isCurrent()) return;
+        error("Lỗi khi tải danh sách cảnh báo");
+      } finally {
+        if (isCurrent()) setIsLoading(false);
       }
-    } catch (err: any) {
-      if (!isCurrent()) return;
-      error("Lỗi khi tải danh sách cảnh báo");
-    } finally {
-      if (isCurrent()) setIsLoading(false);
-    }
-  };
+    },
+    [beginRequest, error],
+  );
 
   useEffect(() => {
+    // Synchronize this screen with an external request or camera session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAlerts(page, filter, appliedFilters);
-  }, [page, filter, appliedFilters]);
+  }, [page, filter, appliedFilters, fetchAlerts]);
 
   const handleApplyFilters = () => {
     setAppliedFilters({
@@ -125,15 +151,18 @@ export default function AlertsPage() {
         success("Đã xử lý và đóng cảnh báo thành công");
         fetchAlerts(page, filter, appliedFilters);
       } else {
-        error(res.message || "Không thể xử lý cảnh báo");
+        error(getErrorMessage(res, "Không thể xử lý cảnh báo"));
       }
-    } catch (err: any) {
-      error(err.response?.data?.message || err.message || "Lỗi khi xử lý cảnh báo");
+    } catch (err: unknown) {
+      error(getErrorMessage(err, "Lỗi khi xử lý cảnh báo"));
     }
   };
 
   return (
-    <RoleGuard allowedRoles={["ROLE_ADMIN"]} fallback={<p>Không có quyền truy cập</p>}>
+    <RoleGuard
+      allowedRoles={["ROLE_ADMIN"]}
+      fallback={<p>Không có quyền truy cập</p>}
+    >
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-rose-50/80 via-white to-white p-6 rounded-[32px] border border-rose-100/50 shadow-sm">
@@ -143,7 +172,8 @@ export default function AlertsPage() {
               Cảnh báo bất thường AI
             </h1>
             <p className="text-sm font-medium text-slate-500 mt-1.5 ml-11">
-              Giám sát các hành vi bất thường, giả mạo eKYC hoặc chấm công sai quy chế.
+              Giám sát các hành vi bất thường, giả mạo eKYC hoặc chấm công sai
+              quy chế.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -227,7 +257,8 @@ export default function AlertsPage() {
                 <option value="">Tất cả ca</option>
                 {shifts.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.startTime.slice(0, 5)} - {s.endTime.slice(0, 5)})
+                    {s.name} ({s.startTime.slice(0, 5)} -{" "}
+                    {s.endTime.slice(0, 5)})
                   </option>
                 ))}
               </select>
@@ -239,7 +270,9 @@ export default function AlertsPage() {
               <select
                 value={filter}
                 onChange={(e) => {
-                  setFilter(e.target.value as "ALL" | "UNRESOLVED" | "RESOLVED");
+                  setFilter(
+                    e.target.value as "ALL" | "UNRESOLVED" | "RESOLVED",
+                  );
                   setPage(0);
                 }}
                 className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 focus:bg-white transition-all w-full"
@@ -298,13 +331,19 @@ export default function AlertsPage() {
               <TableBody>
                 {alerts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={7}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       Không có cảnh báo nào
                     </TableCell>
                   </TableRow>
                 ) : (
                   alerts.map((alert) => (
-                    <TableRow key={alert.id} className={!alert.isResolved ? "bg-danger/5" : ""}>
+                    <TableRow
+                      key={alert.id}
+                      className={!alert.isResolved ? "bg-danger/5" : ""}
+                    >
                       <TableCell className="whitespace-nowrap font-medium">
                         {formatDateVi(alert.alertDate)}
                       </TableCell>
@@ -314,13 +353,21 @@ export default function AlertsPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium text-foreground">{alert.fullName}</div>
-                        <div className="text-xs text-muted-foreground">{alert.employeeCode}</div>
+                        <div className="font-medium text-foreground">
+                          {alert.fullName}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {alert.employeeCode}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={!alert.isResolved ? "text-danger border-danger/30 bg-danger/10" : ""}
+                          className={
+                            !alert.isResolved
+                              ? "text-danger border-danger/30 bg-danger/10"
+                              : ""
+                          }
                         >
                           {alert.alertType}
                         </Badge>
@@ -357,7 +404,8 @@ export default function AlertsPage() {
                             onClick={() => handleResolve(alert.id)}
                             className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold transition-colors w-full sm:w-auto ml-auto"
                           >
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Xác nhận xử lý
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Xác nhận xử
+                            lý
                           </Button>
                         )}
                       </TableCell>

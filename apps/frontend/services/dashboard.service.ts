@@ -1,5 +1,5 @@
-import { apiClient } from "../lib/api-client";
-import { ApiResponse } from "../types/common.types";
+import { apiClient } from "@/lib/api-client";
+import { ApiResponse } from "@/types/common.types";
 
 export interface DashboardOverview {
   totalEmployees: number;

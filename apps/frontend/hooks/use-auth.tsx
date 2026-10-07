@@ -1,10 +1,18 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
+import { authService } from "@/services/auth.service";
+import { UserProfile } from "@/types/auth.types";
 import axios from "axios";
-import { UserProfile } from "../types/auth.types";
-import { authService } from "../services/auth.service";
 import { useRouter } from "next/navigation";
+import React, {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -19,7 +27,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -27,7 +37,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const router = useRouter();
 
   const logout = useCallback(async () => {
-    const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+    const refreshToken =
+      typeof window !== "undefined"
+        ? localStorage.getItem("refresh_token")
+        : null;
     requestVersion.current += 1;
     if (typeof window !== "undefined") {
       localStorage.removeItem("access_token");
@@ -36,11 +49,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
     setAuthError(null);
     setIsLoading(false);
-    if (typeof window !== "undefined" && window.location.pathname !== "/login" && window.location.pathname !== "/forgot-password") {
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/login" &&
+      window.location.pathname !== "/forgot-password"
+    ) {
       router.push("/login");
     }
     if (refreshToken) {
-      try { await authService.logout(refreshToken); } catch { /* Session is already cleared locally. */ }
+      try {
+        await authService.logout(refreshToken);
+      } catch {
+        /* Session is already cleared locally. */
+      }
     }
   }, [router]);
 
@@ -50,19 +71,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAuthError(null);
     try {
       const response = await authService.getCurrentUser();
-      if (version !== requestVersion.current) throw new Error("Phiên đăng nhập đã thay đổi");
+      if (version !== requestVersion.current)
+        throw new Error("Phiên đăng nhập đã thay đổi");
       if (response && response.status === "SUCCESS" && response.data) {
         setUser(response.data);
       } else {
-        throw new Error(response?.message || "Không thể tải thông tin tài khoản");
+        throw new Error(
+          response?.message || "Không thể tải thông tin tài khoản",
+        );
       }
     } catch (error) {
       if (version === requestVersion.current) {
-        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-        if (status === 401 || status === 403 || !localStorage.getItem("access_token")) {
+        const status = axios.isAxiosError(error)
+          ? error.response?.status
+          : undefined;
+        if (
+          status === 401 ||
+          status === 403 ||
+          !localStorage.getItem("access_token")
+        ) {
           void logout();
         } else {
-          setAuthError("Không thể tải thông tin tài khoản. Vui lòng kiểm tra kết nối và thử lại.");
+          setAuthError(
+            "Không thể tải thông tin tài khoản. Vui lòng kiểm tra kết nối và thử lại.",
+          );
         }
       }
       throw error;
@@ -87,7 +119,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(null);
         setAuthError(null);
         setIsLoading(false);
-        if (window.location.pathname !== "/login" && window.location.pathname !== "/forgot-password") {
+        if (
+          window.location.pathname !== "/login" &&
+          window.location.pathname !== "/forgot-password"
+        ) {
           router.push("/login");
         }
       }
@@ -141,4 +176,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

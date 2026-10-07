@@ -1,8 +1,14 @@
 "use client";
+import { parseDateInput, isDateWithinBounds } from "@/lib/date-input";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 interface DatePickerProps {
   value: string; // Định dạng chuẩn: YYYY-MM-DD (hoặc rỗng "")
@@ -43,23 +49,6 @@ function toDisplay(isoDate: string): string {
   return isoDate;
 }
 
-function parseInputText(text: string): string | null {
-  const cleaned = text.trim().replace(/[-.]/g, "/");
-  const parts = cleaned.split("/");
-  if (parts.length === 3) {
-    const [d, m, y] = parts;
-    const day = parseInt(d, 10);
-    const month = parseInt(m, 10);
-    const year = parseInt(y, 10);
-    if (!isNaN(day) && !isNaN(month) && !isNaN(year) && year >= 1900 && year <= 2100) {
-      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      }
-    }
-  }
-  return null;
-}
-
 export const DatePicker: React.FC<DatePickerProps> = ({
   value,
   onChange,
@@ -76,12 +65,13 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Text đang nhập thủ công nếu có
-  const [inputText, setInputText] = useState("");
-
-  // Đồng bộ display text khi value thay đổi
-  useEffect(() => {
-    setInputText(toDisplay(value));
-  }, [value]);
+  const [inputDraft, setInputDraft] = useState<{
+    value: string;
+    text: string;
+  } | null>(null);
+  const inputText =
+    inputDraft?.value === value ? inputDraft.text : toDisplay(value);
+  const setInputText = (text: string) => setInputDraft({ value, text });
 
   // Tháng và năm đang xem trên popup lịch
   const initialViewDate = useMemo(() => {
@@ -94,22 +84,22 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     return new Date();
   }, [value]);
 
-  const [viewDate, setViewDate] = useState<Date>(initialViewDate);
-
-  // Khi value đổi, đưa viewDate về tháng của value
-  useEffect(() => {
-    if (value) {
-      const parts = value.split("-");
-      if (parts.length === 3) {
-        setViewDate(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1));
-      }
-    }
-  }, [value]);
+  const [viewDraft, setViewDraft] = useState<{
+    value: string;
+    date: Date;
+  } | null>(null);
+  const viewDate =
+    viewDraft?.value === value ? viewDraft.date : initialViewDate;
+  const setViewDate = (date: Date) => setViewDraft({ value, date });
+  const isSelectable = (date: string) => isDateWithinBounds(date, min, max);
 
   // Đóng popover khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -136,6 +126,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
 
   const handleSelectDay = (day: number) => {
     const isoString = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    if (!isSelectable(isoString)) return;
     onChange(isoString);
     setIsOpen(false);
   };
@@ -158,8 +149,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputText(val);
-    const parsed = parseInputText(val);
-    if (parsed) {
+    const parsed = parseDateInput(val);
+    if (parsed && isSelectable(parsed)) {
       onChange(parsed);
     } else if (val.trim() === "") {
       onChange("");
@@ -167,7 +158,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   };
 
   const handleInputBlur = () => {
-    const parsed = parseInputText(inputText);
+    const parsed = parseDateInput(inputText);
     if (parsed) {
       onChange(parsed);
       setInputText(toDisplay(parsed));
@@ -183,13 +174,17 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const prevMonthDays = new Date(viewYear, viewMonth, 0).getDate();
 
   const today = new Date();
-  const isCurrentMonth = today.getFullYear() === viewYear && today.getMonth() === viewMonth;
+  const isCurrentMonth =
+    today.getFullYear() === viewYear && today.getMonth() === viewMonth;
   const todayDate = today.getDate();
 
   const selectedParts = value ? value.split("-") : [];
-  const selectedYear = selectedParts.length === 3 ? parseInt(selectedParts[0], 10) : -1;
-  const selectedMonth = selectedParts.length === 3 ? parseInt(selectedParts[1], 10) - 1 : -1;
-  const selectedDay = selectedParts.length === 3 ? parseInt(selectedParts[2], 10) : -1;
+  const selectedYear =
+    selectedParts.length === 3 ? parseInt(selectedParts[0], 10) : -1;
+  const selectedMonth =
+    selectedParts.length === 3 ? parseInt(selectedParts[1], 10) - 1 : -1;
+  const selectedDay =
+    selectedParts.length === 3 ? parseInt(selectedParts[2], 10) : -1;
 
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
@@ -205,7 +200,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           "flex items-center h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm font-semibold transition-all cursor-pointer",
           "hover:bg-slate-100/60 focus-within:border-indigo-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/10",
           isOpen && "border-indigo-500 bg-white ring-4 ring-indigo-500/10",
-          disabled && "opacity-50 cursor-not-allowed pointer-events-none"
+          disabled && "opacity-50 cursor-not-allowed pointer-events-none",
         )}
       >
         <input
@@ -267,7 +262,10 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             {WEEKDAY_NAMES.map((name, i) => (
               <span
                 key={name}
-                className={cn("text-[11px] font-bold uppercase", i >= 5 ? "text-rose-500" : "text-slate-400")}
+                className={cn(
+                  "text-[11px] font-bold uppercase",
+                  i >= 5 ? "text-rose-500" : "text-slate-400",
+                )}
               >
                 {name}
               </span>
@@ -290,21 +288,28 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const d = i + 1;
               const isSelected =
-                viewYear === selectedYear && viewMonth === selectedMonth && d === selectedDay;
+                viewYear === selectedYear &&
+                viewMonth === selectedMonth &&
+                d === selectedDay;
               const isToday = isCurrentMonth && d === todayDate;
 
               return (
                 <button
                   key={d}
                   type="button"
+                  disabled={
+                    !isSelectable(
+                      `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+                    )
+                  }
                   onClick={() => handleSelectDay(d)}
                   className={cn(
-                    "h-8 rounded-xl text-xs font-bold transition-all flex items-center justify-center",
+                    "h-8 rounded-xl text-xs font-bold transition-all flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed",
                     isSelected
                       ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/30"
                       : isToday
-                      ? "bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100"
-                      : "text-slate-700 hover:bg-slate-100"
+                        ? "bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100"
+                        : "text-slate-700 hover:bg-slate-100",
                   )}
                 >
                   {d}
