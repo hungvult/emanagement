@@ -1,4 +1,4 @@
-export { cn } from "cn"
+export { cn } from "cn";
 
 export function formatDateTime(dateString?: string | null) {
   if (!dateString) return "—";

@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const backendUrl = process.env.INTERNAL_BACKEND_URL || "http://localhost:8080";
 const minioUrl = process.env.INTERNAL_MINIO_URL || "http://localhost:9000";
-const cvServiceUrl = process.env.INTERNAL_CV_SERVICE_URL || "http://localhost:8000";
+const cvServiceUrl =
+  process.env.INTERNAL_CV_SERVICE_URL || "http://localhost:8000";
 
 const nextConfig: NextConfig = {
   output: "standalone",

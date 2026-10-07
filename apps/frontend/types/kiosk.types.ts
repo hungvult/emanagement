@@ -1,6 +1,4 @@
-export interface KioskRegisterRequest {
-  name: string;
-}
+
 
 export interface KioskCheckInRequest {
   imageFrameBase64: string;

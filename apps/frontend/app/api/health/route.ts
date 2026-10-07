@@ -8,6 +8,6 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     },
-    { status: 200 }
+    { status: 200 },
   );
 }

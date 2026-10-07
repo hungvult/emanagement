@@ -39,10 +39,10 @@ export interface BiometricAnalysisResult {
 }
 
 export interface FaceGeometryProfile {
-  ratioEyeToFace: number;      // Khoảng cách 2 mắt / Chiều dài khuôn mặt
-  ratioNoseToFace: number;     // Mũi tới cằm / Chiều dài khuôn mặt
-  ratioMouthToFace: number;    // Độ rộng miệng / Chiều dài khuôn mặt
-  ratioJawToFace: number;      // Độ rộng quai hàm / Chiều dài khuôn mặt
+  ratioEyeToFace: number; // Khoảng cách 2 mắt / Chiều dài khuôn mặt
+  ratioNoseToFace: number; // Mũi tới cằm / Chiều dài khuôn mặt
+  ratioMouthToFace: number; // Độ rộng miệng / Chiều dài khuôn mặt
+  ratioJawToFace: number; // Độ rộng quai hàm / Chiều dài khuôn mặt
 }
 
 export class EkycMediaPipeEngine {
@@ -68,11 +68,9 @@ export class EkycMediaPipeEngine {
     this.referenceFaceProfile = null;
   }
 
-  public hasReferenceFace(): boolean {
-    return this.referenceFaceProfile !== null;
-  }
-
-  public extractGeometryProfile(landmarks: Landmark3D[]): FaceGeometryProfile | null {
+  public extractGeometryProfile(
+    landmarks: Landmark3D[],
+  ): FaceGeometryProfile | null {
     if (!landmarks || landmarks.length < 468) return null;
     const lm = landmarks;
     const leftEyeX = (lm[33].x + lm[133].x) / 2;
@@ -81,7 +79,8 @@ export class EkycMediaPipeEngine {
     const rightEyeY = (lm[263].y + lm[362].y) / 2;
 
     const eyeDist = Math.hypot(rightEyeX - leftEyeX, rightEyeY - leftEyeY);
-    const faceLen = Math.hypot(lm[152].x - lm[10].x, lm[152].y - lm[10].y) || 1e-5;
+    const faceLen =
+      Math.hypot(lm[152].x - lm[10].x, lm[152].y - lm[10].y) || 1e-5;
     const noseToChin = Math.hypot(lm[152].x - lm[1].x, lm[152].y - lm[1].y);
     const mouthW = Math.hypot(lm[291].x - lm[61].x, lm[291].y - lm[61].y);
     const jawW = Math.hypot(lm[454].x - lm[234].x, lm[454].y - lm[234].y);
@@ -94,7 +93,10 @@ export class EkycMediaPipeEngine {
     };
   }
 
-  public checkFaceConsistency(landmarks: Landmark3D[]): { isConsistent: boolean; diff: number } {
+  public checkFaceConsistency(landmarks: Landmark3D[]): {
+    isConsistent: boolean;
+    diff: number;
+  } {
     if (!this.referenceFaceProfile) {
       return { isConsistent: true, diff: 0 };
     }
@@ -103,10 +105,18 @@ export class EkycMediaPipeEngine {
       return { isConsistent: true, diff: 0 };
     }
     const ref = this.referenceFaceProfile;
-    const d1 = Math.abs(cur.ratioEyeToFace - ref.ratioEyeToFace) / (ref.ratioEyeToFace + 1e-5);
-    const d2 = Math.abs(cur.ratioNoseToFace - ref.ratioNoseToFace) / (ref.ratioNoseToFace + 1e-5);
-    const d3 = Math.abs(cur.ratioMouthToFace - ref.ratioMouthToFace) / (ref.ratioMouthToFace + 1e-5);
-    const d4 = Math.abs(cur.ratioJawToFace - ref.ratioJawToFace) / (ref.ratioJawToFace + 1e-5);
+    const d1 =
+      Math.abs(cur.ratioEyeToFace - ref.ratioEyeToFace) /
+      (ref.ratioEyeToFace + 1e-5);
+    const d2 =
+      Math.abs(cur.ratioNoseToFace - ref.ratioNoseToFace) /
+      (ref.ratioNoseToFace + 1e-5);
+    const d3 =
+      Math.abs(cur.ratioMouthToFace - ref.ratioMouthToFace) /
+      (ref.ratioMouthToFace + 1e-5);
+    const d4 =
+      Math.abs(cur.ratioJawToFace - ref.ratioJawToFace) /
+      (ref.ratioJawToFace + 1e-5);
 
     const avgDiff = (d1 + d2 + d3 + d4) / 4.0;
     return {
@@ -116,7 +126,9 @@ export class EkycMediaPipeEngine {
   }
 
   // Blink State Machine chống giả mạo ảnh tĩnh (tương thích cả người đeo kính và mọi dáng mắt)
-  private blinkState: "WAITING_OPEN" | "OPEN_READY" | "CLOSED" | "REOPENED" | "COMPLETED" = "WAITING_OPEN";
+  private blinkState:
+    "WAITING_OPEN" | "OPEN_READY" | "CLOSED" | "REOPENED" | "COMPLETED" =
+    "WAITING_OPEN";
   private openEarSamples: number[] = [];
   private leftOpenEarSamples: number[] = [];
   private rightOpenEarSamples: number[] = [];
@@ -127,7 +139,13 @@ export class EkycMediaPipeEngine {
   private reopenedTime: number = 0;
   private completedUntil: number = 0;
   private blinkCooldownUntil: number = 0;
-  private blinkHeadPoseRef: { x: number; y: number; yaw: number; pitch: number; roll: number } | null = null;
+  private blinkHeadPoseRef: {
+    x: number;
+    y: number;
+    yaw: number;
+    pitch: number;
+    roll: number;
+  } | null = null;
 
   public resetBlink(): void {
     this.blinkState = "WAITING_OPEN";
@@ -149,17 +167,20 @@ export class EkycMediaPipeEngine {
     if (this.isModelLoaded) return true;
     if (this.loadPromise) return this.loadPromise;
 
-    if (typeof window === "undefined" || Date.now() < this.retryAfter) return false;
+    if (typeof window === "undefined" || Date.now() < this.retryAfter)
+      return false;
     this.loadPromise = (async () => {
       let faceMesh: FaceMesh | null = null;
 
       try {
         // Dynamically load FaceMesh from CDN if window.FaceMesh is not present
-        if (!(window as any).FaceMesh) {
+        if (!(window as unknown as { FaceMesh?: typeof FaceMesh }).FaceMesh) {
           await this.loadScript(`${FACE_MESH_ASSET_ROOT}/face_mesh.js`);
         }
 
-        const FaceMeshClass = (window as unknown as { FaceMesh?: typeof FaceMesh }).FaceMesh;
+        const FaceMeshClass = (
+          window as unknown as { FaceMesh?: typeof FaceMesh }
+        ).FaceMesh;
         if (!FaceMeshClass) {
           console.warn("FaceMesh constructor not found on window");
           throw new Error("FaceMesh constructor is unavailable");
@@ -189,7 +210,9 @@ export class EkycMediaPipeEngine {
         if (faceMesh) await faceMesh.close().catch(() => {});
         return false;
       }
-    })().finally(() => { this.loadPromise = null; });
+    })().finally(() => {
+      this.loadPromise = null;
+    });
 
     return this.loadPromise;
   }
@@ -199,14 +222,24 @@ export class EkycMediaPipeEngine {
       const existing = document.querySelector(`script[src="${src}"]`);
       if (existing) {
         existing.addEventListener("load", () => resolve(), { once: true });
-        existing.addEventListener("error", () => { existing.remove(); reject(new Error("FaceMesh script failed to load")); }, { once: true });
+        existing.addEventListener(
+          "error",
+          () => {
+            existing.remove();
+            reject(new Error("FaceMesh script failed to load"));
+          },
+          { once: true },
+        );
         return;
       }
       const script = document.createElement("script");
       script.src = src;
       script.crossOrigin = "anonymous";
       script.onload = () => resolve();
-      script.onerror = (e) => { script.remove(); reject(e); };
+      script.onerror = (e) => {
+        script.remove();
+        reject(e);
+      };
       document.head.appendChild(script);
     });
   }
@@ -214,7 +247,7 @@ export class EkycMediaPipeEngine {
   // Process a single video frame with MediaPipe FaceMesh
   public async processFrame(
     video: HTMLVideoElement,
-    targetPose: PoseStepId
+    targetPose: PoseStepId,
   ): Promise<BiometricAnalysisResult> {
     if (!this.isModelLoaded || !this.faceMesh) {
       const loaded = await this.loadModel();
@@ -229,8 +262,13 @@ export class EkycMediaPipeEngine {
     try {
       let result: BiometricAnalysisResult | undefined;
       faceMesh.onResults((results: Results) => {
-        const analyzed = this.analyzeLandmarks(results, targetPose, video);
-        result = { ...analyzed, facePresence: results.multiFaceLandmarks?.length ? "present" : "absent" };
+        const analyzed = this.analyzeLandmarks(results, targetPose);
+        result = {
+          ...analyzed,
+          facePresence: results.multiFaceLandmarks?.length
+            ? "present"
+            : "absent",
+        };
       });
       // Wait for the complete send, including WASM work. A slow frame must not
       // start a second send or replace the callback of an in-flight frame.
@@ -255,20 +293,31 @@ export class EkycMediaPipeEngine {
       ? "Không thể tải mô hình nhận diện. Hệ thống đang thử lại, vui lòng chờ."
       : "Đang xử lý mô hình nhận diện, vui lòng chờ...";
     return {
-      status: failed ? "MODEL_ERROR" : "INITIALIZING", isMatched: false,
-      message, voiceMessage: message, yaw: 0, pitch: 0, roll: 0,
-      distanceRatio: 0, isCentered: false, smileScore: 0, blinkScore: 0,
-      landmarks: null, confidence: 0,
+      status: failed ? "MODEL_ERROR" : "INITIALIZING",
+      isMatched: false,
+      message,
+      voiceMessage: message,
+      yaw: 0,
+      pitch: 0,
+      roll: 0,
+      distanceRatio: 0,
+      isCentered: false,
+      smileScore: 0,
+      blinkScore: 0,
+      landmarks: null,
+      confidence: 0,
     };
   }
 
   // 3D Geometry & Biometric Calculation from 468 landmarks
   private analyzeLandmarks(
-    results: any,
+    results: Results,
     targetPose: PoseStepId,
-    video: HTMLVideoElement
   ): BiometricAnalysisResult {
-    if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+    if (
+      !results.multiFaceLandmarks ||
+      results.multiFaceLandmarks.length === 0
+    ) {
       return {
         status: "NO_FACE",
         isMatched: false,
@@ -312,15 +361,14 @@ export class EkycMediaPipeEngine {
     const chin = lm[152]; // Bottom chin
     const leftEar = lm[234]; // Left cheek/ear tragus
     const rightEar = lm[454]; // Right cheek/ear tragus
-    const leftEyeOuter = lm[33];
-    const rightEyeOuter = lm[263];
     const mouthLeft = lm[61];
     const mouthRight = lm[291];
-    const upperLip = lm[13];
-    const lowerLip = lm[14];
 
     // 1. Distance & Size Check (Face Width / Depth) - Forgiving Range
-    const faceWidth = Math.hypot(rightEar.x - leftEar.x, rightEar.y - leftEar.y);
+    const faceWidth = Math.hypot(
+      rightEar.x - leftEar.x,
+      rightEar.y - leftEar.y,
+    );
     const distanceRatio = faceWidth;
 
     if (distanceRatio < 0.18) {
@@ -341,7 +389,7 @@ export class EkycMediaPipeEngine {
       };
     }
 
-    if (distanceRatio > 0.90) {
+    if (distanceRatio > 0.9) {
       return {
         status: "TOO_CLOSE",
         isMatched: false,
@@ -387,7 +435,7 @@ export class EkycMediaPipeEngine {
     const dx = rightEar.x - leftEar.x;
     const dy = rightEar.y - leftEar.y;
     const dz = rightEar.z - leftEar.z;
-    
+
     // Roll is the angle of the line connecting the ears in the x-y plane
     const rawRoll = (Math.atan2(dy, dx) * 180) / Math.PI;
 
@@ -395,7 +443,6 @@ export class EkycMediaPipeEngine {
     const rawYaw = (Math.atan2(dz, dx) * 180) / Math.PI;
 
     // Pitch is the angle in the y-z plane. Use forehead to chin.
-    const pDx = chin.x - forehead.x;
     const pDy = chin.y - forehead.y;
     const pDz = chin.z - forehead.z;
     const rawPitch = (Math.atan2(pDz, pDy) * 180) / Math.PI;
@@ -416,7 +463,10 @@ export class EkycMediaPipeEngine {
     const pitch = Math.round(this.smoothPitch!);
     const roll = Math.round(this.smoothRoll!);
 
-    const mouthWidth = Math.hypot(mouthRight.x - mouthLeft.x, mouthRight.y - mouthLeft.y);
+    const mouthWidth = Math.hypot(
+      mouthRight.x - mouthLeft.x,
+      mouthRight.y - mouthLeft.y,
+    );
     const mouthRatio = mouthWidth / (faceWidth || 1);
     const smileScore = Math.min(1.0, Math.max(0.0, (mouthRatio - 0.35) * 5.0));
 
@@ -427,14 +477,16 @@ export class EkycMediaPipeEngine {
     const leftEyeH2 = Math.hypot(lm[158].x - lm[153].x, lm[158].y - lm[153].y);
     const leftEyeH3 = Math.hypot(lm[159].x - lm[145].x, lm[159].y - lm[145].y);
     const leftEyeW = Math.hypot(lm[133].x - lm[33].x, lm[133].y - lm[33].y);
-    const leftEAR = (leftEyeH1 + 2.0 * leftEyeH3 + leftEyeH2) / (4.0 * (leftEyeW + 1e-5));
+    const leftEAR =
+      (leftEyeH1 + 2.0 * leftEyeH3 + leftEyeH2) / (4.0 * (leftEyeW + 1e-5));
 
     // Mắt phải: 385 & 380, 386 & 374 (tâm mí), 387 & 373, chiều rộng 263 & 362
     const rightEyeH1 = Math.hypot(lm[385].x - lm[380].x, lm[385].y - lm[380].y);
     const rightEyeH2 = Math.hypot(lm[387].x - lm[373].x, lm[387].y - lm[373].y);
     const rightEyeH3 = Math.hypot(lm[386].x - lm[374].x, lm[386].y - lm[374].y);
     const rightEyeW = Math.hypot(lm[263].x - lm[362].x, lm[263].y - lm[362].y);
-    const rightEAR = (rightEyeH1 + 2.0 * rightEyeH3 + rightEyeH2) / (4.0 * (rightEyeW + 1e-5));
+    const rightEAR =
+      (rightEyeH1 + 2.0 * rightEyeH3 + rightEyeH2) / (4.0 * (rightEyeW + 1e-5));
 
     const avgEAR = (leftEAR + rightEAR) / 2.0;
 
@@ -452,13 +504,17 @@ export class EkycMediaPipeEngine {
 
     // 3.5 Check Cross-Step Face Consistency (Chống đổi người / đổi ảnh giữa chừng)
     // Khi đang ở bước chớp mắt (blink) hoặc nhìn thẳng (front), góc mặt đủ thẳng để so khớp tỷ lệ hình học khuôn mặt
-    if (this.referenceFaceProfile && (targetPose === "front" || targetPose === "blink")) {
+    if (
+      this.referenceFaceProfile &&
+      (targetPose === "front" || targetPose === "blink")
+    ) {
       const consistency = this.checkFaceConsistency(lm);
       if (!consistency.isConsistent) {
         return {
           status: "WRONG_POSE",
           isMatched: false,
-          message: "Phát hiện đổi khuôn mặt! Vui lòng giữ nguyên khuôn mặt ban đầu",
+          message:
+            "Phát hiện đổi khuôn mặt! Vui lòng giữ nguyên khuôn mặt ban đầu",
           voiceMessage: "Vui lòng giữ nguyên khuôn mặt ban đầu",
           yaw,
           pitch,
@@ -481,7 +537,11 @@ export class EkycMediaPipeEngine {
     switch (targetPose) {
       case "front":
         // Nhìn thẳng: mặt cân đối (asymmetry nhỏ), không cúi/ngửa quá mức
-        if (Math.abs(asymmetry) <= 0.12 && Math.abs(pitch) <= 16 && verticalRatio < 1.30) {
+        if (
+          Math.abs(asymmetry) <= 0.12 &&
+          Math.abs(pitch) <= 16 &&
+          verticalRatio < 1.3
+        ) {
           isMatched = true;
           message = "Góc mặt chính diện chuẩn xác";
           voiceMessage = "Giữ yên khuôn mặt";
@@ -536,11 +596,24 @@ export class EkycMediaPipeEngine {
             if (this.openEarSamples.length >= 8) {
               const sumL = this.leftOpenEarSamples.reduce((a, b) => a + b, 0);
               const sumR = this.rightOpenEarSamples.reduce((a, b) => a + b, 0);
-              this.leftBaseline = Math.max(0.12, sumL / this.leftOpenEarSamples.length);
-              this.rightBaseline = Math.max(0.12, sumR / this.rightOpenEarSamples.length);
-              this.baselineOpenEar = (this.leftBaseline + this.rightBaseline) / 2.0;
+              this.leftBaseline = Math.max(
+                0.12,
+                sumL / this.leftOpenEarSamples.length,
+              );
+              this.rightBaseline = Math.max(
+                0.12,
+                sumR / this.rightOpenEarSamples.length,
+              );
+              this.baselineOpenEar =
+                (this.leftBaseline + this.rightBaseline) / 2.0;
               this.blinkState = "OPEN_READY";
-              this.blinkHeadPoseRef = { x: nose.x, y: nose.y, yaw, pitch, roll };
+              this.blinkHeadPoseRef = {
+                x: nose.x,
+                y: nose.y,
+                yaw,
+                pitch,
+                roll,
+              };
             }
           } else {
             this.leftOpenEarSamples = [];
@@ -556,10 +629,10 @@ export class EkycMediaPipeEngine {
         if (this.blinkState === "OPEN_READY") {
           // Thích ứng nhẹ nếu mắt mở to hơn tự nhiên
           if (leftEAR > this.leftBaseline && leftEAR < 0.42) {
-            this.leftBaseline = this.leftBaseline * 0.90 + leftEAR * 0.10;
+            this.leftBaseline = this.leftBaseline * 0.9 + leftEAR * 0.1;
           }
           if (rightEAR > this.rightBaseline && rightEAR < 0.42) {
-            this.rightBaseline = this.rightBaseline * 0.90 + rightEAR * 0.10;
+            this.rightBaseline = this.rightBaseline * 0.9 + rightEAR * 0.1;
           }
           this.baselineOpenEar = (this.leftBaseline + this.rightBaseline) / 2.0;
 
@@ -574,8 +647,10 @@ export class EkycMediaPipeEngine {
           const dropL = this.leftBaseline - leftEAR;
           const dropR = this.rightBaseline - rightEAR;
 
-          const isLeftClosed = dropL >= 0.028 && leftEAR <= this.leftBaseline * 0.68;
-          const isRightClosed = dropR >= 0.028 && rightEAR <= this.rightBaseline * 0.68;
+          const isLeftClosed =
+            dropL >= 0.028 && leftEAR <= this.leftBaseline * 0.68;
+          const isRightClosed =
+            dropR >= 0.028 && rightEAR <= this.rightBaseline * 0.68;
 
           // Bắt buộc cả 2 mắt phải cùng nhắm:
           if (isLeftClosed && isRightClosed) {
@@ -591,13 +666,22 @@ export class EkycMediaPipeEngine {
         if (this.blinkState === "CLOSED") {
           // Kiểm tra đầu có bị di chuyển/lắc trong lúc nhắm mắt hay không
           if (this.blinkHeadPoseRef) {
-            const shift = Math.hypot(nose.x - this.blinkHeadPoseRef.x, nose.y - this.blinkHeadPoseRef.y);
+            const shift = Math.hypot(
+              nose.x - this.blinkHeadPoseRef.x,
+              nose.y - this.blinkHeadPoseRef.y,
+            );
             const yawDiff = Math.abs(yaw - this.blinkHeadPoseRef.yaw);
             const pitchDiff = Math.abs(pitch - this.blinkHeadPoseRef.pitch);
             if (shift > 0.035 || yawDiff > 7 || pitchDiff > 7) {
               // Phát hiện đầu dịch chuyển hoặc xoay -> Hủy lượt nhắm do cử động đầu!
               this.blinkState = "OPEN_READY";
-              this.blinkHeadPoseRef = { x: nose.x, y: nose.y, yaw, pitch, roll };
+              this.blinkHeadPoseRef = {
+                x: nose.x,
+                y: nose.y,
+                yaw,
+                pitch,
+                roll,
+              };
               message = "Vui lòng giữ yên đầu và chớp mắt";
               break;
             }
@@ -699,7 +783,10 @@ export class EkycMediaPipeEngine {
 
     let blinkProgress = 0;
     if (this.blinkState === "WAITING_OPEN") {
-      blinkProgress = Math.min(25, Math.round((this.openEarSamples.length / 6) * 25));
+      blinkProgress = Math.min(
+        25,
+        Math.round((this.openEarSamples.length / 6) * 25),
+      );
     } else if (this.blinkState === "OPEN_READY") {
       blinkProgress = 35;
     } else if (this.blinkState === "CLOSED") {
@@ -725,198 +812,6 @@ export class EkycMediaPipeEngine {
       landmarks: lm,
       confidence: 0.95,
     };
-  }
-
-  // Fast high-precision canvas optical pose fallback
-  private fallbackAnalysis(
-    video: HTMLVideoElement,
-    targetPose: PoseStepId
-  ): BiometricAnalysisResult {
-    if (!video.videoWidth || !video.videoHeight) {
-      return {
-        status: "NO_FACE",
-        isMatched: false,
-        message: "Đang mở Camera...",
-        voiceMessage: "Vui lòng nhìn vào camera",
-        yaw: 0,
-        pitch: 0,
-        roll: 0,
-        distanceRatio: 0,
-        isCentered: false,
-        smileScore: 0,
-        blinkScore: 0,
-        landmarks: null,
-        confidence: 0,
-      };
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 160;
-    canvas.height = 120;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) {
-      return {
-        status: "WRONG_POSE",
-        isMatched: false,
-        message: "Đang xử lý hình ảnh...",
-        voiceMessage: "Vui lòng nhìn vào camera",
-        yaw: 0,
-        pitch: 0,
-        roll: 0,
-        distanceRatio: 0.5,
-        isCentered: true,
-        smileScore: 0,
-        blinkScore: 0,
-        landmarks: null,
-        confidence: 0.5,
-      };
-    }
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-    let leftLuminance = 0;
-    let rightLuminance = 0;
-    let topLuminance = 0;
-    let bottomLuminance = 0;
-    let skinPixels = 0;
-
-    for (let y = 0; y < canvas.height; y += 4) {
-      for (let x = 0; x < canvas.width; x += 4) {
-        const idx = (y * canvas.width + x) * 4;
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-
-        // Skin filter
-        if (r > 60 && g > 40 && b > 20 && r > g && r > b) {
-          skinPixels++;
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          if (x < canvas.width / 2) leftLuminance += lum;
-          else rightLuminance += lum;
-          if (y < canvas.height / 2) topLuminance += lum;
-          else bottomLuminance += lum;
-        }
-      }
-    }
-
-    const totalH = leftLuminance + rightLuminance;
-    const rawYaw = totalH > 0 ? ((rightLuminance - leftLuminance) / totalH) * 70 : 0;
-    const yaw = Math.round(rawYaw);
-
-    const totalV = topLuminance + bottomLuminance;
-    const rawPitch = totalV > 0 ? ((bottomLuminance - topLuminance) / totalV) * 55 : 0;
-    const pitch = Math.round(rawPitch);
-
-    let isMatched = false;
-    let message = "";
-    let voiceMessage = "";
-
-    if (targetPose === "front") {
-      isMatched = Math.abs(yaw) <= 14;
-      message = isMatched ? "Khuôn mặt chính diện" : "Vui lòng nhìn thẳng";
-      voiceMessage = "Vui lòng nhìn thẳng vào camera";
-    } else if (targetPose === "left") {
-      isMatched = yaw <= -10;
-      message = isMatched ? "Góc quay trái chuẩn" : "Vui lòng quay sang trái";
-      voiceMessage = "Vui lòng quay mặt sang bên trái";
-    } else if (targetPose === "right") {
-      isMatched = yaw >= 10;
-      message = isMatched ? "Góc quay phải chuẩn" : "Vui lòng quay sang phải";
-      voiceMessage = "Vui lòng quay mặt sang bên phải";
-    } else if (targetPose === "up") {
-      isMatched = pitch <= -8 || Math.abs(yaw) <= 18;
-      message = isMatched ? "Góc ngẩng chuẩn" : "Vui lòng ngẩng cằm lên";
-      voiceMessage = "Vui lòng ngẩng cằm lên một chút";
-    } else if (targetPose === "blink") {
-      isMatched = false;
-      message = "Vui lòng nhìn thẳng và chớp mắt";
-      voiceMessage = "Vui lòng chớp mắt";
-    } else if (targetPose === "smile") {
-      isMatched = true;
-      message = "Xác thực biểu cảm thành công";
-      voiceMessage = "Giữ yên để hoàn tất";
-    } else {
-      isMatched = false;
-      message = "Vui lòng nhìn vào camera";
-      voiceMessage = "Vui lòng nhìn vào camera";
-    }
-
-    return {
-      status: isMatched ? "MATCHED" : "WRONG_POSE",
-      isMatched,
-      message,
-      voiceMessage,
-      yaw,
-      pitch,
-      roll: 0,
-      distanceRatio: 0.5,
-      isCentered: true,
-      smileScore: 0.5,
-      blinkScore: 0,
-      landmarks: null,
-      confidence: 0.85,
-    };
-  }
-
-  // Draw futuristic cyber biometric landmark mesh overlay on canvas
-  public drawLandmarksMesh(
-    ctx: CanvasRenderingContext2D,
-    landmarks: Landmark3D[] | null,
-    width: number,
-    height: number,
-    isMatched: boolean
-  ) {
-    if (!landmarks || landmarks.length === 0) return;
-
-    ctx.save();
-    ctx.clearRect(0, 0, width, height);
-
-    // Primary contour key points to draw high-tech dots
-    const keyIndices = [
-      1, 10, 152, 234, 454, 33, 133, 263, 362, 61, 291, 13, 14, 70, 300, 168, 197, 5, 4,
-      127, 356, 93, 323, 58, 288, 172, 397
-    ];
-
-    const primaryColor = isMatched ? "rgba(16, 185, 129, 0.85)" : "rgba(6, 182, 212, 0.75)";
-    const glowColor = isMatched ? "rgba(16, 185, 129, 0.4)" : "rgba(6, 182, 212, 0.3)";
-
-    // Connect face oval contour lines
-    const ovalIndices = [
-      10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378,
-      400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21,
-      54, 103, 67, 109, 10
-    ];
-
-    ctx.beginPath();
-    ovalIndices.forEach((idx, i) => {
-      const pt = landmarks[idx];
-      if (!pt) return;
-      const x = pt.x * width;
-      const y = pt.y * height;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.closePath();
-    ctx.strokeStyle = glowColor;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Draw landmark glowing nodes
-    keyIndices.forEach((idx) => {
-      const pt = landmarks[idx];
-      if (!pt) return;
-      const x = pt.x * width;
-      const y = pt.y * height;
-
-      // Glow circle
-      ctx.beginPath();
-      ctx.arc(x, y, 2.5, 0, 2 * Math.PI);
-      ctx.fillStyle = primaryColor;
-      ctx.fill();
-    });
-
-    ctx.restore();
   }
 }
 

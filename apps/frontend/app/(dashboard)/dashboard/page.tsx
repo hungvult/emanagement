@@ -1,16 +1,28 @@
 "use client";
+import NextImage from "next/image";
 
-import React, { useEffect, useState } from "react";
-import { useAuth } from "../../../hooks/use-auth";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
-import { Users, Clock, FileText, AlertTriangle, UserCheck, UserX, Eye, Image as ImageIcon } from "lucide-react";
-import { dashboardService, DashboardOverview } from "../../../services/dashboard.service";
-import { attendanceService } from "../../../services/attendance.service";
-import { formatDateTime } from "../../../lib/utils";
-import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
-import { Modal } from "../../../components/ui/modal";
-import { AttendanceHistory } from "../../../types/attendance.types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
+import { useAuth } from "@/hooks/use-auth";
+import { formatDateTime } from "@/lib/utils";
+import { attendanceService } from "@/services/attendance.service";
+import {
+  DashboardOverview,
+  dashboardService,
+} from "@/services/dashboard.service";
+import { AttendanceHistory } from "@/types/attendance.types";
+import {
+  Clock,
+  Eye,
+  FileText,
+  Image as ImageIcon,
+  UserCheck,
+  Users,
+  UserX,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
   const { user, hasRole } = useAuth();
@@ -19,8 +31,11 @@ export default function DashboardPage() {
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
 
-  const [recentAttendance, setRecentAttendance] = useState<AttendanceHistory[]>([]);
-  const [selectedRecord, setSelectedRecord] = useState<AttendanceHistory | null>(null);
+  const [recentAttendance, setRecentAttendance] = useState<AttendanceHistory[]>(
+    [],
+  );
+  const [selectedRecord, setSelectedRecord] =
+    useState<AttendanceHistory | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,7 +114,11 @@ export default function DashboardPage() {
         <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-indigo-50 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
         <div className="relative z-10">
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">
-            Xin chào, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">{user?.fullName}</span>! 👋
+            Xin chào,{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">
+              {user?.fullName}
+            </span>
+            ! 👋
           </h1>
           <p className="text-base text-slate-500 font-medium max-w-xl">
             {isAdmin
@@ -115,7 +134,10 @@ export default function DashboardPage() {
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
             {isLoadingOverview
               ? Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-32 rounded-3xl bg-slate-100 animate-pulse border border-slate-200" />
+                  <div
+                    key={i}
+                    className="h-32 rounded-3xl bg-slate-100 animate-pulse border border-slate-200"
+                  />
                 ))
               : statCards.map((card, index) => {
                   const Icon = card.icon;
@@ -132,7 +154,9 @@ export default function DashboardPage() {
                         <CardTitle className="text-sm font-semibold text-slate-500">
                           {card.title}
                         </CardTitle>
-                        <div className={`p-2.5 ${card.bg} rounded-xl shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+                        <div
+                          className={`p-2.5 ${card.bg} rounded-xl shadow-sm group-hover:scale-110 transition-transform duration-300`}
+                        >
                           <Icon className={`h-5 w-5 ${card.text}`} />
                         </div>
                       </CardHeader>
@@ -185,10 +209,15 @@ export default function DashboardPage() {
                   ].map((item) => {
                     const percent =
                       overview.totalEmployees > 0
-                        ? Math.round((item.value / overview.totalEmployees) * 100)
+                        ? Math.round(
+                            (item.value / overview.totalEmployees) * 100,
+                          )
                         : 0;
                     return (
-                      <div key={item.label} className="flex items-center gap-4 group">
+                      <div
+                        key={item.label}
+                        className="flex items-center gap-4 group"
+                      >
                         <span className="text-sm font-semibold text-slate-600 w-24 flex-shrink-0">
                           {item.label}
                         </span>
@@ -239,8 +268,12 @@ export default function DashboardPage() {
                             {record.kioskName}
                           </p>
                           <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-2">
-                            <span className="bg-slate-100 px-2 py-0.5 rounded-md">Vào: {formatDateTime(record.checkInTime) || "--"}</span>
-                            <span className="bg-slate-100 px-2 py-0.5 rounded-md">Ra: {formatDateTime(record.checkOutTime) || "--"}</span>
+                            <span className="bg-slate-100 px-2 py-0.5 rounded-md">
+                              Vào: {formatDateTime(record.checkInTime) || "--"}
+                            </span>
+                            <span className="bg-slate-100 px-2 py-0.5 rounded-md">
+                              Ra: {formatDateTime(record.checkOutTime) || "--"}
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -250,16 +283,16 @@ export default function DashboardPage() {
                             record.status === "ON_TIME"
                               ? "success"
                               : record.status === "LATE"
-                              ? "warning"
-                              : "danger"
+                                ? "warning"
+                                : "danger"
                           }
                           className="px-2.5 py-1 text-xs shadow-sm"
                         >
                           {record.status === "ON_TIME"
                             ? "Đúng giờ"
                             : record.status === "LATE"
-                            ? "Đi muộn"
-                            : "Về sớm"}
+                              ? "Đi muộn"
+                              : "Về sớm"}
                         </Badge>
                         {(record.snapshotUrl || record.checkoutSnapshotUrl) && (
                           <Button
@@ -280,7 +313,9 @@ export default function DashboardPage() {
                   <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                     <Clock className="h-8 w-8 text-slate-300" />
                   </div>
-                  <p className="text-sm font-medium text-slate-500">Bạn chưa có dữ liệu chấm công.</p>
+                  <p className="text-sm font-medium text-slate-500">
+                    Bạn chưa có dữ liệu chấm công.
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -305,12 +340,17 @@ export default function DashboardPage() {
                     Vào ca (Check-in)
                   </span>
                   <span className="text-[11px] font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
-                    {selectedRecord.checkInTime ? formatDateTime(selectedRecord.checkInTime) : "—"}
+                    {selectedRecord.checkInTime
+                      ? formatDateTime(selectedRecord.checkInTime)
+                      : "—"}
                   </span>
                 </div>
                 <div className="relative aspect-square w-full rounded-2xl bg-slate-50 overflow-hidden border border-slate-100 flex items-center justify-center group">
                   {selectedRecord.snapshotUrl ? (
-                    <img
+                    <NextImage
+                      unoptimized
+                      width={640}
+                      height={480}
                       src={selectedRecord.snapshotUrl}
                       alt="Ảnh Check-in"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -323,7 +363,7 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-              
+
               {/* Check Out Image */}
               <div className="flex flex-col space-y-3 rounded-[20px] border border-slate-100 p-4 bg-white shadow-sm">
                 <div className="flex items-center justify-between px-1">
@@ -339,7 +379,10 @@ export default function DashboardPage() {
                 </div>
                 <div className="relative aspect-square w-full rounded-2xl bg-slate-50 overflow-hidden border border-slate-100 flex items-center justify-center group">
                   {selectedRecord.checkoutSnapshotUrl ? (
-                    <img
+                    <NextImage
+                      unoptimized
+                      width={640}
+                      height={480}
                       src={selectedRecord.checkoutSnapshotUrl}
                       alt="Ảnh Check-out"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -348,19 +391,28 @@ export default function DashboardPage() {
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <ImageIcon className="h-10 w-10 opacity-30" />
                       <span className="text-xs font-medium">
-                        {selectedRecord.checkOutTime ? "Không có ảnh" : "Chưa hoàn thành ca"}
+                        {selectedRecord.checkOutTime
+                          ? "Không có ảnh"
+                          : "Chưa hoàn thành ca"}
                       </span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-between pt-5 mt-2 border-t border-slate-100">
               <span className="text-sm font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                Trạm: <strong className="text-slate-900">{selectedRecord.kioskName}</strong>
+                Trạm:{" "}
+                <strong className="text-slate-900">
+                  {selectedRecord.kioskName}
+                </strong>
               </span>
-              <Button variant="outline" onClick={() => setSelectedRecord(null)} className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-6">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedRecord(null)}
+                className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-6"
+              >
                 Đóng
               </Button>
             </div>

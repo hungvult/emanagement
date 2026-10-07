@@ -1,10 +1,15 @@
-import { apiClient } from "../lib/api-client";
-import { ApiResponse, PageResponse } from "../types/common.types";
-import { NotificationResponse } from "../types/notification.types";
+import { apiClient } from "@/lib/api-client";
+import { ApiResponse, PageResponse } from "@/types/common.types";
+import { NotificationResponse } from "@/types/notification.types";
 
 export const notificationService = {
-  getMyNotifications: (page: number = 0, size: number = 10): Promise<ApiResponse<PageResponse<NotificationResponse>>> => {
-    return apiClient.get<PageResponse<NotificationResponse>>(`/notifications/my?page=${page}&size=${size}`);
+  getMyNotifications: (
+    page: number = 0,
+    size: number = 10,
+  ): Promise<ApiResponse<PageResponse<NotificationResponse>>> => {
+    return apiClient.get<PageResponse<NotificationResponse>>(
+      `/notifications/my?page=${page}&size=${size}`,
+    );
   },
 
   getUnreadCount: (): Promise<ApiResponse<number>> => {

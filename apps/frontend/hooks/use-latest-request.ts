@@ -6,7 +6,9 @@ import { useCallback, useEffect, useRef } from "react";
 // request. Invalidate on unmount so pending requests cannot update a closed page.
 export function useLatestRequest() {
   const version = useRef(0);
-  const invalidate = useCallback(() => { version.current += 1; }, []);
+  const invalidate = useCallback(() => {
+    version.current += 1;
+  }, []);
   useEffect(() => invalidate, [invalidate]);
   return useCallback(() => {
     const current = ++version.current;

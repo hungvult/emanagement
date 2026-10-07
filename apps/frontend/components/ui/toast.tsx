@@ -1,18 +1,20 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Toast as ToastPrimitive } from "@base-ui/react/toast"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
+import { Toast as ToastPrimitive } from "@base-ui/react/toast";
+import * as React from "react";
 
-import { Button } from "@/components/ui/button"
-import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { Button } from "@/components/ui/button";
+import {
+  CircleCheckIcon,
+  InfoIcon,
+  Loader2Icon,
+  OctagonXIcon,
+  TriangleAlertIcon,
+  XIcon,
+} from "lucide-react";
 
-const toast = ToastPrimitive.createToastManager()
-
-// Polyfill .create alias to .add to prevent runtime TypeError
-if (toast && !(toast as any).create) {
-  (toast as any).create = (options: any) => (toast as any).add?.(options);
-}
+const toast = ToastPrimitive.createToastManager();
 
 function ToastProvider({
   children,
@@ -28,11 +30,11 @@ function ToastProvider({
         </ToastViewport>
       </ToastPortal>
     </ToastPrimitive.Provider>
-  )
+  );
 }
 
 function ToastPortal({ ...props }: ToastPrimitive.Portal.Props) {
-  return <ToastPrimitive.Portal data-slot="toast-portal" {...props} />
+  return <ToastPrimitive.Portal data-slot="toast-portal" {...props} />;
 }
 
 function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
@@ -41,11 +43,11 @@ function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
       data-slot="toast-viewport"
       className={cn(
         "pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
@@ -68,11 +70,11 @@ function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
         "data-expanded:data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
         "data-expanded:data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
         "data-expanded:data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function ToastContent({ className, ...props }: ToastPrimitive.Content.Props) {
@@ -81,11 +83,11 @@ function ToastContent({ className, ...props }: ToastPrimitive.Content.Props) {
       data-slot="toast-content"
       className={cn(
         "flex h-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] data-behind:opacity-0 data-expanded:opacity-100",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
@@ -95,7 +97,7 @@ function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
       className={cn("text-sm font-medium", className)}
       {...props}
     />
-  )
+  );
 }
 
 function ToastDescription({
@@ -108,7 +110,7 @@ function ToastDescription({
       className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
-  )
+  );
 }
 
 function ToastAction({
@@ -123,7 +125,7 @@ function ToastAction({
       className={cn("shrink-0", className)}
       {...props}
     />
-  )
+  );
 }
 
 function ToastClose({
@@ -139,52 +141,40 @@ function ToastClose({
       render={render}
       className={cn(
         "relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground",
-        className
+        className,
       )}
       {...props}
     >
-      {children ?? (
-        <XIcon aria-hidden="true" />
-      )}
+      {children ?? <XIcon aria-hidden="true" />}
     </ToastPrimitive.Close>
-  )
+  );
 }
 
 function ToastIcon({ type }: { type: string | undefined }) {
-  let icon: React.ReactNode = null
+  let icon: React.ReactNode = null;
 
   if (type === "success") {
-    icon = (
-      <CircleCheckIcon aria-hidden="true" className="text-emerald-500" />
-    )
+    icon = <CircleCheckIcon aria-hidden="true" className="text-emerald-500" />;
   }
 
   if (type === "info") {
-    icon = (
-      <InfoIcon aria-hidden="true" className="text-blue-500" />
-    )
+    icon = <InfoIcon aria-hidden="true" className="text-blue-500" />;
   }
 
   if (type === "warning") {
-    icon = (
-      <TriangleAlertIcon aria-hidden="true" className="text-amber-500" />
-    )
+    icon = <TriangleAlertIcon aria-hidden="true" className="text-amber-500" />;
   }
 
   if (type === "error") {
-    icon = (
-      <OctagonXIcon className="text-destructive" aria-hidden="true" />
-    )
+    icon = <OctagonXIcon className="text-destructive" aria-hidden="true" />;
   }
 
   if (type === "loading") {
-    icon = (
-      <Loader2Icon className="animate-spin" aria-hidden="true" />
-    )
+    icon = <Loader2Icon className="animate-spin" aria-hidden="true" />;
   }
 
   if (!icon) {
-    return null
+    return null;
   }
 
   return (
@@ -194,11 +184,11 @@ function ToastIcon({ type }: { type: string | undefined }) {
     >
       {icon}
     </span>
-  )
+  );
 }
 
 function ToastList() {
-  const { toasts } = ToastPrimitive.useToastManager()
+  const { toasts } = ToastPrimitive.useToastManager();
 
   return toasts.map((toastItem) => (
     <Toast key={toastItem.id} toast={toastItem}>
@@ -212,7 +202,7 @@ function ToastList() {
         <ToastClose />
       </ToastContent>
     </Toast>
-  ))
+  ));
 }
 
 function Toaster({
@@ -224,64 +214,66 @@ function Toaster({
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
     </ToastProvider>
-  )
+  );
 }
 
-const createToastManager = ToastPrimitive.createToastManager
-const useToastManager = ToastPrimitive.useToastManager
+const createToastManager = ToastPrimitive.createToastManager;
+const useToastManager = ToastPrimitive.useToastManager;
+
+const toastActions = {
+  toast: (message: string, type: string = "info") => {
+    toast.add({
+      description: message,
+      type,
+    });
+  },
+  success: (message: string) => {
+    toast.add({
+      title: "Thành công",
+      description: message,
+      type: "success",
+    });
+  },
+  error: (message: string) => {
+    toast.add({
+      title: "Lỗi",
+      description: message,
+      type: "error",
+    });
+  },
+  info: (message: string) => {
+    toast.add({
+      title: "Thông báo",
+      description: message,
+      type: "info",
+    });
+  },
+  warning: (message: string) => {
+    toast.add({
+      title: "Cảnh báo",
+      description: message,
+      type: "warning",
+    });
+  },
+};
 
 function useToast() {
-  return {
-    toast: (message: string, type: string = "info") => {
-      (toast as any).add?.({
-        description: message,
-        type,
-      });
-    },
-    success: (message: string) => {
-      (toast as any).add?.({
-        title: "Thành công",
-        description: message,
-        type: "success",
-      });
-    },
-    error: (message: string) => {
-      (toast as any).add?.({
-        title: "Lỗi",
-        description: message,
-        type: "error",
-      });
-    },
-    info: (message: string) => {
-      (toast as any).add?.({
-        title: "Thông báo",
-        description: message,
-        type: "info",
-      });
-    },
-    warning: (message: string) => {
-      (toast as any).add?.({
-        title: "Cảnh báo",
-        description: message,
-        type: "warning",
-      });
-    }
-  };
+  return toastActions;
 }
 
 export {
-  Toaster,
+  createToastManager,
   Toast,
+  toast,
   ToastAction,
   ToastClose,
   ToastContent,
   ToastDescription,
+  Toaster,
   ToastPortal,
   ToastProvider,
   ToastTitle,
   ToastViewport,
-  createToastManager,
-  toast,
-  useToastManager,
   useToast,
-}
+  useToastManager,
+};

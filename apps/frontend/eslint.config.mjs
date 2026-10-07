@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated upstream MediaPipe bundles are copied by predev/prebuild.
+    "public/vendor/**",
   ]),
 ]);
 

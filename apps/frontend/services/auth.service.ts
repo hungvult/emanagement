@@ -1,23 +1,28 @@
-import { apiClient } from "../lib/api-client";
-import { ApiResponse } from "../types/common.types";
+import { apiClient } from "@/lib/api-client";
 import {
-  LoginRequest,
+  ChangePasswordRequest,
   JwtResponse,
-  SendOtpRequest,
-  VerifyOtpRequest,
+  LoginRequest,
   ResetPasswordRequest,
-  UserProfile,
-  UpdateProfileRequest,
+  SendOtpRequest,
   TokenRefreshResponse,
-} from "../types/auth.types";
+  UpdateProfileRequest,
+  UserProfile,
+  VerifyOtpRequest,
+} from "@/types/auth.types";
+import { ApiResponse } from "@/types/common.types";
 
 export const authService = {
   login: (data: LoginRequest): Promise<ApiResponse<JwtResponse>> => {
     return apiClient.post<JwtResponse>("/auth/login", data);
   },
 
-  refreshToken: (refreshToken: string): Promise<ApiResponse<TokenRefreshResponse>> => {
-    return apiClient.post<TokenRefreshResponse>("/auth/refresh-token", { refreshToken });
+  refreshToken: (
+    refreshToken: string,
+  ): Promise<ApiResponse<TokenRefreshResponse>> => {
+    return apiClient.post<TokenRefreshResponse>("/auth/refresh-token", {
+      refreshToken,
+    });
   },
 
   logout: (refreshToken?: string): Promise<ApiResponse<void>> => {
@@ -40,12 +45,13 @@ export const authService = {
     return apiClient.get<UserProfile>("/auth/me");
   },
 
-  updateProfile: (data: UpdateProfileRequest): Promise<ApiResponse<UserProfile>> => {
+  updateProfile: (
+    data: UpdateProfileRequest,
+  ): Promise<ApiResponse<UserProfile>> => {
     return apiClient.put<UserProfile>("/auth/profile", data);
   },
 
-  changePassword: (data: any): Promise<ApiResponse<void>> => {
+  changePassword: (data: ChangePasswordRequest): Promise<ApiResponse<void>> => {
     return apiClient.put<void>("/auth/change-password", data);
   },
 };
-

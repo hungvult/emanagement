@@ -1,21 +1,32 @@
 "use client";
+import NextImage from "next/image";
 
-import { useLatestRequest } from "../../../hooks/use-latest-request";
-import React, { useEffect, useState } from "react";
-import { useAuth } from "../../../hooks/use-auth";
-import { attendanceService, AttendanceFilters } from "../../../services/attendance.service";
-import { shiftService } from "../../../services/shift.service";
-import { AttendanceHistory } from "../../../types/attendance.types";
-import { ShiftResponse } from "../../../types/shift.types";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
-import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
-import { Modal } from "../../../components/ui/modal";
-import { Pagination } from "../../../components/ui/pagination";
-import { useToast } from "../../../components/ui/toast";
-import { formatDateTime } from "../../../lib/utils";
-import { Image as ImageIcon, Eye, Search, X, Clock, CalendarDays } from "lucide-react";
-import { DatePicker } from "../../../components/ui/date-picker";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Modal } from "@/components/ui/modal";
+import { Pagination } from "@/components/ui/pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useLatestRequest } from "@/hooks/use-latest-request";
+import { formatDateTime } from "@/lib/utils";
+import {
+  AttendanceFilters,
+  attendanceService,
+} from "@/services/attendance.service";
+import { shiftService } from "@/services/shift.service";
+import { AttendanceHistory } from "@/types/attendance.types";
+import { ShiftResponse } from "@/types/shift.types";
+import { Clock, Eye, Image as ImageIcon, Search, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 function formatDateVi(dateStr?: string | null) {
   if (!dateStr) return "—";
@@ -36,7 +47,8 @@ export default function AttendancePage() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedRecord, setSelectedRecord] = useState<AttendanceHistory | null>(null);
+  const [selectedRecord, setSelectedRecord] =
+    useState<AttendanceHistory | null>(null);
   const { error } = useToast();
 
   // --- Filter state (những gì đang nhập) ---
@@ -59,36 +71,46 @@ export default function AttendancePage() {
       .catch(() => {});
   }, []);
 
-  const fetchRecords = async (pageNumber: number, filters: AttendanceFilters) => {
-    const isCurrent = beginRequest();
-    setIsLoading(true);
-    try {
-      let res;
-      if (isAdmin) {
-        res = await attendanceService.getAllRecords(pageNumber, 15, filters);
-      } else if (user) {
-        res = await attendanceService.getMyHistory(user.id, pageNumber, 15, filters);
-      }
+  const fetchRecords = useCallback(
+    async (pageNumber: number, filters: AttendanceFilters) => {
+      const isCurrent = beginRequest();
+      setIsLoading(true);
+      try {
+        let res;
+        if (isAdmin) {
+          res = await attendanceService.getAllRecords(pageNumber, 15, filters);
+        } else if (user) {
+          res = await attendanceService.getMyHistory(
+            user.id,
+            pageNumber,
+            15,
+            filters,
+          );
+        }
 
-      if (!isCurrent()) return;
-      if (res && res.status === "SUCCESS" && res.data) {
-        setRecords(res.data.content);
-        setTotalPages(res.data.totalPages);
-        setPage(res.data.pageNumber);
+        if (!isCurrent()) return;
+        if (res && res.status === "SUCCESS" && res.data) {
+          setRecords(res.data.content);
+          setTotalPages(res.data.totalPages);
+          setPage(res.data.pageNumber);
+        }
+      } catch {
+        if (!isCurrent()) return;
+        error("Lỗi khi tải dữ liệu chấm công");
+      } finally {
+        if (isCurrent()) setIsLoading(false);
       }
-    } catch (err: any) {
-      if (!isCurrent()) return;
-      error("Lỗi khi tải dữ liệu chấm công");
-    } finally {
-      if (isCurrent()) setIsLoading(false);
-    }
-  };
+    },
+    [beginRequest, error, isAdmin, user],
+  );
 
   useEffect(() => {
     if (user) {
+      // Synchronize this screen with an external request or camera session.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchRecords(page, appliedFilters);
     }
-  }, [page, user, isAdmin, appliedFilters]);
+  }, [page, user, appliedFilters, fetchRecords]);
 
   const handleApplyFilters = () => {
     const filters: AttendanceFilters = {};
@@ -137,7 +159,9 @@ export default function AttendancePage() {
       <div className="bg-white border border-slate-100 rounded-[24px] p-5 shadow-sm flex flex-col md:flex-row items-center gap-4">
         <div className="flex-1 flex flex-wrap gap-4 w-full">
           <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Từ ngày</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+              Từ ngày
+            </label>
             <DatePicker
               value={startDate}
               onChange={setStartDate}
@@ -145,7 +169,9 @@ export default function AttendancePage() {
             />
           </div>
           <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Đến ngày</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+              Đến ngày
+            </label>
             <DatePicker
               value={endDate}
               onChange={setEndDate}
@@ -153,7 +179,9 @@ export default function AttendancePage() {
             />
           </div>
           <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Ca làm việc</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+              Ca làm việc
+            </label>
             <select
               value={shiftFilter}
               onChange={(e) => setShiftFilter(e.target.value)}
@@ -168,7 +196,9 @@ export default function AttendancePage() {
             </select>
           </div>
           <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Trạng thái</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+              Trạng thái
+            </label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -230,7 +260,10 @@ export default function AttendancePage() {
             <TableBody>
               {records.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                  <TableCell
+                    colSpan={isAdmin ? 7 : 6}
+                    className="text-center py-8 text-muted-foreground"
+                  >
                     Không có dữ liệu chấm công
                   </TableCell>
                 </TableRow>
@@ -239,8 +272,12 @@ export default function AttendancePage() {
                   <TableRow key={record.id}>
                     {isAdmin && (
                       <TableCell>
-                        <div className="font-medium text-foreground">{record.fullName}</div>
-                        <div className="text-xs text-muted-foreground">{record.employeeCode}</div>
+                        <div className="font-medium text-foreground">
+                          {record.fullName}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {record.employeeCode}
+                        </div>
                       </TableCell>
                     )}
                     <TableCell>
@@ -248,40 +285,49 @@ export default function AttendancePage() {
                         {record.shiftName || "Ca hành chính"}
                       </span>
                     </TableCell>
-                    <TableCell className="font-medium text-slate-600">{record.kioskName || "—"}</TableCell>
+                    <TableCell className="font-medium text-slate-600">
+                      {record.kioskName || "—"}
+                    </TableCell>
                     <TableCell>
                       {record.checkInTime ? (
                         formatDateTime(record.checkInTime)
                       ) : record.workDate ? (
                         <span className="text-slate-500 text-xs font-medium">
-                          {formatDateVi(record.workDate)} <span className="text-slate-400 italic">(Chưa vào ca)</span>
+                          {formatDateVi(record.workDate)}{" "}
+                          <span className="text-slate-400 italic">
+                            (Chưa vào ca)
+                          </span>
                         </span>
                       ) : (
                         "—"
                       )}
                     </TableCell>
-                    <TableCell>{record.checkOutTime ? formatDateTime(record.checkOutTime) : "—"}</TableCell>
+                    <TableCell>
+                      {record.checkOutTime
+                        ? formatDateTime(record.checkOutTime)
+                        : "—"}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={
                           record.status === "ON_TIME"
                             ? "success"
                             : record.status === "LATE"
-                            ? "warning"
-                            : record.status === "EARLY_LEAVE"
-                            ? "danger"
-                            : "secondary"
+                              ? "warning"
+                              : record.status === "EARLY_LEAVE"
+                                ? "danger"
+                                : "secondary"
                         }
                       >
                         {record.status === "ON_TIME"
                           ? "Đúng giờ"
                           : record.status === "LATE"
-                          ? "Đi muộn"
-                          : record.status === "EARLY_LEAVE"
-                          ? "Về sớm"
-                          : record.status === "NO_DATA"
-                          ? "Không có dữ liệu"
-                          : record.status}
+                            ? "Đi muộn"
+                            : record.status === "EARLY_LEAVE"
+                              ? "Về sớm"
+                              : record.status === "NO_DATA"
+                                ? "Không có dữ liệu"
+                                : record.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -300,7 +346,9 @@ export default function AttendancePage() {
                           )}
                         </Button>
                       ) : (
-                        <span className="text-slate-400 text-sm font-medium">—</span>
+                        <span className="text-slate-400 text-sm font-medium">
+                          —
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -334,12 +382,17 @@ export default function AttendancePage() {
                     Ảnh vào ca (Check-in)
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    {selectedRecord.checkInTime ? formatDateTime(selectedRecord.checkInTime) : "—"}
+                    {selectedRecord.checkInTime
+                      ? formatDateTime(selectedRecord.checkInTime)
+                      : "—"}
                   </span>
                 </div>
                 <div className="relative aspect-video w-full rounded-lg bg-black/5 dark:bg-black/30 overflow-hidden border border-border flex items-center justify-center">
                   {selectedRecord.snapshotUrl ? (
-                    <img
+                    <NextImage
+                      unoptimized
+                      width={640}
+                      height={480}
                       src={selectedRecord.snapshotUrl}
                       alt="Ảnh Check-in"
                       className="w-full h-full object-contain"
@@ -368,7 +421,10 @@ export default function AttendancePage() {
                 </div>
                 <div className="relative aspect-video w-full rounded-lg bg-black/5 dark:bg-black/30 overflow-hidden border border-border flex items-center justify-center">
                   {selectedRecord.checkoutSnapshotUrl ? (
-                    <img
+                    <NextImage
+                      unoptimized
+                      width={640}
+                      height={480}
                       src={selectedRecord.checkoutSnapshotUrl}
                       alt="Ảnh Check-out"
                       className="w-full h-full object-contain"
@@ -377,7 +433,9 @@ export default function AttendancePage() {
                     <div className="flex flex-col items-center gap-1 text-muted-foreground">
                       <ImageIcon className="h-8 w-8 opacity-40" />
                       <span className="text-xs">
-                        {selectedRecord.checkOutTime ? "Không có ảnh" : "Chưa hoàn thành ca"}
+                        {selectedRecord.checkOutTime
+                          ? "Không có ảnh"
+                          : "Chưa hoàn thành ca"}
                       </span>
                     </div>
                   )}
@@ -387,31 +445,42 @@ export default function AttendancePage() {
 
             <div className="flex items-center justify-between pt-3 border-t border-border">
               <span className="text-xs text-muted-foreground">
-                Ca: <strong className="text-foreground">{selectedRecord.shiftName || "Ca hành chính"}</strong> | Trạm: <strong className="text-foreground">{selectedRecord.kioskName}</strong> | Trạng
-                thái:{" "}
+                Ca:{" "}
+                <strong className="text-foreground">
+                  {selectedRecord.shiftName || "Ca hành chính"}
+                </strong>{" "}
+                | Trạm:{" "}
+                <strong className="text-foreground">
+                  {selectedRecord.kioskName}
+                </strong>{" "}
+                | Trạng thái:{" "}
                 <strong
                   className={
                     selectedRecord.status === "ON_TIME"
                       ? "text-emerald-600 dark:text-emerald-400"
                       : selectedRecord.status === "LATE"
-                      ? "text-amber-500"
-                      : selectedRecord.status === "EARLY_LEAVE"
-                      ? "text-rose-500"
-                      : "text-slate-500"
+                        ? "text-amber-500"
+                        : selectedRecord.status === "EARLY_LEAVE"
+                          ? "text-rose-500"
+                          : "text-slate-500"
                   }
                 >
                   {selectedRecord.status === "ON_TIME"
                     ? "Đúng giờ"
                     : selectedRecord.status === "LATE"
-                    ? "Đi muộn"
-                    : selectedRecord.status === "EARLY_LEAVE"
-                    ? "Về sớm"
-                    : selectedRecord.status === "NO_DATA"
-                    ? "Không có dữ liệu"
-                    : selectedRecord.status}
+                      ? "Đi muộn"
+                      : selectedRecord.status === "EARLY_LEAVE"
+                        ? "Về sớm"
+                        : selectedRecord.status === "NO_DATA"
+                          ? "Không có dữ liệu"
+                          : selectedRecord.status}
                 </strong>
               </span>
-              <Button variant="secondary" size="sm" onClick={() => setSelectedRecord(null)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSelectedRecord(null)}
+              >
                 Đóng
               </Button>
             </div>

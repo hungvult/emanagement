@@ -1,31 +1,32 @@
 "use client";
-
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
-  Camera,
-  CheckCircle2,
-  XCircle,
-  X,
-  Clock,
-  Zap,
-  Volume2,
-  VolumeX,
-  Eye,
-  RefreshCw,
-} from "lucide-react";
-import { kioskService } from "../../services/kiosk.service";
-import { KioskCheckInResponse } from "../../types/kiosk.types";
-import { ekycAudio } from "../../lib/ekyc-audio";
+import { getErrorMessage } from "@/lib/errors";
+import { useCamera } from "@/hooks/use-camera";
+import { Button } from "@/components/ui/button";
+import { AsyncSession } from "@/lib/async-session";
+import { AttendanceScanGate } from "@/lib/attendance-scan-gate";
 import {
   ATTENDANCE_BRIGHTNESS_MIN,
   INSUFFICIENT_LIGHT_MESSAGE,
   captureOptimizedFrame,
   measureFrameBrightness,
-} from "../../lib/camera-utils";
-import { ekycMediaPipe, BiometricAnalysisResult } from "../../lib/ekyc-mediapipe";
-import { Button } from "../ui/button";
-import { AsyncSession, openSessionCamera } from "../../lib/async-session";
-import { AttendanceScanGate } from "../../lib/attendance-scan-gate";
+} from "@/lib/camera-utils";
+import { ekycAudio } from "@/lib/ekyc-audio";
+import { BiometricAnalysisResult, ekycMediaPipe } from "@/lib/ekyc-mediapipe";
+import { kioskService } from "@/services/kiosk.service";
+import { KioskCheckInResponse } from "@/types/kiosk.types";
+import {
+  Camera,
+  CheckCircle2,
+  Clock,
+  Eye,
+  RefreshCw,
+  Volume2,
+  VolumeX,
+  X,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface LiveAttendanceModalProps {
   isOpen: boolean;
@@ -36,25 +37,29 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [scanResult, setScanResult] = useState<KioskCheckInResponse | null>(null);
+  const [scanResult, setScanResult] = useState<KioskCheckInResponse | null>(
+    null,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
   const [promptMessage, setPromptMessage] = useState<string>(
-    "Vui lòng nhìn thẳng vào camera để chấm công"
+    "Vui lòng nhìn thẳng vào camera để chấm công",
   );
   const [isLightingInsufficient, setIsLightingInsufficient] = useState(false);
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const isProcessingRef = useRef<boolean>(false);
   const steadyCountRef = useRef<number>(0);
   const lastVoiceTimeRef = useRef<number>(0);
   const sessionRef = useRef(new AsyncSession());
+  const {
+    videoRef,
+    isCameraActive,
+    cameraError,
+    startCamera: openCamera,
+    stopCamera: closeCamera,
+  } = useCamera(sessionRef);
   const scanGateRef = useRef(new AttendanceScanGate());
   const [waitingForDeparture, setWaitingForDeparture] = useState(false);
 
@@ -65,60 +70,23 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
+    closeCamera();
     isProcessingRef.current = false;
     steadyCountRef.current = 0;
     setIsLightingInsufficient(false);
     ekycAudio.stopSpeaking();
-  }, []);
+  }, [closeCamera]);
 
-  // Start Camera
   const startCamera = useCallback(async () => {
-    const session = sessionRef.current;
-    const revision = session.current;
-    setCameraError(null);
     setScanResult(null);
     setErrorMessage(null);
-    try {
-      const stream = await openSessionCamera(session, {
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: "user",
-        },
-        audio: false,
-      });
-
-      if (!stream) return;
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = stream;
-      setIsCameraActive(true);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
-      }
-    } catch (err: any) {
-      if (!session.isCurrent(revision)) return;
-      console.error("Camera error:", err);
-      setCameraError(
-        "Không thể kết nối máy ảnh. Vui lòng cấp quyền truy cập camera trong trình duyệt."
-      );
-      setIsCameraActive(false);
-    }
-  }, []);
+    await openCamera();
+  }, [openCamera]);
 
   // Capture current frame (optimized resolution & quality)
   const captureFrame = useCallback((): string | null => {
     return captureOptimizedFrame(videoRef.current);
-  }, []);
+  }, [videoRef]);
 
   // Clear the previous result after departure or an explicit retry of a failed scan.
   const handleReset = useCallback(() => {
@@ -133,7 +101,14 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   }, []);
 
   const handleRetry = useCallback(() => {
-    if (!isOpen || !isCameraActive || !errorMessage || scanResult || isProcessingRef.current) return;
+    if (
+      !isOpen ||
+      !isCameraActive ||
+      !errorMessage ||
+      scanResult ||
+      isProcessingRef.current
+    )
+      return;
     scanGateRef.current.reset();
     lastVoiceTimeRef.current = 0;
     ekycAudio.stopSpeaking();
@@ -168,7 +143,9 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         setScanResult(res.data);
         ekycAudio.playSuccessChime();
         const actionText =
-          res.data.checkType === "CHECK_IN" ? "Check in thành công" : "Check out thành công";
+          res.data.checkType === "CHECK_IN"
+            ? "Check in thành công"
+            : "Check out thành công";
         ekycAudio.speak(actionText, true);
       } else {
         const message = res.message || "Không thể nhận diện khuôn mặt";
@@ -176,21 +153,29 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         ekycAudio.speak(
           message.includes("ánh sáng") || message.includes("IMAGE_TOO_DARK")
             ? INSUFFICIENT_LIGHT_MESSAGE
-            : "Nhận diện thất bại"
+            : "Nhận diện thất bại",
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!session.isCurrent(revision)) return;
-      const msg =
-        err.response?.data?.message || err.message || "Không tìm thấy khuôn mặt phù hợp trong hệ thống";
+      const msg = getErrorMessage(
+        err,
+        "Không tìm thấy khuôn mặt phù hợp trong hệ thống",
+      );
       setErrorMessage(msg);
 
       let spokenError = "Nhận diện thất bại";
       if (msg.includes("ánh sáng") || msg.includes("IMAGE_TOO_DARK")) {
         spokenError = INSUFFICIENT_LIGHT_MESSAGE;
-      } else if (msg.includes("Không phát hiện khuôn mặt") || msg.includes("NO_FACE")) {
+      } else if (
+        msg.includes("Không phát hiện khuôn mặt") ||
+        msg.includes("NO_FACE")
+      ) {
         spokenError = "Không có khuôn mặt";
-      } else if (msg.includes("Không nhận diện được khuôn mặt") || msg.includes("UNKNOWN_FACE")) {
+      } else if (
+        msg.includes("Không nhận diện được khuôn mặt") ||
+        msg.includes("UNKNOWN_FACE")
+      ) {
         spokenError = "Người lạ, không nhận diện được";
       } else if (msg.includes("giả mạo") || msg.includes("SPOOF_DETECTED")) {
         spokenError = "Phát hiện giả mạo khuôn mặt";
@@ -205,7 +190,9 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         isProcessingRef.current = false;
         scanGateRef.current.waitForDeparture(Date.now());
         setWaitingForDeparture(true);
-        setPromptMessage("Vui lòng rời khỏi khung hình để bắt đầu lượt chấm công tiếp theo");
+        setPromptMessage(
+          "Vui lòng rời khỏi khung hình để bắt đầu lượt chấm công tiếp theo",
+        );
       }
     }
   }, [captureFrame]);
@@ -214,6 +201,8 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       scanGateRef.current.reset();
+      // Synchronize this screen with an external request or camera session.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWaitingForDeparture(false);
       setIsScanning(false);
       setIsFlashing(false);
@@ -237,16 +226,6 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
     };
   }, [isOpen, startCamera, stopCamera]);
 
-  // Sync stream to video
-  useEffect(() => {
-    if (isOpen && isCameraActive && streamRef.current && videoRef.current) {
-      if (videoRef.current.srcObject !== streamRef.current) {
-        videoRef.current.srcObject = streamRef.current;
-      }
-      videoRef.current.play().catch(() => {});
-    }
-  }, [isOpen, isCameraActive]);
-
   // Real-time Fast Check-in Loop: Nhìn thẳng tự động chấm công trong 1 giây (Passive Anti-Spoofing MiniFASNet)
   useEffect(() => {
     if (!isOpen || !isCameraActive) return;
@@ -262,21 +241,15 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
       const delta = now - lastTime;
 
       // Xử lý mỗi ~45ms
-      if (
-        delta >= 45 &&
-        videoRef.current &&
-        !isProcessingRef.current
-      ) {
+      if (delta >= 45 && videoRef.current && !isProcessingRef.current) {
         lastTime = now;
         const video = videoRef.current;
 
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           try {
             // Định vị khuôn mặt nhìn thẳng chính diện
-            const res: BiometricAnalysisResult = await ekycMediaPipe.processFrame(
-              video,
-              "front"
-            );
+            const res: BiometricAnalysisResult =
+              await ekycMediaPipe.processFrame(video, "front");
             if (!isSubscribed) return;
 
             if (scanGateRef.current.waiting) {
@@ -288,8 +261,13 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               return;
             }
 
-            const brightness = measureFrameBrightness(video, lightingCanvas, res.landmarks);
-            const tooDark = brightness !== null && brightness < ATTENDANCE_BRIGHTNESS_MIN;
+            const brightness = measureFrameBrightness(
+              video,
+              lightingCanvas,
+              res.landmarks,
+            );
+            const tooDark =
+              brightness !== null && brightness < ATTENDANCE_BRIGHTNESS_MIN;
             setIsLightingInsufficient(tooDark);
 
             // Cập nhật thông báo hướng dẫn người dùng
@@ -304,7 +282,9 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               setPromptMessage("Vui lòng đưa khuôn mặt vào giữa khung hình");
             } else if (res.status === "MULTIPLE_FACES") {
               steadyCountRef.current = 0;
-              setPromptMessage("Phát hiện nhiều người! Vui lòng chỉ một người đứng trước camera");
+              setPromptMessage(
+                "Phát hiện nhiều người! Vui lòng chỉ một người đứng trước camera",
+              );
             } else if (res.status === "NOT_CENTERED") {
               steadyCountRef.current = 0;
               setPromptMessage("Vui lòng căn giữa khuôn mặt trong vòng tròn");
@@ -330,7 +310,9 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 }
               } else {
                 steadyCountRef.current = 0;
-                setPromptMessage(res.message || "Vui lòng nhìn thẳng vào camera để chấm công");
+                setPromptMessage(
+                  res.message || "Vui lòng nhìn thẳng vào camera để chấm công",
+                );
               }
             }
 
@@ -343,10 +325,12 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
             ) {
               lastVoiceTimeRef.current = currentTime;
               ekycAudio.speak(
-                tooDark ? INSUFFICIENT_LIGHT_MESSAGE : "Vui lòng nhìn thẳng vào camera để chấm công"
+                tooDark
+                  ? INSUFFICIENT_LIGHT_MESSAGE
+                  : "Vui lòng nhìn thẳng vào camera để chấm công",
               );
             }
-          } catch (e) {
+          } catch {
             // bỏ qua drop frame tạm thời
           }
         }
@@ -363,7 +347,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [isOpen, isCameraActive, executeCheckIn, handleReset]);
+  }, [isOpen, isCameraActive, executeCheckIn, handleReset, videoRef]);
 
   if (!isOpen) return null;
 
@@ -433,10 +417,10 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 scanResult
                   ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.4)] bg-emerald-500/5"
                   : errorMessage
-                  ? "border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)] bg-rose-500/5"
-                  : isLightingInsufficient
-                  ? "border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] bg-amber-500/5"
-                  : "border-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.25)] animate-pulse bg-indigo-500/5"
+                    ? "border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)] bg-rose-500/5"
+                    : isLightingInsufficient
+                      ? "border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] bg-amber-500/5"
+                      : "border-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.25)] animate-pulse bg-indigo-500/5"
               }`}
             />
 
@@ -461,7 +445,9 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               {!isCameraActive && !cameraError && (
                 <div className="flex flex-col items-center gap-3 text-slate-400">
                   <Camera className="h-10 w-10 text-indigo-400 animate-pulse" />
-                  <p className="text-xs font-medium">Đang khởi động Camera AI...</p>
+                  <p className="text-xs font-medium">
+                    Đang khởi động Camera AI...
+                  </p>
                 </div>
               )}
 
@@ -485,8 +471,12 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
           {/* Result Card or Guidance */}
           <div className="w-full max-w-sm mt-6 text-center">
             {waitingForDeparture && !errorMessage && (
-              <p role="status" className="mb-3 text-sm font-medium text-slate-600">
-                Vui lòng rời khỏi khung hình để bắt đầu lượt chấm công tiếp theo.
+              <p
+                role="status"
+                className="mb-3 text-sm font-medium text-slate-600"
+              >
+                Vui lòng rời khỏi khung hình để bắt đầu lượt chấm công tiếp
+                theo.
               </p>
             )}
             {scanResult ? (
@@ -494,7 +484,9 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <CheckCircle2 className="h-6 w-6 text-emerald-600 animate-bounce" />
                   <span className="text-base font-bold text-emerald-900 tracking-tight">
-                    {scanResult.checkType === "CHECK_IN" ? "CHECK-IN THÀNH CÔNG" : "CHECK-OUT THÀNH CÔNG"}
+                    {scanResult.checkType === "CHECK_IN"
+                      ? "CHECK-IN THÀNH CÔNG"
+                      : "CHECK-OUT THÀNH CÔNG"}
                   </span>
                 </div>
                 <div className="text-sm font-semibold text-emerald-800">
@@ -505,14 +497,21 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
                     <Clock className="h-3.5 w-3.5" />
                     {new Date(scanResult.checkTime).toLocaleTimeString("vi-VN")}
                   </span>
-                  <span className={`px-2.5 py-1 rounded-full border shadow-sm ${scanResult.attendanceStatus === "ON_TIME" ? "bg-emerald-100 border-emerald-200 text-emerald-700" : "bg-amber-100 border-amber-200 text-amber-700"}`}>
-                    {scanResult.attendanceStatus === "ON_TIME" ? "Đúng giờ" : "Đi muộn"}
+                  <span
+                    className={`px-2.5 py-1 rounded-full border shadow-sm ${scanResult.attendanceStatus === "ON_TIME" ? "bg-emerald-100 border-emerald-200 text-emerald-700" : "bg-amber-100 border-amber-200 text-amber-700"}`}
+                  >
+                    {scanResult.attendanceStatus === "ON_TIME"
+                      ? "Đúng giờ"
+                      : "Đi muộn"}
                   </span>
                 </div>
               </div>
             ) : errorMessage ? (
               <div className="space-y-3">
-                <div role="alert" className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center justify-center gap-2 animate-in shake duration-300 shadow-sm">
+                <div
+                  role="alert"
+                  className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center justify-center gap-2 animate-in shake duration-300 shadow-sm"
+                >
                   <XCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
@@ -547,7 +546,6 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

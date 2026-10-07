@@ -1,22 +1,31 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
-import { Bell, X } from "lucide-react";
-import { notificationService } from "../../services/notification.service";
-import { NotificationResponse } from "../../types/notification.types";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
+import { notificationService } from "@/services/notification.service";
+import { NotificationResponse } from "@/types/notification.types";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
+import { Bell, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 
 function parseDate(raw: unknown): Date {
   if (Array.isArray(raw)) {
-    return new Date(raw[0], raw[1] - 1, raw[2], raw[3] || 0, raw[4] || 0, raw[5] || 0);
+    return new Date(
+      raw[0],
+      raw[1] - 1,
+      raw[2],
+      raw[3] || 0,
+      raw[4] || 0,
+      raw[5] || 0,
+    );
   }
   return new Date((raw as string) || Date.now());
 }
 
 export const NotificationBell = () => {
-  const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
+  const [notifications, setNotifications] = useState<NotificationResponse[]>(
+    [],
+  );
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
@@ -45,6 +54,8 @@ export const NotificationBell = () => {
   };
 
   useEffect(() => {
+    // Synchronize this screen with an external request or camera session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 60000);
     return () => {
@@ -65,7 +76,11 @@ export const NotificationBell = () => {
   }, []);
 
   const handleMarkAsRead = async (id: number) => {
-    if (mutationPendingRef.current || !notifications.some((n) => n.id === id && !n.read)) return;
+    if (
+      mutationPendingRef.current ||
+      !notifications.some((n) => n.id === id && !n.read)
+    )
+      return;
     mutationPendingRef.current = true;
     const version = ++requestVersionRef.current;
     setIsUpdating(true);
@@ -74,7 +89,7 @@ export const NotificationBell = () => {
       if (version !== requestVersionRef.current) return;
       // Cập nhật trực tiếp state để UX mượt – không cần gọi API lại
       setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) {
@@ -156,7 +171,9 @@ export const NotificationBell = () => {
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 bg-white">
             <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-base text-slate-900">Thông báo</h3>
+              <h3 className="font-extrabold text-base text-slate-900">
+                Thông báo
+              </h3>
               {unreadCount > 0 && (
                 <span className="inline-flex items-center justify-center h-5 px-2 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold">
                   {unreadCount}
@@ -197,7 +214,9 @@ export const NotificationBell = () => {
                         : "hover:bg-slate-50"
                     }`}
                     aria-disabled={isUpdating}
-                    onClick={() => !isUpdating && !notif.read && handleMarkAsRead(notif.id)}
+                    onClick={() =>
+                      !isUpdating && !notif.read && handleMarkAsRead(notif.id)
+                    }
                   >
                     {/* Chấm chưa đọc */}
                     <div className="mt-2 shrink-0">
@@ -210,14 +229,21 @@ export const NotificationBell = () => {
 
                     {/* Nội dung */}
                     <div className="flex-1 min-w-0 pr-6">
-                      <p className={`text-sm leading-snug ${!notif.read ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
+                      <p
+                        className={`text-sm leading-snug ${!notif.read ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}
+                      >
                         {notif.title}
                       </p>
-                      <p className={`text-[13px] mt-1 line-clamp-2 ${!notif.read ? "text-slate-600 font-medium" : "text-slate-500"}`}>
+                      <p
+                        className={`text-[13px] mt-1 line-clamp-2 ${!notif.read ? "text-slate-600 font-medium" : "text-slate-500"}`}
+                      >
                         {notif.message}
                       </p>
                       <p className="text-[11px] font-semibold text-slate-400 mt-1.5">
-                        {formatDistanceToNow(date, { addSuffix: true, locale: vi })}
+                        {formatDistanceToNow(date, {
+                          addSuffix: true,
+                          locale: vi,
+                        })}
                       </p>
                     </div>
 

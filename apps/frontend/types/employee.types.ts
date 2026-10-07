@@ -24,18 +24,6 @@ export interface EmployeeUpdate {
   status?: "ACTIVE" | "INACTIVE";
 }
 
-export interface LiveEkycEnrollRequest {
-  userId: number;
-  faceImagesBase64: string[];
-}
-
-export interface LiveEkycEnrollResponse {
-  userId: number;
-  employeeCode: string;
-  vectorCounterSaved: number;
-  message: string;
-}
-
 export interface FaceImagesResponse {
   userId: number;
   employeeCode: string;
