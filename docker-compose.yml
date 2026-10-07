@@ -72,7 +72,8 @@ services:
       - PYTHONUNBUFFERED=1
       - PORT=8000
       - SPRING_BOOT_URL=http://backend:8080
-      - BRIGHTNESS_MIN=${BRIGHTNESS_MIN:-130}
+      - BRIGHTNESS_MIN=${BRIGHTNESS_MIN:-100}
+      - FACE_MATCH_THRESHOLD=${FACE_MATCH_THRESHOLD:-0.40}
     expose:
       - "8000"
     volumes:
@@ -147,7 +148,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
-        NEXT_PUBLIC_ATTENDANCE_BRIGHTNESS_MIN: ${BRIGHTNESS_MIN:-130}
+        NEXT_PUBLIC_ATTENDANCE_BRIGHTNESS_MIN: ${BRIGHTNESS_MIN:-100}
     container_name: emanagement-frontend
     restart: unless-stopped
     expose:

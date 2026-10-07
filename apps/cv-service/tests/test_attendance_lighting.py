@@ -18,15 +18,15 @@ from app.services.face_quality import face_quality_assessor
 
 class AttendanceLightingTests(unittest.TestCase):
     def setUp(self):
-        self.threshold = patch.object(settings, "BRIGHTNESS_MIN", 130.0)
+        self.threshold = patch.object(settings, "BRIGHTNESS_MIN", 100.0)
         self.threshold.start()
         self.addCleanup(self.threshold.stop)
         self.bbox = (80, 80, 160, 160)
 
     def test_lighting_threshold(self):
         for brightness, expected in [(0, CvStatus.IMAGE_TOO_DARK), (40, CvStatus.IMAGE_TOO_DARK),
-                                     (80, CvStatus.IMAGE_TOO_DARK), (100, CvStatus.IMAGE_TOO_DARK),
-                                     (120, CvStatus.IMAGE_TOO_DARK), (129, CvStatus.IMAGE_TOO_DARK),
+                                     (80, CvStatus.IMAGE_TOO_DARK), (99, CvStatus.IMAGE_TOO_DARK),
+                                     (100, CvStatus.VALID), (120, CvStatus.VALID), (129, CvStatus.VALID),
                                      (130, CvStatus.VALID), (160, CvStatus.VALID)]:
             with self.subTest(brightness=brightness):
                 img = np.full((320, 320, 3), brightness, dtype=np.uint8)
@@ -107,6 +107,21 @@ class AttendanceLightingTests(unittest.TestCase):
         self.assertEqual(body["data"]["matchedUserId"], 7)
         liveness.assert_called_once()
         recognition.assert_called_once()
+
+    def test_normal_indoor_lighting_reaches_liveness_and_recognition(self):
+        img = np.full((320, 320, 3), 120, dtype=np.uint8)
+        body, liveness, recognition = self._recognize(img, CvStatus.VALID)
+        self.assertTrue(body["success"])
+        liveness.assert_called_once()
+        recognition.assert_called_once()
+
+    def test_stricter_configured_threshold_is_still_respected(self):
+        img = np.full((320, 320, 3), 120, dtype=np.uint8)
+        with patch.object(settings, "BRIGHTNESS_MIN", 130.0):
+            body, liveness, recognition = self._recognize(img, CvStatus.VALID)
+        self.assertEqual(body["status"], "IMAGE_TOO_DARK")
+        liveness.assert_not_called()
+        recognition.assert_not_called()
 
 
 if __name__ == "__main__":

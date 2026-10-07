@@ -1,5 +1,6 @@
 "use client";
 
+import { useLatestRequest } from "../../../hooks/use-latest-request";
 import React, { useEffect, useState } from "react";
 import { RoleGuard } from "../../../components/shared/role-guard";
 import { useAuth } from "../../../hooks/use-auth";
@@ -25,6 +26,7 @@ function formatDateVi(dateStr?: string | null) {
 }
 
 export default function AlertsPage() {
+  const beginRequest = useLatestRequest();
   const { user } = useAuth();
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [shifts, setShifts] = useState<ShiftResponse[]>([]);
@@ -61,6 +63,7 @@ export default function AlertsPage() {
     currentFilter: string,
     extraFilters: { startDate?: string; endDate?: string; shiftId?: string }
   ) => {
+    const isCurrent = beginRequest();
     setIsLoading(true);
     try {
       const isResolved = currentFilter === "ALL" ? undefined : currentFilter === "RESOLVED" ? true : false;
@@ -73,15 +76,17 @@ export default function AlertsPage() {
 
       const res = await alertService.getAll(pageNumber, 15, apiFilters);
 
+      if (!isCurrent()) return;
       if (res.status === "SUCCESS" && res.data) {
         setAlerts(res.data.content || []);
         setTotalPages(res.data.totalPages || 1);
         setPage(res.data.pageNumber || 0);
       }
     } catch (err: any) {
+      if (!isCurrent()) return;
       error("Lỗi khi tải danh sách cảnh báo");
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 

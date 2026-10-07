@@ -1,10 +1,10 @@
 // Docker truyền cùng BRIGHTNESS_MIN cho cv-service và frontend lúc build.
 // Khi chạy frontend riêng, dùng NEXT_PUBLIC_ATTENDANCE_BRIGHTNESS_MIN (thang 0–255).
-const configuredBrightnessMin = Number(process.env.NEXT_PUBLIC_ATTENDANCE_BRIGHTNESS_MIN ?? 130);
+const configuredBrightnessMin = Number(process.env.NEXT_PUBLIC_ATTENDANCE_BRIGHTNESS_MIN ?? 100);
 export const ATTENDANCE_BRIGHTNESS_MIN =
   Number.isFinite(configuredBrightnessMin) && configuredBrightnessMin > 0 && configuredBrightnessMin <= 255
     ? configuredBrightnessMin
-    : 130;
+    : 100;
 export const INSUFFICIENT_LIGHT_MESSAGE =
   "Chưa đủ ánh sáng để chấm công. Vui lòng bật thêm đèn hoặc di chuyển đến nơi sáng hơn để khuôn mặt được chiếu sáng rõ.";
 

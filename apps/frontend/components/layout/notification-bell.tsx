@@ -20,13 +20,19 @@ export const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
+  const mutationPendingRef = useRef(false);
+  const requestVersionRef = useRef(0);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const fetchNotifications = async () => {
+    if (mutationPendingRef.current) return;
+    const version = ++requestVersionRef.current;
     try {
       const [countRes, notifRes] = await Promise.all([
         notificationService.getUnreadCount(),
         notificationService.getMyNotifications(0, 10),
       ]);
+      if (version !== requestVersionRef.current) return;
       if (countRes.status === "SUCCESS" && countRes.data !== undefined) {
         setUnreadCount(countRes.data);
       }
@@ -41,7 +47,10 @@ export const NotificationBell = () => {
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      requestVersionRef.current += 1;
+    };
   }, []);
 
   // Đóng khi click ra ngoài
@@ -56,8 +65,13 @@ export const NotificationBell = () => {
   }, []);
 
   const handleMarkAsRead = async (id: number) => {
+    if (mutationPendingRef.current || !notifications.some((n) => n.id === id && !n.read)) return;
+    mutationPendingRef.current = true;
+    const version = ++requestVersionRef.current;
+    setIsUpdating(true);
     try {
       await notificationService.markAsRead(id);
+      if (version !== requestVersionRef.current) return;
       // Cập nhật trực tiếp state để UX mượt – không cần gọi API lại
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -65,13 +79,24 @@ export const NotificationBell = () => {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) {
       console.error("Failed to mark as read", err);
+    } finally {
+      mutationPendingRef.current = false;
+      if (version === requestVersionRef.current) {
+        setIsUpdating(false);
+        void fetchNotifications();
+      }
     }
   };
 
   const handleDelete = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
+    if (mutationPendingRef.current) return;
+    mutationPendingRef.current = true;
+    const version = ++requestVersionRef.current;
+    setIsUpdating(true);
     try {
       await notificationService.deleteNotification(id);
+      if (version !== requestVersionRef.current) return;
       const deleted = notifications.find((n) => n.id === id);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       if (deleted && !deleted.read) {
@@ -79,16 +104,33 @@ export const NotificationBell = () => {
       }
     } catch (err) {
       console.error("Failed to delete notification", err);
+    } finally {
+      mutationPendingRef.current = false;
+      if (version === requestVersionRef.current) {
+        setIsUpdating(false);
+        void fetchNotifications();
+      }
     }
   };
 
   const handleMarkAllAsRead = async () => {
+    if (mutationPendingRef.current) return;
+    mutationPendingRef.current = true;
+    const version = ++requestVersionRef.current;
+    setIsUpdating(true);
     try {
       await notificationService.markAllAsRead();
+      if (version !== requestVersionRef.current) return;
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (err) {
       console.error("Failed to mark all as read", err);
+    } finally {
+      mutationPendingRef.current = false;
+      if (version === requestVersionRef.current) {
+        setIsUpdating(false);
+        void fetchNotifications();
+      }
     }
   };
 
@@ -126,6 +168,7 @@ export const NotificationBell = () => {
                 variant="ghost"
                 size="sm"
                 onClick={handleMarkAllAsRead}
+                disabled={isUpdating}
                 className="h-auto p-0 text-xs font-bold text-indigo-600 hover:bg-transparent hover:text-indigo-800 transition-colors"
               >
                 Đánh dấu tất cả đã đọc
@@ -153,7 +196,8 @@ export const NotificationBell = () => {
                         ? "bg-indigo-50/50 hover:bg-indigo-50"
                         : "hover:bg-slate-50"
                     }`}
-                    onClick={() => !notif.read && handleMarkAsRead(notif.id)}
+                    aria-disabled={isUpdating}
+                    onClick={() => !isUpdating && !notif.read && handleMarkAsRead(notif.id)}
                   >
                     {/* Chấm chưa đọc */}
                     <div className="mt-2 shrink-0">
@@ -180,6 +224,7 @@ export const NotificationBell = () => {
                     {/* Nút xóa – hiện khi hover */}
                     <button
                       onClick={(e) => handleDelete(e, notif.id)}
+                      disabled={isUpdating}
                       className="absolute top-3 right-3 h-7 w-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100"
                       title="Xóa thông báo"
                     >

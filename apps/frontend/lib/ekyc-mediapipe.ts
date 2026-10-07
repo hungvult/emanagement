@@ -1,7 +1,12 @@
+import type { FaceMesh, Results } from "@mediapipe/face_mesh";
+
+const FACE_MESH_ASSET_ROOT = "/vendor/mediapipe/face_mesh/0.4.1633559619";
+
 export type PoseStepId = "front" | "left" | "right" | "up" | "smile" | "blink";
 
 export type BiometricStatus =
   | "INITIALIZING"
+  | "MODEL_ERROR"
   | "NO_FACE"
   | "MULTIPLE_FACES"
   | "TOO_FAR"
@@ -17,6 +22,7 @@ export interface Landmark3D {
 }
 
 export interface BiometricAnalysisResult {
+  facePresence?: "present" | "absent";
   status: BiometricStatus;
   isMatched: boolean;
   message: string;
@@ -40,9 +46,10 @@ export interface FaceGeometryProfile {
 }
 
 export class EkycMediaPipeEngine {
-  private faceMesh: any = null;
+  private faceMesh: FaceMesh | null = null;
   private isModelLoaded: boolean = false;
-  private isLoading: boolean = false;
+  private processingFrame = false;
+  private retryAfter = 0;
   private loadPromise: Promise<boolean> | null = null;
 
   // EMA Smoothing State for high-precision stability
@@ -142,28 +149,25 @@ export class EkycMediaPipeEngine {
     if (this.isModelLoaded) return true;
     if (this.loadPromise) return this.loadPromise;
 
-    this.loadPromise = new Promise(async (resolve) => {
-      if (typeof window === "undefined") {
-        resolve(false);
-        return;
-      }
+    if (typeof window === "undefined" || Date.now() < this.retryAfter) return false;
+    this.loadPromise = (async () => {
+      let faceMesh: FaceMesh | null = null;
 
       try {
         // Dynamically load FaceMesh from CDN if window.FaceMesh is not present
         if (!(window as any).FaceMesh) {
-          await this.loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js");
+          await this.loadScript(`${FACE_MESH_ASSET_ROOT}/face_mesh.js`);
         }
 
-        const FaceMeshClass = (window as any).FaceMesh;
+        const FaceMeshClass = (window as unknown as { FaceMesh?: typeof FaceMesh }).FaceMesh;
         if (!FaceMeshClass) {
           console.warn("FaceMesh constructor not found on window");
-          resolve(false);
-          return;
+          throw new Error("FaceMesh constructor is unavailable");
         }
 
-        const faceMesh = new FaceMeshClass({
+        faceMesh = new FaceMeshClass({
           locateFile: (file: string) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+            return `${FACE_MESH_ASSET_ROOT}/${file}`;
           },
         });
 
@@ -174,14 +178,18 @@ export class EkycMediaPipeEngine {
           minTrackingConfidence: 0.5,
         });
 
+        await faceMesh.initialize();
         this.faceMesh = faceMesh;
         this.isModelLoaded = true;
-        resolve(true);
+        this.retryAfter = 0;
+        return true;
       } catch (err) {
         console.error("Failed to load MediaPipe FaceMesh:", err);
-        resolve(false);
+        this.retryAfter = Date.now() + 5000;
+        if (faceMesh) await faceMesh.close().catch(() => {});
+        return false;
       }
-    });
+    })().finally(() => { this.loadPromise = null; });
 
     return this.loadPromise;
   }
@@ -190,14 +198,15 @@ export class EkycMediaPipeEngine {
     return new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[src="${src}"]`);
       if (existing) {
-        resolve();
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => { existing.remove(); reject(new Error("FaceMesh script failed to load")); }, { once: true });
         return;
       }
       const script = document.createElement("script");
       script.src = src;
       script.crossOrigin = "anonymous";
       script.onload = () => resolve();
-      script.onerror = (e) => reject(e);
+      script.onerror = (e) => { script.remove(); reject(e); };
       document.head.appendChild(script);
     });
   }
@@ -210,31 +219,47 @@ export class EkycMediaPipeEngine {
     if (!this.isModelLoaded || !this.faceMesh) {
       const loaded = await this.loadModel();
       if (!loaded) {
-        return this.fallbackAnalysis(video, targetPose);
+        return this.unavailableResult(true);
       }
     }
 
-    return new Promise((resolve) => {
-      let timeoutId = setTimeout(() => {
-        resolve(this.fallbackAnalysis(video, targetPose));
-      }, 500);
-
-      this.faceMesh.onResults((results: any) => {
-        clearTimeout(timeoutId);
+    if (this.processingFrame) return this.unavailableResult(false);
+    this.processingFrame = true;
+    const faceMesh = this.faceMesh!;
+    try {
+      let result: BiometricAnalysisResult | undefined;
+      faceMesh.onResults((results: Results) => {
         const analyzed = this.analyzeLandmarks(results, targetPose, video);
-        resolve(analyzed);
+        result = { ...analyzed, facePresence: results.multiFaceLandmarks?.length ? "present" : "absent" };
       });
+      // Wait for the complete send, including WASM work. A slow frame must not
+      // start a second send or replace the callback of an in-flight frame.
+      await faceMesh.send({ image: video });
+      if (!result) throw new Error("FaceMesh returned no result");
+      return result;
+    } catch (error) {
+      console.error("MediaPipe inference failed:", error);
+      this.isModelLoaded = false;
+      this.faceMesh = null;
+      this.retryAfter = Date.now() + 5000;
+      this.resetBlink();
+      await faceMesh.close().catch(() => {});
+      return this.unavailableResult(true);
+    } finally {
+      this.processingFrame = false;
+    }
+  }
 
-      try {
-        this.faceMesh.send({ image: video }).catch((err: any) => {
-          clearTimeout(timeoutId);
-          resolve(this.fallbackAnalysis(video, targetPose));
-        });
-      } catch (err) {
-        clearTimeout(timeoutId);
-        resolve(this.fallbackAnalysis(video, targetPose));
-      }
-    });
+  private unavailableResult(failed: boolean): BiometricAnalysisResult {
+    const message = failed
+      ? "Không thể tải mô hình nhận diện. Hệ thống đang thử lại, vui lòng chờ."
+      : "Đang xử lý mô hình nhận diện, vui lòng chờ...";
+    return {
+      status: failed ? "MODEL_ERROR" : "INITIALIZING", isMatched: false,
+      message, voiceMessage: message, yaw: 0, pitch: 0, roll: 0,
+      distanceRatio: 0, isCentered: false, smileScore: 0, blinkScore: 0,
+      landmarks: null, confidence: 0,
+    };
   }
 
   // 3D Geometry & Biometric Calculation from 468 landmarks

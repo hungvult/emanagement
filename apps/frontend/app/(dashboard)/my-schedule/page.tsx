@@ -1,5 +1,6 @@
 "use client";
 
+import { useLatestRequest } from "../../../hooks/use-latest-request";
 import React, { useEffect, useState, useCallback } from "react";
 import { RoleGuard } from "../../../components/shared/role-guard";
 import { shiftService } from "../../../services/shift.service";
@@ -45,6 +46,7 @@ const SHIFT_COLORS = [
 ];
 
 export default function MySchedulePage() {
+  const beginRequest = useLatestRequest();
   const [schedule, setSchedule] = useState<EmployeeShiftResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { error } = useToast();
@@ -53,23 +55,26 @@ export default function MySchedulePage() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const fetchMySchedule = useCallback(async () => {
+    const isCurrent = beginRequest();
     setIsLoading(true);
     try {
       const start = toISODate(weekStart);
       const end = toISODate(addDays(weekStart, 6));
       const res = await shiftService.getMySchedule(start, end);
+      if (!isCurrent()) return;
       if (res.status === "SUCCESS" && res.data) {
         setSchedule(res.data);
       } else {
         setSchedule([]);
       }
     } catch {
+      if (!isCurrent()) return;
       error("Lỗi khi tải lịch làm việc của bạn");
       setSchedule([]);
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
-  }, [weekStart]); // Removed 'error' from dependencies to prevent infinite loop
+  }, [weekStart, beginRequest]);
 
   useEffect(() => {
     fetchMySchedule();

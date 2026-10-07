@@ -1,5 +1,6 @@
 "use client";
 
+import { useLatestRequest } from "../../../hooks/use-latest-request";
 import React, { useEffect, useState, useCallback } from "react";
 import { RoleGuard } from "../../../components/shared/role-guard";
 import { employeeService } from "../../../services/employee.service";
@@ -75,6 +76,7 @@ const COLUMN_LABELS: Record<keyof EmployeeColumnVisibility, string> = {
 // Main Page
 // ========================================
 export default function EmployeesPage() {
+  const beginRequest = useLatestRequest();
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -138,6 +140,7 @@ export default function EmployeesPage() {
   // ========================================
   const fetchEmployees = useCallback(
     async (pageNumber: number) => {
+      const isCurrent = beginRequest();
       setIsLoading(true);
       try {
         const filters: { keyword?: string; status?: string; hasRegisteredFace?: boolean } = {};
@@ -147,18 +150,20 @@ export default function EmployeesPage() {
         if (filterFace === "false") filters.hasRegisteredFace = false;
 
         const res = await employeeService.getAll(pageNumber, 10, filters);
+        if (!isCurrent()) return;
         if (res.status === "SUCCESS" && res.data) {
           setEmployees(res.data.content);
           setTotalPages(res.data.totalPages);
           setPage(res.data.pageNumber);
         }
       } catch (err: any) {
+        if (!isCurrent()) return;
         error("Lỗi khi tải danh sách nhân viên");
       } finally {
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       }
     },
-    [searchTerm, filterStatus, filterFace]
+    [searchTerm, filterStatus, filterFace, beginRequest]
   );
 
   useEffect(() => {
@@ -274,12 +279,6 @@ export default function EmployeesPage() {
 
   const handleEnrollComplete = async (allImages: string[]) => {
     if (!ekycEmployee) return;
-
-    try {
-      await employeeService.deleteFaceData(ekycEmployee.id);
-    } catch (err) {
-      // ignore error if face data doesn't exist
-    }
 
     const token = localStorage.getItem("access_token");
 
@@ -670,7 +669,7 @@ export default function EmployeesPage() {
               </div>
 
               <div className="border-t border-slate-100 p-4 bg-slate-50/30">
-                <Pagination pageNumber={page} totalPages={totalPages} onPageChange={setPage} />
+                <Pagination pageNumber={page} totalPages={totalPages} onPageChange={(nextPage) => { setPage(nextPage); void fetchEmployees(nextPage); }} />
               </div>
             </>
           )}
