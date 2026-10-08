@@ -41,6 +41,19 @@ public class MockAiFaceServiceImpl implements AiFaceService {
     }
 
     @Override
+    public com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto extractEmbeddingFromBase64(String imageBase64) {
+        List<Double> mockVector = extractEmbedding(new byte[0]);
+        return com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto.builder()
+                .status("VALID")
+                .message("Trích xuất vector mock thành công")
+                .embedding(mockVector)
+                .embeddingDimension(128)
+                .qualityScore(1.0)
+                .faceCount(1)
+                .build();
+    }
+
+    @Override
     public AiMatchResult matchFace(List<Double> newVector, List<List<Double>> registeredVectors) {
         if (registeredVectors == null || registeredVectors.isEmpty()) {
             return new AiMatchResult(false, -1, 0.0);
