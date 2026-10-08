@@ -49,12 +49,21 @@ class FaceQualityAssessor:
             "face_size_ratio": round(width / float(frame_w), 3) if frame_w else 0.0,
         }
 
-        if face_crop.size == 0:
-            details.update({"face_size_valid": False, "face_width": 0, "face_height": 0})
+        if face_crop.size == 0 or width < settings.MIN_FACE_SIZE or height < settings.MIN_FACE_SIZE:
+            details.update({"face_size_valid": False, "face_width": int(width), "face_height": int(height)})
             return CvStatus.FACE_TOO_SMALL, 0.0, details
 
         details["face_size_valid"] = True
-        details["is_blurry"] = False
+
+        gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY) if len(face_crop.shape) == 3 else face_crop
+        laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        is_blurry = laplacian_var < settings.BLUR_THRESHOLD
+        details["laplacian_var"] = round(laplacian_var, 2)
+        details["blur_threshold"] = settings.BLUR_THRESHOLD
+        details["is_blurry"] = is_blurry
+        if is_blurry:
+            return CvStatus.IMAGE_TOO_BLURRY, 0.0, details
+
         details["is_too_dark"] = False
         details["quality_score"] = 1.0
         if require_lighting:

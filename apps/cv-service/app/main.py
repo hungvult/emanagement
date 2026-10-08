@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import enrollment, health, recognition, validation
+from app.api.v1 import embedding, enrollment, health, recognition, validation
 from app.core.config import settings
 from app.core.constants import STATUS_MESSAGES, CvStatus
 from app.core.logging import logger, setup_logging
@@ -68,4 +68,5 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(validation.router, prefix="/api/v1")
 app.include_router(enrollment.router, prefix="/api/v1")
+app.include_router(embedding.router, prefix="/api/v1")
 app.include_router(recognition.router, prefix="/api/v1")
