@@ -1,4 +1,5 @@
 "use client";
+import { EmployeeBulkImportDialog } from "@/components/employees/employee-bulk-import-dialog";
 import { EmployeeCreateDialog } from "@/components/employees/employee-create-dialog";
 import { EmployeeDetailDialog } from "@/components/employees/employee-detail-dialog";
 import { EmployeeEditDialog } from "@/components/employees/employee-edit-dialog";
@@ -33,6 +34,7 @@ function EmployeeManagement() {
         showColumnPicker={model.showColumnPicker}
         setShowColumnPicker={model.setShowColumnPicker}
         setIsCreateOpen={model.setIsCreateOpen}
+        setIsBulkImportOpen={model.setIsBulkImportOpen}
         filterStatus={model.filterStatus}
         setFilterStatus={model.setFilterStatus}
         setPage={model.setPage}
@@ -91,6 +93,11 @@ function EmployeeManagement() {
         setIsEkycOpen={model.setIsEkycOpen}
         ekycEmployee={model.ekycEmployee}
         handleEnrollComplete={model.handleEnrollComplete}
+      />
+      <EmployeeBulkImportDialog
+        isOpen={model.isBulkImportOpen}
+        onClose={() => model.setIsBulkImportOpen(false)}
+        onSuccess={() => model.fetchEmployees(0)}
       />
     </div>
   );
