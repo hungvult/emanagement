@@ -53,6 +53,7 @@ ai-service:
   base-url: ${AI_SERVICE_URL:http://localhost:8000}
   validate-frame-endpoint: /api/v1/cv/validate-frame
   enroll-endpoint: /api/v1/cv/enroll
+  extract-embedding-endpoint: /api/v1/cv/extract-embedding
   recognize-endpoint: /api/v1/cv/recognize
   confidence-threshold: 85.0
   mock-enabled: ${AI_SERVICE_MOCK:false}
