@@ -38,8 +38,20 @@ public class FaceData {
     @Column(name = "face_vector", nullable = false, columnDefinition = "TEXT")
     private String faceVector;
 
-    @Column(name = "image_snapshot_url", columnDefinition = "TEXT")
-    private String imageSnapshotUrl;
+    @Column(name = "front_image_url", length = 500)
+    private String frontImageUrl;
+
+    @Column(name = "blink_image_url", length = 500)
+    private String blinkImageUrl;
+
+    @Column(name = "left_image_url", length = 500)
+    private String leftImageUrl;
+
+    @Column(name = "right_image_url", length = 500)
+    private String rightImageUrl;
+
+    @Column(name = "up_image_url", length = 500)
+    private String upImageUrl;
 
     @Column(name = "created_at", updatable = false)
     @Builder.Default

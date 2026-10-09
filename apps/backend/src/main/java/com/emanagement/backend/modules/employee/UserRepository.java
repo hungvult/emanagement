@@ -1,12 +1,14 @@
 package com.emanagement.backend.modules.employee;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
     Optional<User> findByEmail(String email);
 
     Optional<User> findByPhone(String phone);
@@ -17,4 +19,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByIdentifier(@Param("identifier") String identifier);
 
     long countByStatus(String status);
+
+    List<User> findByStatus(String status);
+
+    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE u.status = 'ACTIVE' AND r.name = 'ROLE_USER'")
+    List<User> findActiveEmployees();
 }

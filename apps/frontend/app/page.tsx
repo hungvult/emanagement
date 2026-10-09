@@ -1,30 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
+import { LiveAttendanceModal } from "@/components/attendance/live-attendance-modal";
+import { useAuth } from "@/hooks/use-auth";
 import {
-  Camera,
-  LogIn,
-  LayoutDashboard,
-  Clock,
-  CheckCircle,
-  Calendar,
-  Sparkles,
-  Shield,
-  HelpCircle,
   ArrowRight,
-  Briefcase,
+  Camera,
+  Clock,
+  LayoutDashboard,
+  LogIn,
+  ShieldCheck,
 } from "lucide-react";
-import { useAuth } from "../hooks/use-auth";
-import { LiveAttendanceModal } from "../components/attendance/live-attendance-modal";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function HomePage() {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>("");
   const [currentDate, setCurrentDate] = useState<string>("");
 
-  // Live Digital Clock for Employees
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -34,7 +28,7 @@ export default function HomePage() {
           minute: "2-digit",
           second: "2-digit",
           hour12: false,
-        })
+        }),
       );
       setCurrentDate(
         now.toLocaleDateString("vi-VN", {
@@ -42,223 +36,177 @@ export default function HomePage() {
           day: "2-digit",
           month: "2-digit",
           year: "numeric",
-        })
+        }),
       );
     };
-
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between font-sans selection:bg-primary/20 selection:text-primary">
-      {/* Top Friendly Header */}
-      <header className="w-full bg-background/90 border-b border-border sticky top-0 z-30 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
-          {/* Logo & Brand */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-500/20 overflow-hidden flex flex-col relative">
+      {/* Dynamic Light Background */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-[-10%] left-[10%] w-[500px] h-[500px] bg-indigo-400/20 rounded-full blur-[120px] mix-blend-multiply animate-pulse duration-1000"></div>
+        <div className="absolute bottom-[-10%] right-[10%] w-[500px] h-[500px] bg-violet-400/20 rounded-full blur-[120px] mix-blend-multiply animate-pulse duration-700 delay-300"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+      </div>
+
+      {/* Header */}
+      <header className="w-full relative z-30 pt-6 px-6">
+        <div className="max-w-6xl mx-auto rounded-2xl bg-white/70 border border-white backdrop-blur-xl px-6 h-16 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-extrabold text-xl shadow-md shadow-primary/20 bg-gradient-to-br from-indigo-500 to-primary">
-              <Briefcase className="h-6 w-6 sm:h-7 sm:w-7" />
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+              <ShieldCheck className="h-5 w-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-base sm:text-lg font-bold text-foreground tracking-tight">
-                  eManagement
-                </span>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                  Online
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground hidden sm:block">
-                Hệ thống Chấm công & Quản lý Nhân sự
-              </p>
-            </div>
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">
+              eManagement
+            </span>
           </div>
 
-          {/* Live Clock & Right Status */}
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex flex-col items-end text-right">
-              <span className="text-sm font-bold text-primary font-mono tracking-wider">
-                {currentTime}
-              </span>
-              <span className="text-xs text-muted-foreground capitalize">{currentDate}</span>
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-3 px-4 py-1.5 rounded-lg bg-white border border-slate-100 shadow-sm">
+              <Clock className="h-4 w-4 text-indigo-500 animate-pulse" />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-slate-800 font-mono leading-none">
+                  {currentTime}
+                </span>
+                <span className="text-[10px] text-slate-500 capitalize leading-none mt-1">
+                  {currentDate}
+                </span>
+              </div>
             </div>
 
             {isAuthenticated ? (
-              <Link href="/dashboard">
-                <button className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-primary/20 transition-all">
-                  <LayoutDashboard className="h-4 w-4" />
-                  <span>Vào Bảng điều khiển</span>
-                </button>
+              <Link
+                href="/dashboard"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all hover:scale-105"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Vào Dashboard
               </Link>
             ) : (
-              <Link href="/login">
-                <button className="px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium text-xs sm:text-sm border border-border flex items-center gap-1.5 transition-all">
-                  <LogIn className="h-4 w-4 text-primary" />
-                  <span>Đăng nhập</span>
-                </button>
+              <Link
+                href="/login"
+                className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-medium text-sm border border-slate-200 shadow-sm flex items-center gap-2 transition-all hover:scale-105"
+              >
+                <LogIn className="h-4 w-4 text-indigo-500" />
+                Đăng nhập
               </Link>
             )}
           </div>
         </div>
       </header>
 
-      {/* Main Friendly Welcome & Action Area */}
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-8 flex flex-col justify-center">
-        {/* Welcome Greeting */}
-        <div className="text-center mb-6 sm:mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold mb-2">
-            <Sparkles className="h-3 w-3" />
-            <span>CHÀO MỪNG BẠN ĐẾN VỚI HỆ THỐNG ĐIỂM DANH TỰ ĐỘNG</span>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center relative z-10 px-4 w-full max-w-6xl mx-auto mt-8 mb-12">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 w-full items-center">
+          {/* Left Column: Hero Text */}
+          <div className="flex flex-col items-start text-left max-w-2xl animate-in slide-in-from-bottom-8 fade-in duration-700">
+            <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-[1.15]">
+              Kỷ nguyên mới của <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600">
+                Nhận diện khuôn mặt
+              </span>
+            </h1>
+            <p className="text-lg text-slate-600 mb-10 leading-relaxed max-w-xl font-medium">
+              Trải nghiệm điểm danh tốc độ ánh sáng dưới 0.5s. Tích hợp công
+              nghệ chống giả mạo tiên tiến nhất (Anti-Spoofing) và nhận dạng thụ
+              động.
+            </p>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
-            Điểm danh nhanh chóng & Quản lý dễ dàng
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-lg mx-auto">
-            Vui lòng chọn một trong hai chức năng bên dưới để bắt đầu:
-          </p>
-        </div>
 
-        {/* 2 Big Friendly Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto w-full">
-          {/* Card 1: Face ID Attendance Check-in */}
-          <div
-            onClick={() => setIsAttendanceModalOpen(true)}
-            className="group cursor-pointer p-4 sm:p-5 rounded-2xl bg-card border border-border hover:border-primary shadow-sm hover:shadow-[0_0_25px_rgba(79,70,229,0.1)] transition-all transform hover:-translate-y-0.5 flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                  <Camera className="h-5 w-5 animate-pulse" />
+          {/* Right Column: Interaction Cards */}
+          <div className="flex flex-col gap-6 w-full max-w-md mx-auto lg:mx-0 lg:ml-auto animate-in slide-in-from-bottom-8 fade-in duration-700 delay-150">
+            {/* Primary Action: Face Check-in */}
+            <button
+              onClick={() => setIsAttendanceModalOpen(true)}
+              className="group relative w-full text-left p-[2px] rounded-[28px] overflow-hidden transition-transform hover:scale-[1.02] duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/20"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 opacity-80 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative bg-white/95 backdrop-blur-xl p-8 rounded-[26px] border border-white flex flex-col gap-6">
+                <div className="flex items-start justify-between">
+                  <div className="h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100 group-hover:bg-indigo-100 transition-colors shadow-sm">
+                    <Camera className="h-7 w-7 text-indigo-600" />
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-indigo-600 group-hover:border-indigo-600 transition-all shadow-sm">
+                    <ArrowRight className="h-5 w-5 text-slate-400 transform -rotate-45 group-hover:rotate-0 group-hover:text-white transition-transform duration-300" />
+                  </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  Sẵn sàng quét
-                </span>
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-2">
+                    Chấm công FaceID
+                  </h3>
+                  <p className="text-slate-500 text-sm leading-relaxed font-medium">
+                    Khởi động camera AI để nhận diện điểm danh vào/ra ca lập tức
+                    không cần chạm.
+                  </p>
+                </div>
               </div>
-
-              <h2 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors mb-1">
-                Quét Chấm Công Face ID
-              </h2>
-              <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                Chỉ cần đứng trước camera 1 giây, hệ thống sẽ tự động nhận diện khuôn mặt và ghi nhận giờ vào ca / ra ca của bạn.
-              </p>
-            </div>
-
-            <button className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all">
-              <Camera className="h-4 w-4" />
-              <span>Bắt đầu chấm công ngay</span>
-              <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
             </button>
-          </div>
 
-          {/* Card 2: Login or Go to Dashboard */}
-          {isAuthenticated ? (
-            <Link
-              href="/dashboard"
-              className="group p-4 sm:p-5 rounded-2xl bg-card border border-border hover:border-primary/50 shadow-sm hover:shadow-md transition-all transform hover:-translate-y-0.5 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                    <LayoutDashboard className="h-5 w-5" />
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-semibold">
-                    Đã đăng nhập
-                  </span>
+            {/* Secondary Action: Dashboard/Login */}
+            {isAuthenticated ? (
+              <Link
+                href="/dashboard"
+                className="group relative w-full text-left p-6 rounded-[24px] bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-500/5 transition-all hover:scale-[1.02] duration-300 flex items-center gap-6 shadow-sm"
+              >
+                <div className="h-14 w-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 flex-shrink-0 group-hover:bg-indigo-50 transition-colors">
+                  <LayoutDashboard className="h-7 w-7 text-slate-600 group-hover:text-indigo-600 transition-colors" />
                 </div>
-
-                <h2 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors mb-1">
-                  Bảng Điều Khiển Nhân Sự
-                </h2>
-                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                  Xem lịch sử chấm công cá nhân, theo dõi ca làm việc, gửi đơn xin nghỉ phép và quản lý nhân viên.
-                </p>
-              </div>
-
-              <button className="w-full py-2.5 px-4 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold text-sm border border-border flex items-center justify-center gap-2 transition-all">
-                <LayoutDashboard className="h-4 w-4 text-primary" />
-                <span>Vào trang quản lý</span>
-                <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              className="group p-4 sm:p-5 rounded-2xl bg-card border border-border hover:border-primary/50 shadow-sm hover:shadow-md transition-all transform hover:-translate-y-0.5 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                    <LogIn className="h-5 w-5" />
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border text-[10px] font-semibold">
-                    Nhân viên & Quản trị
-                  </span>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
+                    Bảng điều khiển
+                  </h3>
+                  <p className="text-slate-500 text-sm font-medium">
+                    Quản lý nhân sự & báo cáo
+                  </p>
                 </div>
-
-                <h2 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors mb-1">
-                  Đăng Nhập Tài Khoản
-                </h2>
-                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                  Dành cho nhân viên và quản lý đăng nhập để xem lịch làm việc, bảng công, duyệt đơn nghỉ phép và cấu hình hệ thống.
-                </p>
-              </div>
-
-              <button className="w-full py-2.5 px-4 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold text-sm border border-border flex items-center justify-center gap-2 transition-all">
-                <LogIn className="h-4 w-4 text-primary" />
-                <span>Đăng nhập hệ thống</span>
-                <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </Link>
-          )}
-        </div>
-
-        {/* 3 Quick & Friendly Steps Guide */}
-        <div className="mt-8 p-4 rounded-xl bg-muted border border-border max-w-3xl mx-auto w-full">
-          <div className="flex items-center gap-2 mb-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-            <HelpCircle className="h-3.5 w-3.5 text-primary" />
-            <span>Hướng dẫn 3 bước chấm công:</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] text-muted-foreground">
-            <div className="flex items-start gap-2">
-              <span className="h-4 w-4 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] flex-shrink-0">
-                1
-              </span>
-              <span>Bấm nút <strong>"Bắt đầu chấm công ngay"</strong> để bật máy ảnh.</span>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <span className="h-4 w-4 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] flex-shrink-0">
-                2
-              </span>
-              <span>Đưa khuôn mặt vào giữa vòng tròn.</span>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <span className="h-4 w-4 rounded-full bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
-                3
-              </span>
-              <span>Hệ thống tự nhận diện và đọc lời chào xác nhận.</span>
-            </div>
+                <ArrowRight className="h-5 w-5 text-slate-400 ml-auto group-hover:text-indigo-600 transition-colors group-hover:translate-x-1" />
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="group relative w-full text-left p-6 rounded-[24px] bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-500/5 transition-all hover:scale-[1.02] duration-300 flex items-center gap-6 shadow-sm"
+              >
+                <div className="h-14 w-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 flex-shrink-0 group-hover:bg-indigo-50 transition-colors">
+                  <LogIn className="h-7 w-7 text-slate-600 group-hover:text-indigo-600 transition-colors" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
+                    Cổng đăng nhập
+                  </h3>
+                  <p className="text-slate-500 text-sm font-medium">
+                    Dành cho Cán bộ & Quản lý
+                  </p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-slate-400 ml-auto group-hover:text-indigo-600 transition-colors group-hover:translate-x-1" />
+              </Link>
+            )}
           </div>
         </div>
       </main>
 
-      {/* Friendly Bottom Footer */}
-      <footer className="w-full bg-background border-t border-border py-4 px-4 sm:px-6 text-center text-xs text-muted-foreground">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>© 2026 eManagement • Hệ thống Chấm công & Quản lý Nhân sự</span>
-          <div className="flex items-center gap-2 text-emerald-600">
-            <CheckCircle className="h-3.5 w-3.5" />
-            <span>Hệ thống máy chủ hoạt động bình thường</span>
-          </div>
-        </div>
-      </footer>
+      {/* Decorative Gradient Wave at Bottom */}
+      <div className="absolute bottom-0 left-0 w-full overflow-hidden pointer-events-none opacity-[0.08] z-0">
+        <svg viewBox="0 0 1440 320" className="w-full h-auto">
+          <path
+            fill="none"
+            stroke="url(#gradient)"
+            strokeWidth="2"
+            d="M0,160 C320,300,420,0,740,160 C1060,320,1120,0,1440,160"
+          ></path>
+          <defs>
+            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#4f46e5" />
+              <stop offset="50%" stopColor="#9333ea" />
+              <stop offset="100%" stopColor="#db2777" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
 
-      {/* Live Attendance Check-in Modal */}
       <LiveAttendanceModal
         isOpen={isAttendanceModalOpen}
         onClose={() => setIsAttendanceModalOpen(false)}

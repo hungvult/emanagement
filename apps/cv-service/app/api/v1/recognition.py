@@ -5,7 +5,7 @@ import time
 from fastapi import APIRouter, Depends
 
 from app.core.constants import STATUS_MESSAGES, CvStatus
-from app.core.logging import log_inference_metrics
+from app.core.logging import logger, log_inference_metrics
 from app.core.security import require_api_key
 from app.schemas.common import ApiResponse
 from app.schemas.recognition import RecognizeRequest, RecognizeResponse
@@ -45,11 +45,24 @@ def recognize_face(request: RecognizeRequest) -> ApiResponse[RecognizeResponse]:
 
     detect_status, _faces = face_detector.detect_faces(img)
     if detect_status != CvStatus.VALID:
+        # Trong bóng tối detector có thể không tìm thấy mặt: báo đúng nguyên nhân.
+        if detect_status == CvStatus.NO_FACE:
+            lighting_status, _, _ = face_quality_assessor.evaluate_lighting(img)
+            if lighting_status != CvStatus.VALID:
+                return respond_fail(lighting_status)
         return respond_fail(detect_status)
 
     face = _faces[0]
 
-    quality_status, _, _ = face_quality_assessor.evaluate_quality(img, face.bbox)
+    quality_status, _, quality_details = face_quality_assessor.evaluate_quality(
+        img, face.bbox, require_lighting=True
+    )
+    logger.info(
+        "Attendance lighting: brightness=%s minimum=%s status=%s",
+        quality_details.get("brightness"),
+        quality_details.get("brightness_min"),
+        quality_status.value,
+    )
     if quality_status != CvStatus.VALID:
         return respond_fail(quality_status)
 
@@ -82,17 +95,6 @@ def recognize_face(request: RecognizeRequest) -> ApiResponse[RecognizeResponse]:
             ),
         )
 
-    if rec_status == CvStatus.AMBIGUOUS_MATCH:
-        return ApiResponse.fail(
-            status=CvStatus.AMBIGUOUS_MATCH,
-            message="Độ tương đồng giữa hai nhân viên quá gần nhau, không thể xác định chính xác.",
-            data=RecognizeResponse(
-                matched=False,
-                matchedUserId=matched_user_id,
-                similarityScore=score,
-                status=rec_status.value,
-            ),
-        )
 
     return ApiResponse.fail(
         status=CvStatus.UNKNOWN_FACE,

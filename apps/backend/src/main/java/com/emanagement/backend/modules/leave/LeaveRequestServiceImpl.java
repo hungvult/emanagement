@@ -13,6 +13,7 @@ import com.emanagement.backend.modules.employee.UserRepository;
 import com.emanagement.backend.modules.leave.dto.LeaveAprrovalDto;
 import com.emanagement.backend.modules.leave.dto.LeaveRequestCreateDto;
 import com.emanagement.backend.modules.leave.dto.LeaveRequestResponseDto;
+import com.emanagement.backend.modules.shift.ShiftService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final UserRepository userRepository;
+    private final ShiftService shiftService;
 
     @Override
     @Transactional
@@ -40,6 +42,12 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         leaveRequest.setApprovedBy(user);
         leaveRequest.setUpdatedAt(LocalDateTime.now());
         LeaveRequest updated = leaveRequestRepository.save(leaveRequest);
+
+        // Đơn được duyệt -> tự hủy các ca đã phân trong khoảng nghỉ (và thông báo cho nhân viên)
+        if ("APPROVED".equals(dto.getStatus())) {
+            shiftService.cancelShiftsForLeave(leaveRequest.getUser(), leaveRequest.getStartDate(),
+                    leaveRequest.getEndDate());
+        }
         return mapToDto(updated);
     }
 

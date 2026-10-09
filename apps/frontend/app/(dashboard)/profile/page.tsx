@@ -1,44 +1,56 @@
 "use client";
+import NextImage from "next/image";
+import { getErrorMessage } from "@/lib/errors";
 
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../../../hooks/use-auth";
-import { authService } from "../../../services/auth.service";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
-import { Input } from "../../../components/ui/input";
-import { Button } from "../../../components/ui/button";
-import { useToast } from "../../../components/ui/toast";
-import { UserCircle, Shield, Mail, Phone, User, KeyRound, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/use-auth";
+import { authService } from "@/services/auth.service";
+import {
+  KeyRound,
+  Lock,
+  Mail,
+  Phone,
+  Settings,
+  Shield,
+  User,
+  UserCircle,
+} from "lucide-react";
+import React, { useState } from "react";
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const { success, error } = useToast();
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<1 | 2>(1); // 1: Form, 2: OTP
-  
-  const [formData, setFormData] = useState({
-    fullName: "",
-    phone: "",
-    email: ""
-  });
-  
-  const [otpCode, setOtpCode] = useState("");
+  const [activeTab, setActiveTab] = useState<"INFO" | "PASSWORD">("INFO");
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        fullName: user.fullName || "",
-        phone: user.phone || "",
-        email: user.email || ""
-      });
-    }
-  }, [user]);
+  type ProfileForm = { fullName: string; phone: string; email: string };
+  const [formDraft, setFormDraft] = useState<{
+    source: typeof user;
+    data: ProfileForm;
+  } | null>(null);
+  const formData: ProfileForm =
+    formDraft?.source === user && formDraft
+      ? formDraft.data
+      : {
+          fullName: user?.fullName || "",
+          phone: user?.phone || "",
+          email: user?.email || "",
+        };
+  const setFormData = (data: ProfileForm) =>
+    setFormDraft({ source: user, data });
+
+  const [otpCode, setOtpCode] = useState("");
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    
+
     if (!formData.fullName.trim()) {
       error("Họ và tên không được để trống");
       return;
@@ -55,17 +67,19 @@ export default function ProfilePage() {
       // Backend yêu cầu gửi OTP đến targetIdentifier (email hoặc phone mới)
       const res = await authService.sendOtp({
         identifier: targetIdentifier,
-        type: "UPDATE_PROFILE"
+        type: "UPDATE_PROFILE",
       });
-      
+
       if (res.status === "SUCCESS") {
-        success(`Đã gửi mã OTP 6 số đến ${targetIdentifier}. Vui lòng kiểm tra hộp thư/tin nhắn.`);
+        success(
+          `Đã gửi mã OTP 6 số đến ${targetIdentifier}. Vui lòng kiểm tra hộp thư/tin nhắn.`,
+        );
         setStep(2);
       } else {
-        error(res.message || "Không thể gửi mã OTP");
+        error(getErrorMessage(res, "Không thể gửi mã OTP"));
       }
-    } catch (err: any) {
-      error(err.response?.data?.message || err.message || "Lỗi khi gửi yêu cầu OTP");
+    } catch (err: unknown) {
+      error(getErrorMessage(err, "Lỗi khi gửi yêu cầu OTP"));
     } finally {
       setIsLoading(false);
     }
@@ -84,9 +98,9 @@ export default function ProfilePage() {
         fullName: formData.fullName,
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
-        otpCode: otpCode.trim()
+        otpCode: otpCode.trim(),
       });
-      
+
       if (res.status === "SUCCESS") {
         success("Cập nhật thông tin hồ sơ thành công!");
         setIsEditing(false);
@@ -94,10 +108,10 @@ export default function ProfilePage() {
         setOtpCode("");
         await refreshUser();
       } else {
-        error(res.message || "Không thể cập nhật thông tin");
+        error(getErrorMessage(res, "Không thể cập nhật thông tin"));
       }
-    } catch (err: any) {
-      error(err.response?.data?.message || err.message || "Mã OTP không hợp lệ hoặc đã hết hạn");
+    } catch (err: unknown) {
+      error(getErrorMessage(err, "Mã OTP không hợp lệ hoặc đã hết hạn"));
     } finally {
       setIsLoading(false);
     }
@@ -106,235 +120,346 @@ export default function ProfilePage() {
   if (!user) return null;
 
   return (
-    <>
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Hồ sơ cá nhân</h1>
-        <p className="text-muted-foreground">Quản lý thông tin tài khoản và cập nhật bảo mật an toàn.</p>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-indigo-50/80 via-white to-white p-6 rounded-[32px] border border-indigo-100/50 shadow-sm">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+            <UserCircle className="h-8 w-8 text-indigo-600" />
+            Hồ sơ cá nhân
+          </h1>
+          <p className="text-sm font-medium text-slate-500 mt-1.5 ml-11">
+            Quản lý thông tin tài khoản và cập nhật bảo mật an toàn.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-1 space-y-6">
-          <Card className="relative overflow-hidden group border-border bg-card shadow-sm">
-            <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-primary/10 to-indigo-500/10" />
-            <CardContent className="pt-12 pb-6 px-6 flex flex-col items-center text-center relative z-10">
-              <div className="relative mb-4 group-hover:scale-105 transition-transform duration-300">
-                <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-muted ring-2 ring-primary/20 shadow-xl">
-                  {user?.avatarUrl ? (
-                    <img src={user.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
-                  ) : (
-                    <UserCircle className="h-full w-full p-4 text-muted-foreground" />
-                  )}
-                </div>
-              </div>
-              <h2 className="text-xl font-bold text-foreground">{user?.fullName}</h2>
-              <p className="text-sm font-medium text-primary mt-1">{user?.employeeCode}</p>
-              
-              <div className="mt-6 flex w-full flex-col gap-2">
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm">
-                  <span className="text-muted-foreground">Chức vụ</span>
-                  <span className="font-medium text-foreground">
-                    {user?.roles?.includes("ROLE_ADMIN") ? "Quản trị viên" : "Nhân viên"}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Tabs */}
+      <div className="flex space-x-2 bg-slate-50/50 p-1.5 rounded-[20px] w-fit border border-slate-100">
+        <button
+          onClick={() => setActiveTab("INFO")}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-[14px] font-bold text-sm transition-all ${
+            activeTab === "INFO"
+              ? "bg-white text-indigo-600 shadow-sm border border-slate-100"
+              : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
+          }`}
+        >
+          <User className="h-4 w-4" /> Thông tin tài khoản
+        </button>
+        <button
+          onClick={() => setActiveTab("PASSWORD")}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-[14px] font-bold text-sm transition-all ${
+            activeTab === "PASSWORD"
+              ? "bg-white text-indigo-600 shadow-sm border border-slate-100"
+              : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
+          }`}
+        >
+          <Lock className="h-4 w-4" /> Đổi mật khẩu
+        </button>
+      </div>
 
-        <div className="md:col-span-2 space-y-6">
-          <Card className="border-border bg-card shadow-sm">
-            <CardHeader className="border-b border-border pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Settings className="h-5 w-5 text-primary" />
-                Thiết lập tài khoản
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {!isEditing ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end mb-4">
-                    <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
-                      Chỉnh sửa thông tin
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                      <User className="h-4 w-4 text-muted-foreground" /> Họ và tên
-                    </div>
-                    <div className="col-span-2 text-sm text-foreground font-medium">{user.fullName}</div>
-                  </div>
-                  <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                      <KeyRound className="h-4 w-4 text-muted-foreground" /> Mã nhân viên
-                    </div>
-                    <div className="col-span-2 text-sm text-foreground font-mono">{user.employeeCode}</div>
-                  </div>
-                  <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                      <Phone className="h-4 w-4 text-muted-foreground" /> Số điện thoại
-                    </div>
-                    <div className="col-span-2 text-sm text-foreground font-mono">{user.phone || "Chưa cập nhật"}</div>
-                  </div>
-                  <div className="grid grid-cols-3 border-b border-border pb-3">
-                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                      <Mail className="h-4 w-4 text-muted-foreground" /> Email
-                    </div>
-                    <div className="col-span-2 text-sm text-foreground">{user.email || "Chưa cập nhật"}</div>
-                  </div>
-                  <div className="grid grid-cols-3">
-                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                      <Shield className="h-4 w-4 text-emerald-500" /> Bảo mật
-                    </div>
-                    <div className="col-span-2 text-sm text-foreground flex items-center gap-1">
-                      <span className="text-emerald-600 font-medium">Bảo vệ bởi JWT & Xác thực OTP 2FA</span>
-                    </div>
+      {activeTab === "INFO" && (
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="md:col-span-1 space-y-6">
+            <Card className="relative overflow-hidden group border-slate-100 bg-white shadow-sm rounded-[24px]">
+              <div className="absolute top-0 left-0 w-full h-28 bg-gradient-to-r from-indigo-50 to-white" />
+              <CardContent className="pt-14 pb-6 px-6 flex flex-col items-center text-center relative z-10">
+                <div className="relative mb-5 group-hover:scale-105 transition-transform duration-300">
+                  <div className="h-28 w-28 overflow-hidden rounded-full border-4 border-white bg-indigo-50 ring-2 ring-indigo-100 shadow-lg">
+                    {user?.avatarUrl ? (
+                      <NextImage
+                        unoptimized
+                        width={640}
+                        height={480}
+                        src={user.avatarUrl}
+                        alt="Avatar"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-indigo-300 font-extrabold text-4xl">
+                        {user.fullName?.charAt(0) || "U"}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ) : step === 1 ? (
-                <form onSubmit={handleSendOtp} className="space-y-4">
-                <Input
-                  label="Họ và tên *"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  disabled={isLoading}
-                  required
-                />
-                <Input
-                  label="Email mới"
-                  type="email"
-                  placeholder="VD: user@emanagement.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  disabled={isLoading}
-                />
-                <Input
-                  label="Số điện thoại mới"
-                  placeholder="VD: 0912345678"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  disabled={isLoading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Khi nhấn lưu, hệ thống sẽ gửi mã OTP 6 số đến Email/SĐT mới để xác thực chính chủ.
+                <h2 className="text-xl font-extrabold text-slate-900">
+                  {user?.fullName}
+                </h2>
+                <p className="text-sm font-bold text-indigo-600 mt-1">
+                  {user?.employeeCode}
                 </p>
-                <div className="flex gap-2 pt-4">
-                  <Button type="button" variant="ghost" onClick={() => setIsEditing(false)}>
-                    Hủy
-                  </Button>
-                  <Button type="submit" isLoading={isLoading}>
-                    Gửi mã OTP xác nhận
-                  </Button>
+
+                <div className="mt-6 flex w-full flex-col gap-2">
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
+                    <span className="text-slate-500 font-semibold">
+                      Chức vụ
+                    </span>
+                    <span className="font-extrabold text-slate-700">
+                      {user?.roles?.includes("ROLE_ADMIN")
+                        ? "Quản trị viên"
+                        : "Nhân viên"}
+                    </span>
+                  </div>
                 </div>
-              </form>
-            ) : (
-              <form onSubmit={handleUpdate} className="space-y-4">
-                <div className="rounded-md bg-primary/10 p-4 border border-primary/20 mb-4">
-                  <p className="text-sm text-foreground">
-                    Mã OTP 6 số đã được gửi đến <strong>{formData.email || formData.phone}</strong>. Vui lòng nhập mã để hoàn tất cập nhật.
-                  </p>
-                </div>
-                <Input
-                  label="Mã OTP 6 chữ số *"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="123456"
-                  maxLength={6}
-                  disabled={isLoading}
-                  required
-                />
-                <div className="flex gap-2 pt-4">
-                  <Button type="button" variant="ghost" onClick={() => setStep(1)}>
-                    Quay lại
-                  </Button>
-                  <Button type="submit" isLoading={isLoading}>
-                    Xác nhận cập nhật
-                  </Button>
-                </div>
-              </form>
-            )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="md:col-span-2 space-y-6">
+            <Card className="border-slate-100 bg-white shadow-sm rounded-[24px]">
+              <CardHeader className="border-b border-slate-100 pb-5 px-6 pt-6">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
+                  <Settings className="h-5 w-5 text-indigo-500" />
+                  Thiết lập tài khoản
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {!isEditing ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-end mb-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditing(true)}
+                        className="rounded-xl font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                      >
+                        Chỉnh sửa thông tin
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 border-b border-slate-50 pb-4">
+                      <div className="text-sm text-slate-500 font-semibold flex items-center gap-2">
+                        <User className="h-4 w-4 text-slate-400" /> Họ và tên
+                      </div>
+                      <div className="col-span-2 text-sm text-slate-800 font-bold">
+                        {user.fullName}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 border-b border-slate-50 pb-4 pt-2">
+                      <div className="text-sm text-slate-500 font-semibold flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-slate-400" /> Mã nhân
+                        viên
+                      </div>
+                      <div className="col-span-2 text-sm text-slate-800 font-mono font-bold">
+                        {user.employeeCode}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 border-b border-slate-50 pb-4 pt-2">
+                      <div className="text-sm text-slate-500 font-semibold flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-slate-400" /> Số điện
+                        thoại
+                      </div>
+                      <div className="col-span-2 text-sm text-slate-800 font-mono font-bold">
+                        {user.phone || "Chưa cập nhật"}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 border-b border-slate-50 pb-4 pt-2">
+                      <div className="text-sm text-slate-500 font-semibold flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-slate-400" /> Email
+                      </div>
+                      <div className="col-span-2 text-sm text-slate-800 font-bold">
+                        {user.email || "Chưa cập nhật"}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 pt-2">
+                      <div className="text-sm text-slate-500 font-semibold flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-emerald-500" /> Bảo mật
+                      </div>
+                      <div className="col-span-2 text-[13px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg w-fit font-bold border border-emerald-100 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>{" "}
+                        JWT & 2FA
+                      </div>
+                    </div>
+                  </div>
+                ) : step === 1 ? (
+                  <form onSubmit={handleSendOtp} className="space-y-5">
+                    <Input
+                      label="Họ và tên *"
+                      value={formData.fullName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, fullName: e.target.value })
+                      }
+                      disabled={isLoading}
+                      required
+                      className="bg-slate-50 border-transparent focus:bg-white rounded-xl"
+                    />
+                    <Input
+                      label="Email mới"
+                      type="email"
+                      placeholder="VD: user@emanagement.com"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      disabled={isLoading}
+                      className="bg-slate-50 border-transparent focus:bg-white rounded-xl"
+                    />
+                    <Input
+                      label="Số điện thoại mới"
+                      placeholder="VD: 0912345678"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      disabled={isLoading}
+                      className="bg-slate-50 border-transparent focus:bg-white rounded-xl"
+                    />
+                    <p className="text-xs font-semibold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      Khi nhấn lưu, hệ thống sẽ gửi mã OTP 6 số đến Email/SĐT
+                      mới để xác thực chính chủ.
+                    </p>
+                    <div className="flex justify-end gap-3 pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setIsEditing(false)}
+                        className="rounded-xl font-bold"
+                      >
+                        Hủy
+                      </Button>
+                      <Button
+                        type="submit"
+                        isLoading={isLoading}
+                        className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                      >
+                        Gửi mã OTP xác nhận
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleUpdate} className="space-y-5">
+                    <div className="rounded-xl bg-indigo-50 p-4 border border-indigo-100 mb-4">
+                      <p className="text-sm font-medium text-indigo-900">
+                        Mã OTP 6 số đã được gửi đến{" "}
+                        <strong className="font-extrabold">
+                          {formData.email || formData.phone}
+                        </strong>
+                        . Vui lòng nhập mã để hoàn tất cập nhật.
+                      </p>
+                    </div>
+                    <Input
+                      label="Mã OTP 6 chữ số *"
+                      value={otpCode}
+                      onChange={(e) =>
+                        setOtpCode(
+                          e.target.value.replace(/\D/g, "").slice(0, 6),
+                        )
+                      }
+                      placeholder="123456"
+                      maxLength={6}
+                      disabled={isLoading}
+                      required
+                      className="bg-slate-50 border-transparent focus:bg-white rounded-xl text-center text-xl tracking-[0.5em] font-mono"
+                    />
+                    <div className="flex justify-end gap-3 pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setStep(1)}
+                        className="rounded-xl font-bold"
+                      >
+                        Quay lại
+                      </Button>
+                      <Button
+                        type="submit"
+                        isLoading={isLoading}
+                        className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                      >
+                        Xác nhận cập nhật
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "PASSWORD" && (
+        <Card className="border-slate-100 bg-white shadow-sm rounded-[24px]">
+          <CardHeader className="border-b border-slate-100 pb-5 px-6 pt-6">
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
+              <Shield className="h-5 w-5 text-rose-500" />
+              Đổi mật khẩu
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const target = e.target as typeof e.target & {
+                  oldPassword: { value: string };
+                  newPassword: { value: string };
+                  confirmPassword: { value: string };
+                };
+                if (target.newPassword.value !== target.confirmPassword.value) {
+                  error("Mật khẩu mới không khớp");
+                  return;
+                }
+                if (target.newPassword.value.length < 8) {
+                  error("Mật khẩu mới phải từ 8 ký tự trở lên");
+                  return;
+                }
+                setIsLoading(true);
+                try {
+                  const res = await authService.changePassword({
+                    oldPassword: target.oldPassword.value,
+                    newPassword: target.newPassword.value,
+                  });
+                  if (res.status === "SUCCESS") {
+                    success("Đổi mật khẩu thành công!");
+                    (e.target as HTMLFormElement).reset();
+                  } else {
+                    error(getErrorMessage(res, "Không thể đổi mật khẩu"));
+                  }
+                } catch (err: unknown) {
+                  error(getErrorMessage(err, "Lỗi khi đổi mật khẩu"));
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              className="space-y-5 max-w-md"
+            >
+              <Input
+                name="oldPassword"
+                label="Mật khẩu hiện tại *"
+                type="password"
+                placeholder="Nhập mật khẩu cũ"
+                disabled={isLoading}
+                required
+                className="bg-slate-50 border-transparent focus:bg-white rounded-xl"
+              />
+              <Input
+                name="newPassword"
+                label="Mật khẩu mới *"
+                type="password"
+                placeholder="Nhập mật khẩu mới"
+                disabled={isLoading}
+                required
+                className="bg-slate-50 border-transparent focus:bg-white rounded-xl"
+              />
+              <Input
+                name="confirmPassword"
+                label="Xác nhận mật khẩu mới *"
+                type="password"
+                placeholder="Nhập lại mật khẩu mới"
+                disabled={isLoading}
+                required
+                className="bg-slate-50 border-transparent focus:bg-white rounded-xl"
+              />
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  isLoading={isLoading}
+                  className="w-full sm:w-auto rounded-xl font-bold bg-slate-800 hover:bg-slate-900 text-white"
+                >
+                  Đổi mật khẩu
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
-  </div>
-
-  <div className="mt-6 space-y-6 max-w-4xl mx-auto">
-    <Card className="border-border bg-card shadow-sm">
-      <CardHeader className="border-b border-border pb-4">
-        <CardTitle className="text-lg font-semibold flex items-center gap-2">
-          <Shield className="h-5 w-5 text-primary" />
-          Đổi mật khẩu
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-6">
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          const target = e.target as typeof e.target & {
-            oldPassword: { value: string };
-            newPassword: { value: string };
-            confirmPassword: { value: string };
-          };
-          if (target.newPassword.value !== target.confirmPassword.value) {
-            error("Mật khẩu mới không khớp");
-            return;
-          }
-          if (target.newPassword.value.length < 8) {
-            error("Mật khẩu mới phải từ 8 ký tự trở lên");
-            return;
-          }
-          setIsLoading(true);
-          try {
-            const res = await authService.changePassword({
-              oldPassword: target.oldPassword.value,
-              newPassword: target.newPassword.value
-            });
-            if (res.status === "SUCCESS") {
-              success("Đổi mật khẩu thành công!");
-              (e.target as HTMLFormElement).reset();
-            } else {
-              error(res.message || "Không thể đổi mật khẩu");
-            }
-          } catch (err: any) {
-            error(err.response?.data?.message || err.message || "Lỗi khi đổi mật khẩu");
-          } finally {
-            setIsLoading(false);
-          }
-        }} className="space-y-4 max-w-md">
-          <Input
-            name="oldPassword"
-            label="Mật khẩu hiện tại *"
-            type="password"
-            placeholder="Nhập mật khẩu cũ"
-            disabled={isLoading}
-            required
-          />
-          <Input
-            name="newPassword"
-            label="Mật khẩu mới *"
-            type="password"
-            placeholder="Nhập mật khẩu mới"
-            disabled={isLoading}
-            required
-          />
-          <Input
-            name="confirmPassword"
-            label="Xác nhận mật khẩu mới *"
-            type="password"
-            placeholder="Nhập lại mật khẩu mới"
-            disabled={isLoading}
-            required
-          />
-          <div className="pt-2">
-            <Button type="submit" isLoading={isLoading} className="w-full sm:w-auto">
-              Đổi mật khẩu
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
-  </div>
-  </>
   );
 }
-

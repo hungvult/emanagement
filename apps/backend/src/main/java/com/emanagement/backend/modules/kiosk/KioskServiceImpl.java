@@ -17,6 +17,8 @@ import com.emanagement.backend.modules.kiosk.dto.KioskCheckInResponseDto;
 import com.emanagement.backend.modules.kiosk.dto.KioskRegisterDto;
 import com.emanagement.backend.modules.shift.Shift;
 import com.emanagement.backend.modules.shift.ShiftRepository;
+import com.emanagement.backend.modules.shift.EmployeeShift;
+import com.emanagement.backend.modules.shift.EmployeeShiftRepository;
 import com.emanagement.backend.security.JwtTokenProvider;
 
 import com.emanagement.backend.common.service.StorageService;
@@ -38,6 +40,7 @@ public class KioskServiceImpl implements KioskService {
     private final UserRepository userRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final ShiftRepository shiftRepository;
+    private final EmployeeShiftRepository employeeShiftRepository;
     private final AiFaceService aiFaceService;
     private final com.emanagement.backend.modules.alert.AlertService alertService;
     private final JwtTokenProvider jwtTokenProvider;
@@ -88,7 +91,7 @@ public class KioskServiceImpl implements KioskService {
             } else if ("IMAGE_TOO_BLURRY".equals(status)) {
                 throw new BusinessException("Hình ảnh bị mờ. Vui lòng giữ yên hoặc kiểm tra ống kính camera.");
             } else if ("IMAGE_TOO_DARK".equals(status)) {
-                throw new BusinessException("Môi trường quá tối. Vui lòng điều chỉnh ánh sáng.");
+                throw new BusinessException("Chưa đủ ánh sáng để chấm công. Vui lòng điều chỉnh ánh sáng để khuôn mặt được chiếu sáng rõ.");
             } else if ("FACE_NOT_CENTERED".equals(status)) {
                 throw new BusinessException("Khuôn mặt nằm ngoài vùng quét hợp lệ. Vui lòng di chuyển vào giữa.");
             } else if ("FACE_POSE_INVALID".equals(status)) {
@@ -118,9 +121,25 @@ public class KioskServiceImpl implements KioskService {
         String status = "ON_TIME";
         AttendanceRecord record;
 
-        Shift defaultShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
-        LocalTime shiftStart = defaultShift != null ? defaultShift.getStartTime() : LocalTime.of(8, 0);
-        int graceMinutes = defaultShift != null ? defaultShift.getGracePeriodMinutes() : 15;
+        // Ưu tiên giờ ca đã snapshot trong lịch phân công (không bị ảnh hưởng nếu ca gốc bị sửa sau này)
+        EmployeeShift todayShift = employeeShiftRepository
+                .findByUserIdAndAssignedDate(user.getId(), today)
+                .orElse(null);
+
+        LocalTime shiftStart;
+        int graceMinutes;
+        Shift assignedShift;
+        if (todayShift != null) {
+            assignedShift = todayShift.getShift();
+            shiftStart = todayShift.getStartTime();
+            graceMinutes = todayShift.getGracePeriodMinutes();
+        } else {
+            // Fallback: không có ca được phân công thì dùng SHIFT-001 làm mặc định
+            assignedShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+            shiftStart = assignedShift != null ? assignedShift.getStartTime() : LocalTime.of(8, 0);
+            graceMinutes = assignedShift != null && assignedShift.getGracePeriodMinutes() != null
+                    ? assignedShift.getGracePeriodMinutes() : 15;
+        }
 
         if (todayRecords.isEmpty()) {
             checkType = "CHECK_IN";
@@ -131,6 +150,7 @@ public class KioskServiceImpl implements KioskService {
 
             record = new AttendanceRecord();
             record.setUser(user);
+            record.setShift(assignedShift);
             record.setKiosk(kiosk);
             record.setCheckInTime(now);
             record.setStatus(status);
@@ -164,6 +184,12 @@ public class KioskServiceImpl implements KioskService {
             checkType = "CHECK_OUT";
             record.setCheckOutTime(now);
             status = record.getStatus();
+
+            String checkoutSnapshotUrl = null;
+            if (cleanBase64 != null && !cleanBase64.isBlank()) {
+                checkoutSnapshotUrl = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkout_" + user.getEmployeeCode());
+            }
+            record.setCheckoutSnapshotUrl(checkoutSnapshotUrl);
         }
 
         attendanceRecordRepository.save(record);

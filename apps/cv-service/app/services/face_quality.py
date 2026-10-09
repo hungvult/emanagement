@@ -1,8 +1,10 @@
-"""Đánh giá chất lượng vùng khuôn mặt: kích thước -> độ nét -> độ sáng -> điểm tổng hợp."""
+"""Kiểm tra vùng khuôn mặt và độ sáng trong luồng chấm công."""
 
 from typing import Any, Dict, Tuple
+import cv2
 import numpy as np
 
+from app.core.config import settings
 from app.core.constants import CvStatus
 
 BBox = Tuple[int, int, int, int]
@@ -12,10 +14,28 @@ class FaceQualityAssessor:
 
     Chất lượng chi tiết về độ thật/giả và tính sống đã được mô hình học sâu
     MiniFASNetV2 và mô hình trích xuất đặc trưng SFace đảm nhận.
+    Luồng chấm công bật thêm kiểm tra độ sáng bằng require_lighting.
     """
 
+    def evaluate_lighting(self, img: np.ndarray) -> Tuple[CvStatus, float, Dict[str, Any]]:
+        """Đo độ sáng ảnh gốc, trước mọi bước chuẩn hóa cho mô hình AI."""
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        brightness = float(np.mean(gray))
+        is_too_dark = brightness < settings.BRIGHTNESS_MIN
+        score = 0.0 if is_too_dark else 1.0
+        return (
+            CvStatus.IMAGE_TOO_DARK if is_too_dark else CvStatus.VALID,
+            score,
+            {
+                "brightness": round(brightness, 2),
+                "brightness_min": settings.BRIGHTNESS_MIN,
+                "is_too_dark": is_too_dark,
+                "quality_score": score,
+            },
+        )
+
     def evaluate_quality(
-        self, img: np.ndarray, bbox: BBox
+        self, img: np.ndarray, bbox: BBox, *, require_lighting: bool = False
     ) -> Tuple[CvStatus, float, Dict[str, Any]]:
         """Đánh giá tổng thể chất lượng khuôn mặt trong bbox."""
         x, y, width, height = bbox
@@ -37,6 +57,10 @@ class FaceQualityAssessor:
         details["is_blurry"] = False
         details["is_too_dark"] = False
         details["quality_score"] = 1.0
+        if require_lighting:
+            status, score, lighting_details = self.evaluate_lighting(face_crop)
+            details.update(lighting_details)
+            return status, score, details
 
         return CvStatus.VALID, 1.0, details
 

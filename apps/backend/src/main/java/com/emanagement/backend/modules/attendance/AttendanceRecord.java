@@ -19,12 +19,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import lombok.Builder;
+
 @Entity
 @Table(name = "attendance_records")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class AttendanceRecord {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,6 +36,10 @@ public class AttendanceRecord {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shift_id")
+    private com.emanagement.backend.modules.shift.Shift shift;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "kiosk_id")
@@ -44,12 +51,17 @@ public class AttendanceRecord {
     @Column(name = "check_out_time")
     private LocalDateTime checkOutTime;
 
+    @Builder.Default
     @Column(length = 20)
     private String status = "ON_TIME";
 
     @Column(name = "snapshot_url", columnDefinition = "TEXT")
     private String snapshotUrl;
 
+    @Column(name = "checkout_snapshot_url", columnDefinition = "TEXT")
+    private String checkoutSnapshotUrl;
+
+    @Builder.Default
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

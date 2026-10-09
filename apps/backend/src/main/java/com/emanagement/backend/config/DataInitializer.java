@@ -92,6 +92,6 @@ public class DataInitializer implements CommandLineRunner {
             kioskRepository.save(kiosk);
         }
 
-        System.out.println("DataInitializer: Nạp dữ liệu mẫu ban đầu thành công.");
+        System.out.println("DataInitializer: Khởi tạo tài khoản, ca làm việc và kiosk thành công.");
     }
 }

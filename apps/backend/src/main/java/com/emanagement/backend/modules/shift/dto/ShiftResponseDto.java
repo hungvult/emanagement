@@ -18,4 +18,5 @@ public class ShiftResponseDto {
     private LocalTime startTime;
     private LocalTime endTime;
     private Integer gracePeriodMinutes;
+    private Boolean active;
 }

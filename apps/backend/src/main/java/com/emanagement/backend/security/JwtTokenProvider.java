@@ -16,10 +16,10 @@ import io.jsonwebtoken.security.Keys;
 
 @Component
 public class JwtTokenProvider {
-    @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration-ms:86400000}")
+    @Value("${jwt.expiration-ms}")
     private Long jwtExpirationMs;
 
     private Key getSigningKey() {
@@ -27,10 +27,10 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String genarateToken(Authentication authentication) {
+    public String generateToken(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         Date now = new Date();
-        Date expriyDate = new Date(now.getTime() + jwtExpirationMs);
+        Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
         return Jwts.builder()
                 .setSubject(userPrincipal.getEmployeeCode())
                 .claim("id", userPrincipal.getId())
@@ -38,7 +38,7 @@ public class JwtTokenProvider {
                 .claim("fullName", userPrincipal.getFullName())
                 .claim("email", userPrincipal.getEmail())
                 .setIssuedAt(now)
-                .setExpiration(expriyDate)
+                .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -49,7 +49,7 @@ public class JwtTokenProvider {
     public String generateKioskDeviceToken(String kioskCode, String kioskName) {
         Date now = new Date();
         long tenYearsMs = 10L * 365 * 24 * 60 * 60 * 1000;
-        Date expriyDate = new Date(now.getTime() + tenYearsMs);
+        Date expiryDate = new Date(now.getTime() + tenYearsMs);
 
         return Jwts.builder()
                 .setSubject(kioskCode)
@@ -57,7 +57,7 @@ public class JwtTokenProvider {
                 .claim("kioskName", kioskName)
                 .claim("type", "KIOSK_DEVICE")
                 .setIssuedAt(now)
-                .setExpiration(expriyDate)
+                .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }

@@ -27,6 +27,22 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công", jwtResponse));
     }
 
+    @PostMapping("/refresh-token")
+    @Operation(summary = "Làm mới Access Token", description = "Sử dụng Refresh Token để cấp phát Access Token mới và xoay vòng Refresh Token (Token Rotation)")
+    public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        TokenRefreshResponse response = authService.refreshToken(request);
+        return ResponseEntity.ok(ApiResponse.success("Làm mới token thành công", response));
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Đăng xuất hệ thống", description = "Thu hồi Refresh Token hiện tại để chấm dứt phiên làm việc")
+    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody(required = false) RefreshTokenRequest request) {
+        if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
+            authService.logout(request.getRefreshToken());
+        }
+        return ResponseEntity.ok(ApiResponse.success("Đăng xuất thành công", null));
+    }
+
     @PostMapping("/send-otp")
     @Operation(summary = "Gửi mã OTP", description = "Gửi mã OTP 6 số ngẫu nhiên về Email hoặc Số điện thoại (LOGIN_2FA, RESET_PASSWORD, UPDATE_PROFILE)")
     public ResponseEntity<ApiResponse<Void>> sendOtp(@Valid @RequestBody SendOtpRequest request) {

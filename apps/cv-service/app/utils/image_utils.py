@@ -2,7 +2,6 @@
 
 import base64
 import binascii
-from typing import Tuple
 
 import cv2
 import numpy as np
@@ -54,23 +53,3 @@ def base64_to_cv2(base64_str: str) -> np.ndarray:
 
     return img
 
-
-def crop_face(
-    img: np.ndarray, bbox: Tuple[int, int, int, int], margin_ratio: float = 0.2
-) -> np.ndarray:
-    """Cắt vùng khuôn mặt theo bbox (x, y, w, h) kèm lề, luôn kẹp trong khung hình."""
-    x, y, w, h = bbox
-    img_h, img_w = img.shape[:2]
-
-    margin_w = int(w * margin_ratio)
-    margin_h = int(h * margin_ratio)
-
-    x1 = max(0, x - margin_w)
-    y1 = max(0, y - margin_h)
-    x2 = min(img_w, x + w + margin_w)
-    y2 = min(img_h, y + h + margin_h)
-
-    if x2 <= x1 or y2 <= y1:
-        return np.empty((0, 0, 3), dtype=img.dtype)
-
-    return img[y1:y2, x1:x2]

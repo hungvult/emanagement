@@ -1,24 +1,29 @@
 package com.emanagement.backend.common.service;
 
 import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import io.minio.BucketExistsArgs;
+import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
+import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Storage service implementation leveraging MinIO object storage.
  * Handles Base64 decoding, MIME identification, dynamic bucket provisioning,
- * date-partitioned path generation, and stream upload to MinIO.
+ * date-partitioned path generation, and time-limited Presigned URL generation with AWS SigV4.
  */
 @Slf4j
 @Service
@@ -33,12 +38,12 @@ public class MinioStorageServiceImpl implements StorageService {
     public MinioStorageServiceImpl(
             MinioClient minioClient,
             @Value("${minio.bucket-name:attendance-images}") String bucketName,
-            @Value("${minio.public-url:http://localhost:9000}") String publicUrl) {
+            @Value("${minio.public-url:/storage}") String publicUrl) {
         this.minioClient = minioClient;
         String sanitizedBucket = (bucketName != null) ? bucketName.trim().replaceAll("^/+|/+$", "") : "";
         this.bucketName = sanitizedBucket.isEmpty() ? "attendance-images" : sanitizedBucket;
         String sanitizedPublicUrl = (publicUrl != null) ? publicUrl.trim().replaceAll("/+$", "") : "";
-        this.publicUrl = sanitizedPublicUrl.isEmpty() ? "http://localhost:9000" : sanitizedPublicUrl;
+        this.publicUrl = sanitizedPublicUrl.isEmpty() ? "/storage" : sanitizedPublicUrl;
     }
 
     @Override
@@ -114,8 +119,124 @@ public class MinioStorageServiceImpl implements StorageService {
         }
 
         String resultUrl = String.format("%s/%s/%s", publicUrl, bucketName, objectName);
-        log.info("Public image URL generated: {}", resultUrl);
+        log.info("Public image URL stored: {}", resultUrl);
         return resultUrl;
+    }
+
+    @Override
+    public String getPresignedUrl(String rawPathOrUrl, int durationMinutes) {
+        if (rawPathOrUrl == null || rawPathOrUrl.trim().isEmpty()) {
+            return null;
+        }
+
+        String clean = rawPathOrUrl.trim();
+        // Return inline Base64 data unchanged
+        if (clean.startsWith("data:")) {
+            return clean;
+        }
+
+        // Return external absolute URLs unchanged unless pointing to internal endpoints
+        if (clean.startsWith("http://") || clean.startsWith("https://")) {
+            try {
+                URI uri = URI.create(clean);
+                String host = uri.getHost();
+                boolean isInternalHost = "minio".equalsIgnoreCase(host)
+                        || "localhost".equalsIgnoreCase(host)
+                        || "127.0.0.1".equalsIgnoreCase(host);
+
+                if (!isInternalHost && !clean.startsWith(publicUrl)) {
+                    return clean;
+                }
+            } catch (Exception e) {
+                return clean;
+            }
+        }
+
+        String objectName = extractObjectName(clean);
+        if (objectName == null || objectName.isEmpty()) {
+            return rawPathOrUrl;
+        }
+
+        try {
+            int expiry = (durationMinutes > 0) ? durationMinutes : 15;
+            String presigned = minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .expiry(expiry, TimeUnit.MINUTES)
+                            .build()
+            );
+
+            // Convert MinIO internal endpoint host to client-accessible publicUrl
+            URI uri = URI.create(presigned);
+            String pathAndQuery = uri.getRawPath() + (uri.getRawQuery() != null ? "?" + uri.getRawQuery() : "");
+
+            return publicUrl + pathAndQuery;
+        } catch (Exception e) {
+            log.error("Failed to generate presigned URL for object '{}': {}", objectName, e.getMessage());
+            return rawPathOrUrl;
+        }
+    }
+
+    @Override
+    public void deleteImageByUrl(String imageUrl) {
+        String objectName = extractObjectName(imageUrl);
+        if (objectName != null && !objectName.isEmpty()) {
+            try {
+                minioClient.removeObject(
+                        RemoveObjectArgs.builder()
+                                .bucket(bucketName)
+                                .object(objectName)
+                                .build()
+                );
+                log.info("Deleted object successfully from MinIO: bucket={}, object={}", bucketName, objectName);
+            } catch (Exception e) {
+                log.warn("Failed to delete object from MinIO bucket '{}', object '{}': {}", bucketName, objectName, e.getMessage());
+            }
+        }
+    }
+
+    String extractObjectName(String pathOrUrl) {
+        if (pathOrUrl == null || pathOrUrl.trim().isEmpty()) {
+            return null;
+        }
+        String clean = pathOrUrl.trim();
+
+        int qIdx = clean.indexOf("?");
+        if (qIdx != -1) {
+            clean = clean.substring(0, qIdx);
+        }
+
+        if (clean.startsWith("http://") || clean.startsWith("https://")) {
+            try {
+                clean = URI.create(clean).getPath();
+            } catch (Exception ignored) {
+            }
+        }
+
+        String bucketPrefix = "/" + bucketName + "/";
+        if (clean.contains(bucketPrefix)) {
+            int idx = clean.indexOf(bucketPrefix);
+            return clean.substring(idx + bucketPrefix.length());
+        }
+
+        String bucketNoSlash = bucketName + "/";
+        if (clean.contains(bucketNoSlash)) {
+            int idx = clean.indexOf(bucketNoSlash);
+            return clean.substring(idx + bucketNoSlash.length());
+        }
+
+        String storagePrefix = "/storage/";
+        if (clean.startsWith(storagePrefix)) {
+            clean = clean.substring(storagePrefix.length());
+            if (clean.startsWith(bucketNoSlash)) {
+                clean = clean.substring(bucketNoSlash.length());
+            }
+            return clean;
+        }
+
+        return clean.replaceAll("^/+", "");
     }
 
     private void ensureBucketExists() {

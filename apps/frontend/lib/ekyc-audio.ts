@@ -19,7 +19,10 @@ class EkycAudioEngine {
   private getAudioContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
     if (!this.audioCtx) {
-      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtxClass =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
       if (AudioCtxClass) {
         this.audioCtx = new AudioCtxClass();
       }
@@ -91,8 +94,8 @@ class EkycAudioEngine {
         osc.start(now + idx * 0.08);
         osc.stop(now + idx * 0.08 + 0.25);
       });
-    } catch (e) {
-      console.warn("Audio chime error:", e);
+    } catch (error: unknown) {
+      console.warn("Audio chime error:", error);
     }
   }
 
@@ -161,7 +164,11 @@ class EkycAudioEngine {
     }
 
     const now = Date.now();
-    if (!force && this.lastSpokenText === text && now - this.lastSpokenTime < 4000) {
+    if (
+      !force &&
+      this.lastSpokenText === text &&
+      now - this.lastSpokenTime < 4000
+    ) {
       return;
     }
 
@@ -173,12 +180,12 @@ class EkycAudioEngine {
       const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=vi&q=${encodeURIComponent(text)}`;
       const audio = new Audio(url);
       audio.playbackRate = 1.05; // slightly faster
-      
+
       audio.play().catch((err) => {
         console.warn("Google TTS failed, using fallback:", err);
         this.fallbackSpeak(text);
       });
-    } catch (e) {
+    } catch {
       this.fallbackSpeak(text);
     }
   }
@@ -196,7 +203,9 @@ class EkycAudioEngine {
       // Select Vietnamese voice if available
       const voices = window.speechSynthesis.getVoices();
       const viVoice = voices.find(
-        (v) => v.lang.toLowerCase().includes("vi") || v.name.toLowerCase().includes("vietnam")
+        (v) =>
+          v.lang.toLowerCase().includes("vi") ||
+          v.name.toLowerCase().includes("vietnam"),
       );
       if (viVoice) {
         utterance.voice = viVoice;

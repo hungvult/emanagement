@@ -31,7 +31,7 @@ STATUS_MESSAGES: dict[CvStatus, str] = {
     CvStatus.FACE_POSE_INVALID: "Góc nghiêng khuôn mặt không hợp lệ. Vui lòng nhìn thẳng vào camera.",
     CvStatus.FACE_UNSTABLE: "Vị trí khuôn mặt chưa ổn định. Vui lòng giữ nguyên tư thế.",
     CvStatus.IMAGE_TOO_BLURRY: "Hình ảnh bị mờ. Vui lòng giữ yên hoặc kiểm tra ống kính camera.",
-    CvStatus.IMAGE_TOO_DARK: "Môi trường quá tối. Vui lòng điều chỉnh ánh sáng.",
+    CvStatus.IMAGE_TOO_DARK: "Chưa đủ ánh sáng để chấm công. Vui lòng điều chỉnh ánh sáng để khuôn mặt được chiếu sáng rõ.",
     CvStatus.LOW_FACE_QUALITY: "Chất lượng khuôn mặt không đạt yêu cầu.",
     CvStatus.SPOOF_DETECTED: "Phát hiện hành vi giả mạo khuôn mặt (Anti-Spoofing).",
     CvStatus.UNKNOWN_FACE: "Không nhận diện được nhân viên trên hệ thống.",

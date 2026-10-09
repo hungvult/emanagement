@@ -240,9 +240,10 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
 
         spring_payload = {
             "userId": request.userId,
-            "faceVector": final_embedding
+            "faceVector": final_embedding,
+            "images": request.images,
         }
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=25.0) as client:
             resp = client.post(
                 f"{settings.SPRING_BOOT_URL}/api/v1/employees/ekyc-enroll",
                 json=spring_payload,

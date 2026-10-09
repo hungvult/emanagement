@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # Image Quality
     BLUR_THRESHOLD: float = 15.0
-    BRIGHTNESS_MIN: float = 40.0
+    BRIGHTNESS_MIN: float = 100.0
     BRIGHTNESS_MAX: float = 225.0
 
     # Vùng quét hợp lệ: tâm khuôn mặt phải nằm trong vùng giữa khung hình,

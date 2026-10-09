@@ -14,4 +14,20 @@ public interface StorageService {
      * @return Public URL to access the uploaded image
      */
     String uploadBase64Image(String base64Data, String folder, String fileNamePrefix);
+
+    /**
+     * Generate a time-limited cryptographically signed Presigned URL for private asset access.
+     *
+     * @param rawPathOrUrl    Raw object path or stored URL (e.g. "/storage/attendance-images-prod/...")
+     * @param durationMinutes Time-to-live for the signed URL in minutes
+     * @return Presigned URL with AWS SigV4 query parameters, or raw URL if non-MinIO/empty
+     */
+    String getPresignedUrl(String rawPathOrUrl, int durationMinutes);
+
+    /**
+     * Delete an image from object storage given its public URL or path.
+     *
+     * @param imageUrl Public URL or object path of the image to delete
+     */
+    void deleteImageByUrl(String imageUrl);
 }

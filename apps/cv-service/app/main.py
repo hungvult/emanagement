@@ -1,10 +1,3 @@
-"""Điểm khởi động cv-service.
-
-Service này chỉ phục vụ backend trong mạng nội bộ: frontend không gọi trực tiếp,
-nên CORS mặc định tắt (chỉ bật khi CORS_ORIGINS được khai báo tường minh) và mọi
-endpoint xử lý ảnh yêu cầu header X-CV-API-Key.
-"""
-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request

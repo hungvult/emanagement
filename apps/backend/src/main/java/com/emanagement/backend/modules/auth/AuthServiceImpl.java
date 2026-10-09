@@ -26,6 +26,8 @@ import com.emanagement.backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import com.emanagement.backend.common.service.StorageService;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,6 +39,8 @@ public class AuthServiceImpl implements AuthService {
     private final OtpCodeRepository otpCodeRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
+    private final StorageService storageService;
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final int LOCK_DURATION_MINUTES = 15;
@@ -92,7 +96,8 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(user.getEmployeeCode(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtTokenProvider.genarateToken(authentication);
+        String jwt = jwtTokenProvider.generateToken(authentication);
+        String refreshToken = refreshTokenService.createRefreshToken(user);
 
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         Set<String> roles = userPrincipal.getAuthorities().stream()
@@ -101,13 +106,14 @@ public class AuthServiceImpl implements AuthService {
 
         return JwtResponse.builder()
                 .accessToken(jwt)
+                .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .id(userPrincipal.getId())
                 .employeeCode(userPrincipal.getEmployeeCode())
                 .fullName(userPrincipal.getFullName())
                 .email(userPrincipal.getEmail())
                 .phone(user.getPhone())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(storageService.getPresignedUrl(user.getAvatarUrl(), 60))
                 .roles(roles)
                 .build();
     }
@@ -190,7 +196,7 @@ public class AuthServiceImpl implements AuthService {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(storageService.getPresignedUrl(user.getAvatarUrl(), 60))
                 .roles(roles)
                 .build();
     }
@@ -247,7 +253,7 @@ public class AuthServiceImpl implements AuthService {
                 .fullName(updated.getFullName())
                 .email(updated.getEmail())
                 .phone(updated.getPhone())
-                .avatarUrl(updated.getAvatarUrl())
+                .avatarUrl(storageService.getPresignedUrl(updated.getAvatarUrl(), 60))
                 .roles(roles)
                 .build();
     }
@@ -284,5 +290,42 @@ public class AuthServiceImpl implements AuthService {
             }
         }
         return false;
+    }
+
+    @Override
+    @Transactional
+    public TokenRefreshResponse refreshToken(RefreshTokenRequest request) {
+        RefreshToken verifiedToken = refreshTokenService.verifyAndGet(request.getRefreshToken());
+        User user = verifiedToken.getUser();
+
+        // 1. Kiểm tra trạng thái tài khoản
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            refreshTokenService.revokeToken(request.getRefreshToken());
+            throw new BusinessException("Tài khoản của bạn đã bị vô hiệu hóa hoặc không hoạt động.");
+        }
+
+        // 2. Kiểm tra khóa tài khoản
+        if (user.getAccountLockedUntil() != null && user.getAccountLockedUntil().isAfter(LocalDateTime.now())) {
+            refreshTokenService.revokeToken(request.getRefreshToken());
+            throw new BusinessException("Tài khoản đang bị tạm khóa. Vui lòng thử lại sau.");
+        }
+
+        UserPrincipal userPrincipal = UserPrincipal.create(user);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
+        String newAccessToken = jwtTokenProvider.generateToken(authentication);
+
+        String newRefreshToken = refreshTokenService.rotateRefreshToken(verifiedToken);
+
+        return TokenRefreshResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .tokenType("Bearer")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenService.revokeToken(refreshToken);
     }
 }

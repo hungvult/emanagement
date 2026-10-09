@@ -2,6 +2,7 @@ package com.emanagement.backend.modules.shift;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import com.emanagement.backend.modules.employee.User;
 
@@ -41,6 +42,28 @@ public class EmployeeShift {
     @Column(name = "assigned_date", nullable = false)
     private LocalDate assignedDate;
 
+    // ---- Snapshot thông tin ca tại thời điểm phân (sửa ca sau này không làm đổi lịch sử) ----
+    @Column(name = "shift_name", nullable = false, length = 100)
+    private String shiftName;
+
+    @Column(name = "start_time", nullable = false)
+    private LocalTime startTime;
+
+    @Column(name = "end_time", nullable = false)
+    private LocalTime endTime;
+
+    @Column(name = "grace_period_minutes", nullable = false)
+    private Integer gracePeriodMinutes;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    /** Gán ca và chụp lại (snapshot) tên + giờ + grace của ca vào bản ghi phân công. */
+    public void applyShift(Shift s) {
+        this.shift = s;
+        this.shiftName = s.getName();
+        this.startTime = s.getStartTime();
+        this.endTime = s.getEndTime();
+        this.gracePeriodMinutes = s.getGracePeriodMinutes() != null ? s.getGracePeriodMinutes() : 15;
+    }
 }
