@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import type { useEmployees } from "@/hooks/employees/use-employees";
 import { COLUMN_LABELS } from "@/lib/employees-helpers";
 import { EmployeeColumnVisibility } from "@/types/employee.types";
-import { Check, Columns3, Filter, Plus, Search, X } from "lucide-react";
+import { Check, Columns3, Filter, Plus, Search, UploadCloud, X } from "lucide-react";
 
 type Props = Pick<
   ReturnType<typeof useEmployees>,
@@ -15,6 +15,7 @@ type Props = Pick<
   | "showColumnPicker"
   | "setShowColumnPicker"
   | "setIsCreateOpen"
+  | "setIsBulkImportOpen"
   | "filterStatus"
   | "setFilterStatus"
   | "setPage"
@@ -33,6 +34,7 @@ export function EmployeeFilters({
   showColumnPicker,
   setShowColumnPicker,
   setIsCreateOpen,
+  setIsBulkImportOpen,
   filterStatus,
   setFilterStatus,
   setPage,
@@ -98,6 +100,15 @@ export function EmployeeFilters({
             >
               <Columns3 className="h-4 w-4" />
               <span>Cột hiển thị</span>
+            </Button>
+
+            <Button
+              onClick={() => setIsBulkImportOpen(true)}
+              variant="outline"
+              className="flex shrink-0 items-center gap-2 rounded-xl h-[42px] px-4 font-bold border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 hover:text-indigo-900 transition-all shadow-xs"
+            >
+              <UploadCloud className="h-4 w-4 text-indigo-600" />
+              <span>Nhập hàng loạt</span>
             </Button>
 
             <Button

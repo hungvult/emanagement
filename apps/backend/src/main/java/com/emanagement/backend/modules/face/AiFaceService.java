@@ -12,5 +12,7 @@ public interface AiFaceService {
 
     List<Double> extractEmbedding(byte[] imageBytes);
 
+    com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto extractEmbeddingFromBase64(String imageBase64);
+
     AiMatchResult matchFace(List<Double> newVector, List<List<Double>> registeredVectors);
 }

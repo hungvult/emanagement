@@ -22,13 +22,8 @@ from app.core.logging import log_inference_metrics, logger
 from app.core.security import require_api_key
 from app.schemas.common import ApiResponse
 from app.schemas.enrollment import EnrollRequest, EnrollResponse, FrameResultDto
-from app.services.embedding_service import (
-    ModelNotReadyError,
-    average_embeddings,
-    embedding_service,
-)
-from app.services.face_detector import face_detector
-from app.services.face_quality import face_quality_assessor
+from app.services.embedding_service import average_embeddings, embedding_service
+from app.services.face_extraction_service import face_extraction_service
 from app.services.liveness_service import liveness_detector
 from app.utils.image_utils import InvalidImageError, base64_to_cv2
 from app.utils.similarity import cosine_similarity
@@ -98,30 +93,20 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
             results.append(_frame_result(idx, CvStatus.INVALID_IMAGE))
             continue
 
-        detect_status, faces = face_detector.detect_faces(img)
-        if detect_status != CvStatus.VALID:
-            results.append(_frame_result(idx, detect_status))
+        extraction = face_extraction_service.extract_from_image(img, require_lighting=False)
+        if not extraction.success:
+            results.append(_frame_result(idx, extraction.status, extraction.quality_score))
             return respond_fail(
-                detect_status,
-                f"Không phát hiện khuôn mặt rõ ràng ở bước {idx + 1}! Vui lòng quét lại từ đầu.",
-                results,
-            )
-
-        face = faces[0]
-        quality_status, quality_score, _ = face_quality_assessor.evaluate_quality(img, face.bbox)
-        if quality_status != CvStatus.VALID:
-            results.append(_frame_result(idx, quality_status, quality_score))
-            return respond_fail(
-                quality_status,
-                f"Chất lượng ảnh ở bước {idx + 1} không đạt yêu cầu. Vui lòng quét lại.",
+                extraction.status,
+                f"Bước {idx + 1}: {extraction.message}. Vui lòng thử lại.",
                 results,
             )
 
         # Chống giả mạo ảnh (Anti-Spoofing): phát hiện ảnh in hoặc màn hình thiết bị
-        spoof_status, is_real, liveness_score, _ = liveness_detector.check_liveness(img, face.bbox)
+        spoof_status, is_real, liveness_score, _ = liveness_detector.check_liveness(img, extraction.bbox)
         if idx == 0:
             if spoof_status == CvStatus.SPOOF_DETECTED:
-                results.append(_frame_result(idx, spoof_status, quality_score))
+                results.append(_frame_result(idx, spoof_status, extraction.quality_score))
                 logger.warning(f"Phát hiện hành vi giả mạo khuôn mặt ở bước 1 (nhìn thẳng)! score={liveness_score}")
                 return respond_fail(
                     CvStatus.SPOOF_DETECTED,
@@ -130,7 +115,7 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
                 )
         else:
             if spoof_status == CvStatus.SPOOF_DETECTED or (not is_real and liveness_score < 0.25):
-                results.append(_frame_result(idx, CvStatus.SPOOF_DETECTED, quality_score))
+                results.append(_frame_result(idx, CvStatus.SPOOF_DETECTED, extraction.quality_score))
                 logger.warning(f"Phát hiện hành vi giả mạo khuôn mặt ở bước #{idx + 1}! score={liveness_score}")
                 return respond_fail(
                     CvStatus.SPOOF_DETECTED,
@@ -138,31 +123,16 @@ def enroll_face(request: EnrollRequest, req: Request) -> ApiResponse[EnrollRespo
                     results,
                 )
         if spoof_status not in (CvStatus.VALID, CvStatus.SPOOF_DETECTED):
-            results.append(_frame_result(idx, spoof_status, quality_score))
+            results.append(_frame_result(idx, spoof_status, extraction.quality_score))
             return respond_fail(
                 spoof_status,
                 f"Lỗi kiểm tra tính sống ở bước {idx + 1}: {results[-1].message}",
                 results,
             )
 
-        try:
-            vector = embedding_service.extract_embedding(img, face)
-        except ModelNotReadyError:
-            return respond_fail(
-                CvStatus.MODEL_NOT_READY, STATUS_MESSAGES[CvStatus.MODEL_NOT_READY], results
-            )
-        except Exception:  # noqa: BLE001
-            logger.exception(f"Lỗi trích xuất embedding ảnh #{idx}")
-            results.append(_frame_result(idx, CvStatus.INTERNAL_ERROR, quality_score))
-            return respond_fail(
-                CvStatus.INTERNAL_ERROR,
-                f"Lỗi trích xuất đặc trưng khuôn mặt ở bước {idx + 1}. Vui lòng thử lại.",
-                results,
-            )
-
-        valid_vectors.append(vector)
-        quality_scores.append(quality_score)
-        results.append(_frame_result(idx, CvStatus.VALID, quality_score))
+        valid_vectors.append(extraction.embedding)
+        quality_scores.append(extraction.quality_score)
+        results.append(_frame_result(idx, CvStatus.VALID, extraction.quality_score))
 
     if len(valid_vectors) < settings.MIN_ENROLL_IMAGES:
         return respond_fail(

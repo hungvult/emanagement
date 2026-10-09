@@ -34,6 +34,7 @@ public class MinioStorageServiceImpl implements StorageService {
     private final MinioClient minioClient;
     private final String bucketName;
     private final String publicUrl;
+    private final java.util.concurrent.atomic.AtomicBoolean bucketInitialized = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public MinioStorageServiceImpl(
             MinioClient minioClient,
@@ -239,17 +240,76 @@ public class MinioStorageServiceImpl implements StorageService {
         return clean.replaceAll("^/+", "");
     }
 
-    private void ensureBucketExists() {
-        try {
-            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
-            if (!exists) {
-                log.info("Bucket '{}' does not exist. Creating bucket...", bucketName);
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
-                log.info("Bucket '{}' created successfully.", bucketName);
+    @Override
+    public String uploadStream(java.io.InputStream inputStream, long size, String contentType, String folder, String fileNamePrefix) {
+        if (inputStream == null) {
+            throw new IllegalArgumentException("InputStream cannot be null");
+        }
+
+        ensureBucketExists();
+
+        String cleanFolder = (folder != null) ? folder.trim().replaceAll("^/+|/+$", "") : "";
+        if (cleanFolder.isEmpty()) {
+            cleanFolder = "avatars";
+        }
+        String prefix = (fileNamePrefix != null && !fileNamePrefix.trim().isEmpty())
+                ? fileNamePrefix.trim()
+                : "image";
+        String datePath = LocalDate.now().format(DATE_FORMATTER);
+        long timestamp = System.currentTimeMillis();
+        String uuid = UUID.randomUUID().toString();
+
+        String ext = "jpg";
+        if (contentType != null) {
+            String lower = contentType.toLowerCase();
+            if (lower.contains("png")) {
+                ext = "png";
+            } else if (lower.contains("webp")) {
+                ext = "webp";
             }
+        }
+        String mime = (contentType != null && !contentType.isBlank()) ? contentType : "image/jpeg";
+        String objectName = String.format("%s/%s/%s_%d_%s.%s", cleanFolder, datePath, prefix, timestamp, uuid, ext);
+
+        try {
+            long partSize = (size > 0 && size <= 5L * 1024 * 1024) ? -1 : 5L * 1024 * 1024;
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .stream(inputStream, size, partSize)
+                            .contentType(mime)
+                            .build()
+            );
+            log.debug("Uploaded image stream successfully to MinIO: bucket={}, object={}", bucketName, objectName);
         } catch (Exception e) {
-            log.error("Failed to ensure MinIO bucket '{}' exists: {}", bucketName, e.getMessage(), e);
-            throw new RuntimeException("Failed to upload image to MinIO: failed to ensure bucket exists - " + e.getMessage(), e);
+            log.error("Failed to upload stream to MinIO bucket '{}', object '{}': {}", bucketName, objectName, e.getMessage(), e);
+            throw new RuntimeException("Failed to upload image to MinIO: " + e.getMessage(), e);
+        }
+
+        return String.format("%s/%s/%s", publicUrl, bucketName, objectName);
+    }
+
+    private void ensureBucketExists() {
+        if (bucketInitialized.get()) {
+            return;
+        }
+        synchronized (bucketInitialized) {
+            if (bucketInitialized.get()) {
+                return;
+            }
+            try {
+                boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
+                if (!exists) {
+                    log.info("Bucket '{}' does not exist. Creating bucket...", bucketName);
+                    minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+                    log.info("Bucket '{}' created successfully.", bucketName);
+                }
+                bucketInitialized.set(true);
+            } catch (Exception e) {
+                log.error("Failed to ensure MinIO bucket '{}' exists: {}", bucketName, e.getMessage(), e);
+                throw new RuntimeException("Failed to upload image to MinIO: failed to ensure bucket exists - " + e.getMessage(), e);
+            }
         }
     }
 }

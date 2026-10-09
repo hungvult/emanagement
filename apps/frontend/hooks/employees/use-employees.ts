@@ -53,6 +53,7 @@ export function useEmployees() {
 
   // Create Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [createForm, setCreateForm] = useState<{
     fullName: string;
     email: string;
@@ -289,6 +290,8 @@ export function useEmployees() {
     showColumnPicker,
     setShowColumnPicker,
     setIsCreateOpen,
+    isBulkImportOpen,
+    setIsBulkImportOpen,
     filterStatus,
     setFilterStatus,
     setPage,

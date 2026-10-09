@@ -33,15 +33,18 @@ public class AiFaceServiceClientImpl implements AiFaceService {
     private final String baseUrl;
     private final String enrollEndpoint;
     private final String recognizeEndpoint;
+    private final String extractEmbeddingEndpoint;
 
     public AiFaceServiceClientImpl(
             @Value("${ai-service.base-url:http://localhost:8000}") String baseUrl,
             @Value("${ai-service.enroll-endpoint:/api/v1/cv/enroll}") String enrollEndpoint,
-            @Value("${ai-service.recognize-endpoint:/api/v1/cv/recognize}") String recognizeEndpoint) {
+            @Value("${ai-service.recognize-endpoint:/api/v1/cv/recognize}") String recognizeEndpoint,
+            @Value("${ai-service.extract-embedding-endpoint:/api/v1/cv/extract-embedding}") String extractEmbeddingEndpoint) {
         this.restTemplate = new RestTemplate();
         this.baseUrl = baseUrl;
         this.enrollEndpoint = enrollEndpoint;
         this.recognizeEndpoint = recognizeEndpoint;
+        this.extractEmbeddingEndpoint = extractEmbeddingEndpoint;
     }
 
     @Override
@@ -105,8 +108,49 @@ public class AiFaceServiceClientImpl implements AiFaceService {
     }
 
     @Override
+    public com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto extractEmbeddingFromBase64(String imageBase64) {
+        String url = baseUrl + extractEmbeddingEndpoint;
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            java.util.Map<String, String> payload = java.util.Collections.singletonMap("image", imageBase64);
+            HttpEntity<java.util.Map<String, String>> entity = new HttpEntity<>(payload, headers);
+
+            ResponseEntity<AiApiResponse<com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    new ParameterizedTypeReference<AiApiResponse<com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto>>() {});
+
+            AiApiResponse<com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto> body = response.getBody();
+            if (body != null && body.getData() != null) {
+                return body.getData();
+            } else {
+                String status = body != null ? body.getStatus() : "INTERNAL_ERROR";
+                String message = body != null ? body.getMessage() : "Lỗi phản hồi từ AI Service";
+                return com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto.builder()
+                        .status(status)
+                        .message(message)
+                        .build();
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi kết nối HTTP sang CV Service extract-embedding API: {}", e.getMessage(), e);
+            return com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto.builder()
+                    .status("INTERNAL_ERROR")
+                    .message("Không thể kết nối tới AI Service: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @Override
     public List<Double> extractEmbedding(byte[] imageBytes) {
-        return Collections.emptyList();
+        if (imageBytes == null || imageBytes.length == 0) {
+            return Collections.emptyList();
+        }
+        String base64 = java.util.Base64.getEncoder().encodeToString(imageBytes);
+        com.emanagement.backend.modules.face.dto.AiExtractEmbeddingResponseDto res = extractEmbeddingFromBase64(base64);
+        return res.isSuccess() && res.getEmbedding() != null ? res.getEmbedding() : Collections.emptyList();
     }
 
     @Override

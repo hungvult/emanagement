@@ -56,3 +56,28 @@ export const DEFAULT_COLUMN_VISIBILITY: EmployeeColumnVisibility = {
   actions: true,
 };
 
+export type BulkImportStatus =
+  | "PENDING"
+  | "VALIDATING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED";
+
+export interface BulkImportJob {
+  id: number;
+  fileName: string;
+  fileSize: number;
+  status: BulkImportStatus;
+  totalRecords: number;
+  processedRecords: number;
+  successCount: number;
+  failedCount: number;
+  progressPercentage: number;
+  errorLog?: string | null;
+  createdByUserName?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt: string;
+}
+
+
