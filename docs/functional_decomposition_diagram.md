@@ -1,118 +1,430 @@
-# Biểu đồ phân cấp chức năng (Functional Decomposition Diagram)
+# Đặc tả phân rã chức năng (Functional Decomposition Specification)
 
-Tài liệu phân rã cấu trúc chức năng của hệ thống quản trị chấm công nhận diện
-khuôn mặt (eManagement) theo mô hình phân tầng mô-đun (Modular Decomposition).
+Tài liệu đặc tả chi tiết cấu trúc phân rã chức năng (Functional Matrix) của hệ
+thống quản trị chấm công nhận diện khuôn mặt (**eManagement**) gồm 9 phân hệ cốt
+lõi.
 
-## 1. Sơ đồ phân rã tổng quan (Level 0 - Level 1)
+## 1. Module auth: Xác thực & Tài khoản
 
-Sơ đồ thể hiện 6 phân hệ nghiệp vụ chính của hệ thống:
+Quản lý phiên làm việc, định danh người dùng và kiểm soát truy cập an toàn.
 
-```mermaid
-flowchart TD
-    Root(["Hệ thống eManagement"])
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>1.1</b></td>
+      <td>Đăng nhập (Email/Code)</td>
+      <td>Tất cả người dùng</td>
+      <td>Đăng nhập bằng Email hoặc Mã nhân viên kèm mật khẩu. Hệ thống cấp cặp Access Token (JWT hiệu lực 30 phút) và Refresh Token (7 ngày).</td>
+      <td>
+        <code>POST /api/v1/auth/login</code><br>
+        <code>POST /api/v1/auth/refresh-token</code><br>
+        <code>POST /api/v1/auth/logout</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>1.2</b></td>
+      <td>Gửi & Xác thực mã OTP</td>
+      <td>Tất cả người dùng</td>
+      <td>Gửi mã OTP ngẫu nhiên gồm 6 chữ số qua Email khi quên mật khẩu. OTP có hiệu lực trong 5 phút, giới hạn tối đa 3 lần thử sai.</td>
+      <td>
+        <code>POST /api/v1/auth/send-otp</code><br>
+        <code>POST /api/v1/auth/verify-otp</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>1.3</b></td>
+      <td>Đặt lại mật khẩu mới</td>
+      <td>Tất cả người dùng</td>
+      <td>Yêu cầu token xác thực hợp lệ từ bước xác nhận OTP. Mật khẩu mới phải đạt độ dài tối thiểu 8 ký tự, hỗ trợ đổi mật khẩu định kỳ.</td>
+      <td>
+        <code>POST /api/v1/auth/reset-password</code><br>
+        <code>PUT /api/v1/auth/change-password</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>1.4</b></td>
+      <td>Xem hồ sơ cá nhân</td>
+      <td>Người dùng hiện tại</td>
+      <td>Truy xuất thông tin định danh, vai trò (ROLE_ADMIN, ROLE_EMPLOYEE), quyền hạn phân ca và trạng thái dữ liệu Face ID của phiên đăng nhập.</td>
+      <td>
+        <code>GET /api/v1/auth/me</code><br>
+        <code>PUT /api/v1/auth/profile</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-    Root --> M1["1. Quản lý Nhân sự & eKYC"]
-    Root --> M2["2. Quản lý Ca làm việc"]
-    Root --> M3["3. Chấm công Khuôn mặt"]
-    Root --> M4["4. Quản lý Nghỉ phép"]
-    Root --> M5["5. Dashboard & Báo cáo"]
-    Root --> M6["6. Cảnh báo Bất thường"]
-```
+## 2. Module employee: Quản lý Nhân sự
 
-## 2. Chi tiết phân rã từng phân hệ chức năng (Level 1 - Level 3)
+Quản trị thông tin hồ sơ nhân viên và trạng thái tài khoản.
 
-### 2.1. Phân hệ Quản lý Nhân sự & eKYC (HR & Identity Management)
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>2.1</b></td>
+      <td>Tiếp nhận và Tạo mới nhân viên</td>
+      <td>Quản trị viên / HR</td>
+      <td>Tạo mới từng nhân sự hoặc nạp hàng loạt qua file Excel (Bulk Import). Mã nhân viên được kiểm tra trùng lặp trên toàn hệ thống.</td>
+      <td>
+        <code>POST /api/v1/employees</code><br>
+        <code>POST /api/v1/employees/bulk-import</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>2.2</b></td>
+      <td>Cập nhật hồ sơ và Thông tin liên hệ</td>
+      <td>Quản trị viên / HR</td>
+      <td>Điều chỉnh thông tin họ tên, chức danh, số điện thoại, email liên hệ và trạng thái công tác.</td>
+      <td><code>PUT /api/v1/employees/{id}</code></td>
+    </tr>
+    <tr>
+      <td><b>2.3</b></td>
+      <td>Tra cứu, tìm kiếm</td>
+      <td>Quản trị viên / HR</td>
+      <td>Tìm kiếm đa tiêu chí theo tên, mã nhân viên, trạng thái hoạt động; hỗ trợ bộ lọc nâng cao và phân trang dữ liệu server-side.</td>
+      <td>
+        <code>GET /api/v1/employees</code><br>
+        <code>GET /api/v1/employees/{id}</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>2.4</b></td>
+      <td>Quản lý trạng thái tài khoản</td>
+      <td>Quản trị viên / HR</td>
+      <td>Thay đổi trạng thái tài khoản (ACTIVE, SUSPENDED, INACTIVE). Vô hiệu hóa mềm để bảo toàn lịch sử chấm công và ca làm cũ.</td>
+      <td><code>DELETE /api/v1/employees/{id}</code></td>
+    </tr>
+    <tr>
+      <td><b>2.5</b></td>
+      <td>Quản trị dữ liệu Face ID</td>
+      <td>Quản trị viên / HR</td>
+      <td>Xem danh sách ảnh mẫu khuôn mặt đã đăng ký, cho phép xóa dữ liệu Face ID cũ khi nhân viên cần đăng ký lại eKYC mới.</td>
+      <td>
+        <code>GET /api/v1/employees/{id}/face-images</code><br>
+        <code>DELETE /api/v1/employees/{id}/face</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-```mermaid
-flowchart LR
-    F1["1. Nhân sự & eKYC"] --> F11["1.1. Hồ sơ nhân viên"]
-    F1 --> F12["1.2. Đăng ký eKYC khuôn mặt"]
-    F1 --> F13["1.3. Phiên đăng nhập"]
+## 3. Module face: Sinh trắc học eKYC
 
-    F11 --> F111["1.1.1. Thêm / sửa / vô hiệu hóa nhân viên"]
-    F11 --> F112["1.1.2. Quản lý trạng thái làm việc"]
+Quy trình thu thập, kiểm duyệt liveness và trích xuất vector khuôn mặt phục vụ
+định danh tự động.
 
-    F12 --> F121["1.2.1. Chụp ảnh mẫu onboard"]
-    F12 --> F122["1.2.2. Trích xuất vector (CV)"]
-    F12 --> F123["1.2.3. Lưu trữ ảnh MinIO & vector DB"]
-```
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>3.1</b></td>
+      <td>Hướng dẫn 5 bước (MediaPipe)</td>
+      <td>Nhân viên</td>
+      <td>Client hướng dẫn chụp 5 tư thế khuôn mặt (chính diện, nghiêng trái, nghiêng phải, ngửa, cúi). Kiểm tra góc xoay (Yaw/Pitch/Roll) trực tiếp tại trình duyệt bằng MediaPipe Face Mesh.</td>
+      <td>
+        <code>hooks/use-ekyc-flow.ts</code><br>
+        <code>POST /api/v1/cv/validate-frame</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>3.2</b></td>
+      <td>Kiểm tra Liveness & Đổi người</td>
+      <td>Hệ thống AI</td>
+      <td>Phân tích phổ tần số FFT & Texture spectrum nhằm chống giả mạo bằng ảnh in hoặc màn hình điện thoại (Anti-spoofing). Đối sánh khoảng cách embedding giữa các khung hình để phát hiện đổi người trong phiên.</td>
+      <td>
+        <code>POST /api/v1/cv/enroll</code><br>
+        (Dịch vụ Python CV Service)
+      </td>
+    </tr>
+    <tr>
+      <td><b>3.3</b></td>
+      <td>Lưu vector 128D vào face_data</td>
+      <td>Hệ thống</td>
+      <td>Trích xuất vector 128 chiều L2-Normalized bằng MobileNetV2/SFace, ghi bản ghi vector vào bảng DB <code>face_data</code> và tải ảnh crop gốc lưu trữ bảo mật trên MinIO.</td>
+      <td>
+        <code>POST /api/v1/employees/ekyc-enroll</code><br>
+        (MinIO bucket: <code>ekyc-faces</code>)
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-### 2.2. Phân hệ Quản lý Ca làm việc (Shift Management)
+## 4. Module kiosk: Trạm Kiosk AI
 
-```mermaid
-flowchart LR
-    F2["2. Ca làm việc"] --> F21["2.1. Cấu hình ca chuẩn"]
-    F2 --> F22["2.2. Phân ca nhân viên"]
-    F2 --> F23["2.3. Quy tắc tính công"]
+Vận hành điểm chấm công tự động chuyên dụng tại sảnh hoặc cửa ra vào doanh
+nghiệp.
 
-    F21 --> F211["2.1.1. Thiết lập giờ vào / ra"]
-    F21 --> F212["2.1.2. Đặt thời gian ân hạn"]
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>4.1</b></td>
+      <td>Xác thực trạm bằng Device Token</td>
+      <td>Thiết bị Kiosk</td>
+      <td>Xác thực thiết bị phần cứng thông qua mã Device Token riêng biệt, đảm bảo chỉ có trạm được phê duyệt mới được gửi dữ liệu điểm danh.</td>
+      <td><code>POST /api/v1/kiosks/register</code></td>
+    </tr>
+    <tr>
+      <td><b>4.2</b></td>
+      <td>Nhận diện khuôn mặt (SFace)</td>
+      <td>Hệ thống AI</td>
+      <td>Bắt luồng khung hình từ camera Kiosk, trích xuất vector khuôn mặt và so khớp với kho vector nhân sự bằng Cosine Similarity trong dưới 500ms; phát hiện tranh chấp ứng viên (AMBIGUOUS_MATCH).</td>
+      <td><code>POST /api/v1/cv/recognize</code></td>
+    </tr>
+    <tr>
+      <td><b>4.3</b></td>
+      <td>Kiểm tra đi muộn / đúng giờ</td>
+      <td>Hệ thống Backend</td>
+      <td>Đối chiếu mốc thời gian nhận diện với ca làm việc thực tế được phân; tính toán thời gian ân hạn (Grace Period) để phân loại Đúng giờ, Đi muộn hoặc Về sớm.</td>
+      <td><code>POST /api/v1/kiosks/check-in</code></td>
+    </tr>
+    <tr>
+      <td><b>4.4</b></td>
+      <td>Lưu snapshot bằng chứng MinIO</td>
+      <td>Hệ thống</td>
+      <td>Tự động chụp và nén ảnh khung hình tại khoảnh khắc nhận diện thành công hoặc thất bại, đẩy ảnh lên MinIO để phục vụ tra cứu đối soát.</td>
+      <td>MinIO bucket: <code>attendance-snapshots</code></td>
+    </tr>
+  </tbody>
+</table>
 
-    F22 --> F221["2.2.1. Gán ca cho nhân viên"]
-    F22 --> F222["2.2.2. Quản lý thời hạn hiệu lực"]
+## 5. Module attendance: Nhật ký Chấm công
 
-    F23 --> F231["2.3.1. Tính vi phạm trễ / sớm"]
-    F23 --> F232["2.3.2. Tính toán giờ làm tăng ca"]
-```
+Quản lý bản ghi điểm danh, tổng hợp công và hiển thị thống kê chuyên cần thời
+gian thực.
 
-### 2.3. Phân hệ Chấm công Khuôn mặt (AI-based Attendance Tracking)
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>5.1</b></td>
+      <td>Xem lịch sử chấm công cá nhân</td>
+      <td>Nhân viên</td>
+      <td>Xem lại chi tiết thời gian check-in, check-out, số giờ làm việc theo ngày/tháng và ảnh chụp snapshot đối soát của bản thân.</td>
+      <td><code>GET /api/v1/attendances/my-history</code></td>
+    </tr>
+    <tr>
+      <td><b>5.2</b></td>
+      <td>Xem bảng công toàn doanh nghiệp</td>
+      <td>Quản trị viên / HR</td>
+      <td>Xem bảng tổng hợp công toàn thể nhân viên; lọc theo khoảng ngày, trạng thái điểm danh (đúng giờ, đi muộn, về sớm, vắng mặt); hỗ trợ đối soát khi có thắc mắc.</td>
+      <td><code>GET /api/v1/attendances/records</code></td>
+    </tr>
+    <tr>
+      <td><b>5.3</b></td>
+      <td>Thống kê chuyên cần Dashboard</td>
+      <td>Quản trị viên / Quản lý</td>
+      <td>Biểu đồ trực quan thời gian thực: tỷ lệ nhân viên đã đến, số lượng đi muộn, chưa check-in và số nhân sự đang vắng mặt có phép/không phép.</td>
+      <td><code>GET /api/v1/dashboard/overview</code></td>
+    </tr>
+  </tbody>
+</table>
 
-```mermaid
-flowchart LR
-    F3["3. Chấm công AI"] --> F31["3.1. Điểm danh Check-in/out"]
-    F3 --> F32["3.2. Lịch sử cá nhân"]
+## 6. Module shift: Ca làm & Phân ca
 
-    F31 --> F311["3.1.1. Bắt khung hình camera"]
-    F31 --> F312["3.1.2. So khớp vector khuôn mặt"]
-    F31 --> F313["3.1.3. Ghi timestamp & ảnh chụp"]
+Định nghĩa khung thời gian làm việc và phân bổ lịch trực cho nhân viên.
 
-    F32 --> F321["3.2.1. Tra cứu nhật ký theo ngày"]
-    F32 --> F322["3.2.2. Tổng hợp giờ công tháng"]
-```
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>6.1</b></td>
+      <td>Cấu hình ca (Start/End/Grace)</td>
+      <td>Quản trị viên / HR</td>
+      <td>Tạo mới ca làm: giờ bắt đầu (Start Time), giờ kết thúc (End Time) và thời gian ân hạn cho phép đi muộn (Grace Period tính theo phút).</td>
+      <td>
+        <code>POST /api/v1/shifts</code><br>
+        <code>GET /api/v1/shifts</code><br>
+        <code>PUT /api/v1/shifts/{id}</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>6.2</b></td>
+      <td>Phân ca cho nhân viên</td>
+      <td>Quản trị viên / HR</td>
+      <td>Gán ca làm theo ngày, phân ca hàng loạt theo tuần hoặc sao chép lịch làm việc giữa các tuần (Copy Week Schedule).</td>
+      <td>
+        <code>POST /api/v1/shifts/assign</code><br>
+        <code>POST /api/v1/shifts/bulk-assign</code><br>
+        <code>POST /api/v1/shifts/copy-week</code><br>
+        <code>GET /api/v1/shifts/schedule</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-### 2.4. Phân hệ Quản lý Nghỉ phép (Leave Management)
+## 7. Module leave: Quản lý Nghỉ phép
 
-```mermaid
-flowchart LR
-    F4["4. Nghỉ phép"] --> F41["4.1. Tạo đơn nghỉ phép"]
-    F4 --> F42["4.2. Xét duyệt đơn phép"]
-    F4 --> F43["4.3. Quản lý hạn mức nghỉ"]
+Xử lý luồng nộp đơn, xét duyệt và đồng bộ ngày nghỉ vào hệ thống chấm công.
 
-    F41 --> F411["4.1.1. Chọn loại phép & ngày"]
-    F41 --> F412["4.1.2. Nhập lý do nghỉ phép"]
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>7.1</b></td>
+      <td>Nhân viên tạo đơn xin nghỉ phép</td>
+      <td>Nhân viên</td>
+      <td>Chọn loại nghỉ phép (phép năm, nghỉ ốm, việc riêng), khoảng ngày bắt đầu/kết thúc và lý do đính kèm; theo dõi trạng thái đơn (PENDING).</td>
+      <td>
+        <code>POST /api/v1/leave-requests</code><br>
+        <code>GET /api/v1/leave-requests/my-requests</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>7.2</b></td>
+      <td>Quản lý duyệt / từ chối đơn</td>
+      <td>Cấp Quản lý / HR</td>
+      <td>Xem danh sách đơn chờ duyệt; chấp thuận (APPROVED) hoặc từ chối (REJECTED) kèm lý do. Đơn được duyệt tự động cập nhật miễn trừ vi phạm công nhật.</td>
+      <td>
+        <code>GET /api/v1/leave-requests</code><br>
+        <code>PUT /api/v1/leave-requests/{id}/approve</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-    F42 --> F421["4.2.1. Phê duyệt hoặc từ chối"]
-    F42 --> F422["4.2.2. Phản hồi lý do duyệt"]
+## 8. Module alert: Cảnh báo Bất thường
 
-    F43 --> F431["4.3.1. Kiểm soát ngày phép còn"]
-    F43 --> F432["4.3.2. Đồng bộ vào bảng công"]
-```
+Tự động phát hiện nguy cơ gian lận, vi phạm kỷ luật và quy trình tiếp nhận xử lý
+giải trình.
 
-### 2.5. Phân hệ Dashboard & Báo cáo (Dashboard & Reporting)
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>8.1</b></td>
+      <td>Tự động gắn cờ cảnh báo giả mạo</td>
+      <td>Hệ thống AI</td>
+      <td>Tự động sinh cảnh báo mức độ cao khi phát hiện dấu hiệu giả mạo màn hình, ảnh in (SPOOF_DETECTED) trong quá trình chụp eKYC hoặc chấm công Kiosk.</td>
+      <td>Sự kiện hệ thống & lưu trữ cảnh báo</td>
+    </tr>
+    <tr>
+      <td><b>8.2</b></td>
+      <td>Tự động gắn cờ người lạ / tranh chấp</td>
+      <td>Hệ thống AI</td>
+      <td>Cảnh báo khi người chấm công không khớp với bất kỳ nhân sự nào trong DB (NO_MATCH) hoặc nhận diện không dứt khoát giữa 2 ứng viên (AMBIGUOUS_MATCH).</td>
+      <td>Ghi log cảnh báo Kiosk</td>
+    </tr>
+    <tr>
+      <td><b>8.3</b></td>
+      <td>Phát hiện vi phạm (Đi muộn / Về sớm / Vắng mặt)</td>
+      <td>Hệ thống Backend</td>
+      <td>Tự động đối soát ca trực: gắn cờ khi nhân viên không có bản ghi chấm công (Vắng mặt), check-in sau thời gian ân hạn hoặc check-out trước giờ quy định.</td>
+      <td>Scheduled Audit Task</td>
+    </tr>
+    <tr>
+      <td><b>8.4</b></td>
+      <td>Đánh dấu trạng thái đã xử lý</td>
+      <td>Quản trị viên / HR</td>
+      <td>HR kiểm tra ảnh snapshot đối soát, xác nhận đơn giải trình từ nhân viên và chuyển trạng thái cảnh báo sang RESOLVED hoặc DISMISSED.</td>
+      <td>
+        <code>GET /api/v1/alerts</code><br>
+        <code>PUT /api/v1/alerts/{id}/resolve</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-```mermaid
-flowchart LR
-    F5["5. Dashboard & Báo cáo"] --> F51["5.1. Dashboard thời gian thực"]
-    F5 --> F52["5.2. Xuất báo cáo"]
+## 9. Module monitoring: Giám sát Hệ thống
 
-    F51 --> F511["5.1.1. Thống kê quân số ngày"]
-    F51 --> F512["5.1.2. Danh sách trễ & vắng"]
+Quan sát độ sẵn sàng dịch vụ, kiểm soát độ trễ và giám sát tài nguyên máy chủ.
 
-    F52 --> F521["5.2.1. Bộ lọc đa chiều"]
-    F52 --> F522["5.2.2. Xuất báo cáo Excel (.xlsx)"]
-    F52 --> F523["5.2.3. Xuất tổng hợp công PDF"]
-```
-
-### 2.6. Phân hệ Cảnh báo Bất thường (Anomaly Alerting)
-
-```mermaid
-flowchart LR
-    F6["6. Cảnh báo Bất thường"] --> F61["6.1. Giám sát sai lệch"]
-    F6 --> F62["6.2. Xử lý & Phản hồi"]
-
-    F61 --> F611["6.1.1. Quên check-in / check-out"]
-    F61 --> F612["6.1.2. Điểm danh sai trạm / thiết bị"]
-
-    F62 --> F621["6.2.1. Kích hoạt thông báo cảnh báo"]
-    F62 --> F622["6.2.2. Tiếp nhận & xác nhận giải trình"]
-```
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>9.1</b></td>
+      <td>Thu thập chỉ số hiệu năng</td>
+      <td>Hệ thống</td>
+      <td>Thu thập các chỉ số kỹ thuật thông qua Spring Boot Actuator, Python CV Service và Nginx access metrics vào Prometheus (throughput, error rate, active requests).</td>
+      <td><code>GET /actuator/prometheus</code></td>
+    </tr>
+    <tr>
+      <td><b>9.2</b></td>
+      <td>Giám sát độ trễ & Cam kết chất lượng dịch vụ (SLA)</td>
+      <td>Quản trị hệ thống</td>
+      <td>Đo lường histogram phân phối độ trễ (P95, P99) của các API nghiệp vụ nhận diện khuôn mặt và chấm công để đảm bảo đáp ứng SLA thời gian thực dưới 1 giây.</td>
+      <td>Prometheus SLA Buckets</td>
+    </tr>
+    <tr>
+      <td><b>9.3</b></td>
+      <td>Bảng điều khiển tài nguyên máy chủ & JVM</td>
+      <td>Quản trị hệ thống</td>
+      <td>Trực quan hóa tài nguyên CPU, Memory, Disk I/O, JVM Heap Allocation, Garbage Collection và trạng thái connection pool HikariCP trên Grafana.</td>
+      <td>Grafana Dashboard (cổng 80 qua Nginx)</td>
+    </tr>
+  </tbody>
+</table>
