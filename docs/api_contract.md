@@ -110,8 +110,8 @@ Các mã lỗi HTTP tiêu chuẩn được áp dụng thống nhất:
 
 - **Người dùng (Web / Mobile):**
   - Truyền JWT qua Header: `Authorization: Bearer <access_token>`
-  - Vai trò phân quyền (RBAC): `ROLE_ADMIN` (Quản trị viên) và `ROLE_EMPLOYEE`
-    (Nhân viên).
+  - Vai trò phân quyền (RBAC): `ROLE_ADMIN` (Quản trị viên) và `ROLE_USER` (Nhân
+    viên).
 - **Luồng làm mới Token (Refresh Token Rotation):**
   - Khi Access Token hết hạn (nhận mã HTTP 401), Client không đăng xuất ngay mà
     gửi yêu cầu cấp mới:
@@ -152,7 +152,8 @@ Các mã lỗi HTTP tiêu chuẩn được áp dụng thống nhất:
 - **Quy chuẩn Content-Type & Tải lên tệp (File Uploads):**
   - Mặc định toàn hệ thống sử dụng: `application/json` (bao gồm cả chuỗi Base64
     ảnh chân dung eKYC và frame ảnh Kiosk).
-  - Ngoại lệ duy nhất cho tính năng nạp nhân viên hàng loạt (`BulkImportController`):
+  - Ngoại lệ duy nhất cho tính năng nạp nhân viên hàng loạt
+    (`BulkImportController`):
     - Endpoint: `POST /api/v1/employees/bulk-import`
     - Content-Type: `multipart/form-data`
     - Tên form field: `file`
@@ -238,8 +239,9 @@ thị giác theo thời gian thực cho Client:
 
 ```json
 {
+  "success": true,
   "status": "VALID",
-  "message": "Khung hình hợp lệ",
+  "message": "Khung hình hợp lệ.",
   "data": {
     "face_count": 1,
     "quality_score": 0.92,
@@ -265,54 +267,99 @@ camera:
     <tr>
       <th>Mã CvStatus</th>
       <th>Ý nghĩa trạng thái</th>
-      <th>Thông điệp hiển thị trên UI</th>
+      <th>Thông điệp hệ thống (STATUS_MESSAGES)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td><code>VALID</code></td>
       <td>Ảnh khuôn mặt đạt chuẩn</td>
-      <td>Khung hình hợp lệ, giữ nguyên vị trí</td>
+      <td>Khung hình hợp lệ.</td>
     </tr>
     <tr>
       <td><code>NO_FACE</code></td>
       <td>Không tìm thấy khuôn mặt</td>
-      <td>Vui lòng đưa khuôn mặt vào giữa khung hình</td>
+      <td>Không phát hiện khuôn mặt trong vùng camera.</td>
     </tr>
     <tr>
       <td><code>MULTIPLE_FACES</code></td>
       <td>Có nhiều hơn một khuôn mặt</td>
-      <td>Chỉ được có một người trước camera</td>
+      <td>Phát hiện nhiều khuôn mặt trong vùng camera. Chỉ chấp nhận 1 người.</td>
     </tr>
     <tr>
-      <td><code>POOR_LIGHTING</code> / <code>LOW_QUALITY</code></td>
-      <td>Ánh sáng quá yếu hoặc ảnh mờ</td>
-      <td>Khuôn mặt quá tối hoặc mờ, vui lòng cải thiện ánh sáng</td>
-    </tr>
-    <tr>
-      <td><code>INVALID_POSE</code></td>
-      <td>Góc quay đầu lệch quá ngưỡng</td>
-      <td>Vui lòng nhìn thẳng vào camera</td>
-    </tr>
-    <tr>
-      <td><code>TOO_FAR</code></td>
+      <td><code>FACE_TOO_SMALL</code></td>
       <td>Khuôn mặt ở quá xa</td>
-      <td>Vui lòng tiến lại gần camera hơn</td>
+      <td>Khuôn mặt quá nhỏ. Vui lòng tiến lại gần camera.</td>
     </tr>
     <tr>
-      <td><code>TOO_CLOSE</code></td>
-      <td>Khuôn mặt ở quá gần</td>
-      <td>Vui lòng lùi ra xa camera một chút</td>
+      <td><code>FACE_NOT_CENTERED</code></td>
+      <td>Khuôn mặt lệch khỏi vùng quét</td>
+      <td>Khuôn mặt nằm ngoài vùng quét hợp lệ. Vui lòng di chuyển vào giữa.</td>
+    </tr>
+    <tr>
+      <td><code>FACE_POSE_INVALID</code></td>
+      <td>Góc quay đầu lệch quá ngưỡng</td>
+      <td>Góc nghiêng khuôn mặt không hợp lệ. Vui lòng nhìn thẳng vào camera.</td>
+    </tr>
+    <tr>
+      <td><code>FACE_UNSTABLE</code></td>
+      <td>Khuôn mặt chuyển động liên tục</td>
+      <td>Vị trí khuôn mặt chưa ổn định. Vui lòng giữ nguyên tư thế.</td>
+    </tr>
+    <tr>
+      <td><code>IMAGE_TOO_BLURRY</code></td>
+      <td>Ảnh bị mờ nhòe (Laplacian blur)</td>
+      <td>Hình ảnh bị mờ. Vui lòng giữ yên hoặc kiểm tra ống kính camera.</td>
+    </tr>
+    <tr>
+      <td><code>IMAGE_TOO_DARK</code></td>
+      <td>Ánh sáng quá yếu</td>
+      <td>Chưa đủ ánh sáng để chấm công. Vui lòng điều chỉnh ánh sáng để khuôn mặt được chiếu sáng rõ.</td>
+    </tr>
+    <tr>
+      <td><code>LOW_FACE_QUALITY</code></td>
+      <td>Chất lượng chung không đạt</td>
+      <td>Chất lượng khuôn mặt không đạt yêu cầu.</td>
     </tr>
     <tr>
       <td><code>SPOOF_DETECTED</code></td>
-      <td>Phát hiện giả mạo khuôn mặt</td>
-      <td>Phát hiện dấu hiệu giả mạo (ảnh chụp lại / video / mặt nạ)</td>
+      <td>Phát hiện giả mạo khuôn mặt (Anti-Spoofing)</td>
+      <td>Phát hiện hành vi giả mạo khuôn mặt (Anti-Spoofing).</td>
+    </tr>
+    <tr>
+      <td><code>UNKNOWN_FACE</code></td>
+      <td>Không nhận diện được nhân viên</td>
+      <td>Không nhận diện được nhân viên trên hệ thống.</td>
+    </tr>
+    <tr>
+      <td><code>AMBIGUOUS_MATCH</code></td>
+      <td>Tranh chấp nhận diện (khoảng cách 2 ứng viên quá gần)</td>
+      <td>Độ tương đồng giữa các ứng viên quá gần nhau. Không thể xác định chính xác.</td>
+    </tr>
+    <tr>
+      <td><code>MATCHED</code></td>
+      <td>Nhận diện thành công</td>
+      <td>Nhận diện thành công.</td>
     </tr>
     <tr>
       <td><code>ENROLLMENT_SUCCESS</code></td>
       <td>Đăng ký khuôn mặt thành công</td>
-      <td>Đã đăng ký dữ liệu khuôn mặt thành công</td>
+      <td>Đăng ký dữ liệu khuôn mặt thành công.</td>
+    </tr>
+    <tr>
+      <td><code>INVALID_IMAGE</code></td>
+      <td>Dữ liệu ảnh không hợp lệ / lỗi Base64</td>
+      <td>Không đọc được dữ liệu hình ảnh gửi lên.</td>
+    </tr>
+    <tr>
+      <td><code>MODEL_NOT_READY</code></td>
+      <td>Trọng số mô hình AI chưa sẵn sàng</td>
+      <td>Mô hình AI chưa được nạp. Vui lòng liên hệ quản trị hệ thống.</td>
+    </tr>
+    <tr>
+      <td><code>INTERNAL_ERROR</code></td>
+      <td>Lỗi máy chủ thị giác máy tính</td>
+      <td>Lỗi xử lý nội bộ dịch vụ AI.</td>
     </tr>
   </tbody>
 </table>

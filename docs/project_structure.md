@@ -15,15 +15,15 @@ Sơ đồ tổ chức mã nguồn và thư mục của hệ thống eManagement.
 │   │   ├── Dockerfile
 │   │   └── package.json
 │   ├── backend/                       # Spring Boot Monolith Service (Java 21)
-│   │   ├── src/main/java/             # Mã nguồn nghiệp vụ chia theo modules
-│   │   │   └── com/emanagement/backend/modules/ (auth, employee, face, kiosk, attendance, shift, leave, alert...)
-│   │   ├── src/main/resources/        # Cấu hình (application.yml, logging, db/)
+│   │   ├── src/main/java/             # Mã nguồn nghiệp vụ chia theo 11 modules
+│   │   │   └── com/emanagement/backend/modules/ (alert, attendance, auth, bulkimport, dashboard, employee, face, kiosk, leave, notification, shift)
+│   │   ├── src/main/resources/        # Cấu hình (application.yml, logging, db/migration)
 │   │   ├── Dockerfile
 │   │   ├── pom.xml
 │   │   └── mvnw
 │   └── cv-service/                    # Python Computer Vision Service (FastAPI)
 │       ├── app/                       # Pipeline kiểm tra khung hình, trích xuất vector, API
-│       ├── weights/                   # Trọng số mô hình nhận diện khuôn mặt
+│       ├── weights/                   # 3 mô hình ONNX (YuNet detection, MiniFASNetV2 anti-spoofing, SFace recognition)
 │       ├── Dockerfile
 │       └── requirements.txt
 ├── docker/                            # Cấu hình các dịch vụ phụ trợ

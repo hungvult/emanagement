@@ -87,37 +87,42 @@ Dịch vụ lõi xử lý toàn bộ logic nghiệp vụ, bảo mật và tươn
 
 ## 3. Computer Vision (AI Service)
 
-Dịch vụ chuyên biệt xử lý thị giác máy tính và nhận diện sinh trắc học khuôn
-mặt.
+Dịch vụ chuyên biệt xử lý thị giác máy tính, kiểm tra liveness và nhận diện sinh
+trắc học khuôn mặt.
 
 <table>
   <thead>
     <tr>
       <th>Thành phần</th>
-      <th>Công nghệ / Thư viện</th>
+      <th>Công nghệ / Mô hình</th>
       <th>Vai trò trong hệ thống</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td><b>API Service</b></td>
+      <td><b>API Framework</b></td>
       <td>Python 3.10+, FastAPI, Uvicorn</td>
-      <td>Cung cấp REST API hiệu năng cao phục vụ kiểm tra khung hình (`validate-frame`), đăng ký (`enroll`) và nhận diện (`recognize`).</td>
+      <td>Cung cấp REST API phi đồng bộ hiệu năng cao phục vụ đánh giá khung hình (<code>/api/v1/cv/validate-frame</code>), đăng ký 5 ảnh eKYC (<code>/api/v1/cv/enroll</code>) và nhận diện Kiosk (<code>/api/v1/cv/recognize</code>).</td>
     </tr>
     <tr>
-      <td><b>AI & Computer Vision</b></td>
-      <td>OpenCV (cv2.dnn), NumPy, Pillow</td>
-      <td>Xử lý ảnh ma trận, căn chỉnh khuôn mặt, chạy inference mô hình học sâu SFace và MobileNetV2 qua module DNN nhẹ và tối ưu.</td>
+      <td><b>Inference Engine</b></td>
+      <td>OpenCV (<code>cv2.dnn</code>), NumPy, Pillow</td>
+      <td>Chạy suy luận trực tiếp các mô hình ONNX tối ưu trên CPU không cần CUDA, xử lý căn chỉnh khuôn mặt (face alignment) và biến đổi ma trận ảnh.</td>
     </tr>
     <tr>
-      <td><b>Feature Extraction</b></td>
-      <td>Deep Neural Network (128D Embedding)</td>
-      <td>Trích xuất vector đặc trưng khuôn mặt 128 chiều chuẩn hóa L2, hỗ trợ so khớp Cosine Similarity tốc độ cao.</td>
+      <td><b>Face Detection</b></td>
+      <td>YuNet (<code>face_detection_yunet_2023mar.onnx</code>)</td>
+      <td>Phát hiện vị trí bounding box và 5 điểm mốc đặc trưng khuôn mặt (mắt, mũi, khóe miệng) với độ trễ cực thấp (< 30ms).</td>
     </tr>
     <tr>
       <td><b>Anti-spoofing</b></td>
-      <td>FFT Spectrum & Texture Analysis</td>
-      <td>Phân tích tần số không gian và kết cấu để phát hiện giả mạo khuôn mặt bằng ảnh in hoặc màn hình thiết bị.</td>
+      <td>MiniFASNetV2 (<code>2.7_80x80_MiniFASNetV2.onnx</code>) & FFT Analysis</td>
+      <td>Mô hình nơ-ron học sâu MiniFASNetV2 kết hợp phân tích phổ tần số Fourier (FFT) và phân tích texture để phát hiện hành vi giả mạo bằng ảnh in, video phát lại hoặc màn hình điện thoại/máy tính (<code>SPOOF_DETECTED</code>).</td>
+    </tr>
+    <tr>
+      <td><b>Feature Extraction</b></td>
+      <td>SFace (<code>face_recognition_sface_2021dec.onnx</code>)</td>
+      <td>Trích xuất vector embedding 128 chiều chuẩn hóa L2 (L2-Normalized), hỗ trợ so khớp nhận diện bằng độ tương đồng Cosine (Cosine Similarity) trong dưới 10ms.</td>
     </tr>
   </tbody>
 </table>

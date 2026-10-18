@@ -1,8 +1,8 @@
 # Đặc tả phân rã chức năng (Functional Decomposition Specification)
 
 Tài liệu đặc tả chi tiết cấu trúc phân rã chức năng (Functional Matrix) của hệ
-thống quản trị chấm công nhận diện khuôn mặt (**eManagement**) gồm 9 phân hệ cốt
-lõi.
+thống quản trị chấm công nhận diện khuôn mặt (**eManagement**) gồm 11 phân hệ
+cốt lõi.
 
 ## 1. Module auth: Xác thực & Tài khoản
 
@@ -54,7 +54,7 @@ Quản lý phiên làm việc, định danh người dùng và kiểm soát truy
       <td><b>1.4</b></td>
       <td>Xem hồ sơ cá nhân</td>
       <td>Người dùng hiện tại</td>
-      <td>Truy xuất thông tin định danh, vai trò (ROLE_ADMIN, ROLE_EMPLOYEE), quyền hạn phân ca và trạng thái dữ liệu Face ID của phiên đăng nhập.</td>
+      <td>Truy xuất thông tin định danh, vai trò (ROLE_ADMIN, ROLE_USER), quyền hạn phân ca và trạng thái dữ liệu Face ID của phiên đăng nhập.</td>
       <td>
         <code>GET /api/v1/auth/me</code><br>
         <code>PUT /api/v1/auth/profile</code>
@@ -145,7 +145,7 @@ Quy trình thu thập, kiểm duyệt liveness và trích xuất vector khuôn m
       <td><b>3.1</b></td>
       <td>Hướng dẫn 5 bước (MediaPipe)</td>
       <td>Nhân viên</td>
-      <td>Client hướng dẫn chụp 5 tư thế khuôn mặt (chính diện, nghiêng trái, nghiêng phải, ngửa, cúi). Kiểm tra góc xoay (Yaw/Pitch/Roll) trực tiếp tại trình duyệt bằng MediaPipe Face Mesh.</td>
+      <td>Client hướng dẫn thu thập 5 ảnh khuôn mặt chuẩn: Chính diện (<code>front</code>), Nháy mắt (<code>blink</code> - kiểm tra cử động liveness), Nghiêng trái (<code>left</code>), Nghiêng phải (<code>right</code>), Ngửa đầu (<code>up</code>). Kiểm tra góc xoay (Yaw/Pitch/Roll) và vùng quét trực tiếp tại trình duyệt bằng MediaPipe Face Mesh.</td>
       <td>
         <code>hooks/use-ekyc-flow.ts</code><br>
         <code>POST /api/v1/cv/validate-frame</code>
@@ -155,7 +155,7 @@ Quy trình thu thập, kiểm duyệt liveness và trích xuất vector khuôn m
       <td><b>3.2</b></td>
       <td>Kiểm tra Liveness & Đổi người</td>
       <td>Hệ thống AI</td>
-      <td>Phân tích phổ tần số FFT & Texture spectrum nhằm chống giả mạo bằng ảnh in hoặc màn hình điện thoại (Anti-spoofing). Đối sánh khoảng cách embedding giữa các khung hình để phát hiện đổi người trong phiên.</td>
+      <td>Chống giả mạo Anti-spoofing kết hợp mô hình học sâu MiniFASNetV2 (<code>2.7_80x80_MiniFASNetV2.onnx</code>) và phân tích phổ tần số FFT & Texture spectrum nhằm phát hiện ảnh in, màn hình điện thoại, video phát lại (<code>SPOOF_DETECTED</code>). Đồng thời đối sánh khoảng cách embedding giữa các khung hình để phát hiện đổi người trong phiên.</td>
       <td>
         <code>POST /api/v1/cv/enroll</code><br>
         (Dịch vụ Python CV Service)
@@ -165,7 +165,7 @@ Quy trình thu thập, kiểm duyệt liveness và trích xuất vector khuôn m
       <td><b>3.3</b></td>
       <td>Lưu vector 128D vào face_data</td>
       <td>Hệ thống</td>
-      <td>Trích xuất vector 128 chiều L2-Normalized bằng MobileNetV2/SFace, ghi bản ghi vector vào bảng DB <code>face_data</code> và tải ảnh crop gốc lưu trữ bảo mật trên MinIO.</td>
+      <td>Trích xuất vector 128 chiều L2-Normalized bằng mô hình học sâu SFace (<code>face_recognition_sface_2021dec.onnx</code>), ghi bản ghi vector vào bảng DB <code>face_data</code> và tải bộ 5 ảnh crop gốc lưu trữ bảo mật trên MinIO (bucket: <code>ekyc-faces</code>).</td>
       <td>
         <code>POST /api/v1/employees/ekyc-enroll</code><br>
         (MinIO bucket: <code>ekyc-faces</code>)
@@ -425,6 +425,92 @@ Quan sát độ sẵn sàng dịch vụ, kiểm soát độ trễ và giám sát
       <td>Quản trị hệ thống</td>
       <td>Trực quan hóa tài nguyên CPU, Memory, Disk I/O, JVM Heap Allocation, Garbage Collection và trạng thái connection pool HikariCP trên Grafana.</td>
       <td>Grafana Dashboard (cổng 80 qua Nginx)</td>
+    </tr>
+  </tbody>
+</table>
+
+## 10. Module bulkimport: Nạp dữ liệu Nhân sự hàng loạt
+
+Tiếp nhận tệp dữ liệu lớn, xử lý trích xuất vector khuôn mặt và nạp nhân viên
+bất đồng bộ.
+
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>10.1</b></td>
+      <td>Tải lên gói dữ liệu ZIP & Khởi tạo Job</td>
+      <td>Quản trị viên / HR</td>
+      <td>Tiếp nhận tệp ZIP (tối đa 150MB) chứa tệp <code>employees.csv</code> và thư mục ảnh chân dung. Kiểm tra định dạng sơ bộ, lưu file và khởi tạo tiến trình nạp ngầm (Bulk Import Job) với trạng thái PENDING.</td>
+      <td><code>POST /api/v1/employees/bulk-import</code></td>
+    </tr>
+    <tr>
+      <td><b>10.2</b></td>
+      <td>Theo dõi tiến trình & Xử lý bất đồng bộ</td>
+      <td>Quản trị viên / HR</td>
+      <td>Theo dõi trạng thái thời gian thực của job (PROCESSING, COMPLETED, FAILED), tỷ lệ hoàn thành (%), số bản ghi thành công/thất bại và khôi phục hiển thị khi chuyển trang.</td>
+      <td>
+        <code>GET /api/v1/employees/bulk-import/jobs/active</code><br>
+        <code>GET /api/v1/employees/bulk-import/jobs/{id}</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>10.3</b></td>
+      <td>Lịch sử import & Tải tệp CSV mẫu</td>
+      <td>Quản trị viên / HR</td>
+      <td>Xem danh sách các đợt import trong quá khứ kèm chi tiết nhật ký lỗi (error log); cho phép tải file CSV mẫu chuẩn để chuẩn bị dữ liệu.</td>
+      <td>
+        <code>GET /api/v1/employees/bulk-import/jobs</code><br>
+        <code>GET /api/v1/employees/bulk-import/template</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 11. Module notification: Hệ thống Thông báo nội bộ
+
+Quản trị và gửi nhận thông báo liên quan đến ca làm, duyệt đơn nghỉ và cảnh báo
+chấm công.
+
+<table>
+  <thead>
+    <tr>
+      <th>Mã</th>
+      <th>Chức năng</th>
+      <th>Tác nhân (Actor)</th>
+      <th>Mô tả & Quy tắc nghiệp vụ (Business Rules)</th>
+      <th>Ánh xạ Kỹ thuật / API</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>11.1</b></td>
+      <td>Xem thông báo cá nhân & Đếm tin chưa đọc</td>
+      <td>Tất cả người dùng</td>
+      <td>Xem danh sách thông báo phân trang về trạng thái đơn nghỉ phép, thay đổi lịch ca làm việc và cảnh báo chuyên cần; hiển thị huy hiệu (badge) số lượng thông báo chưa đọc trên giao diện.</td>
+      <td>
+        <code>GET /api/v1/notifications/my</code><br>
+        <code>GET /api/v1/notifications/unread-count</code>
+      </td>
+    </tr>
+    <tr>
+      <td><b>11.2</b></td>
+      <td>Đánh dấu đã đọc & Xóa thông báo</td>
+      <td>Tất cả người dùng</td>
+      <td>Cho phép đánh dấu từng thông báo đã đọc, đánh dấu đọc tất cả (mark-all-as-read) hoặc xóa các thông báo không còn cần thiết.</td>
+      <td>
+        <code>PUT /api/v1/notifications/{id}/read</code><br>
+        <code>PUT /api/v1/notifications/read-all</code><br>
+        <code>DELETE /api/v1/notifications/{id}</code>
+      </td>
     </tr>
   </tbody>
 </table>
