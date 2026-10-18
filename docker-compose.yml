@@ -77,9 +77,6 @@ services:
       - FACE_MATCH_THRESHOLD=${FACE_MATCH_THRESHOLD:-0.40}
     expose:
       - "8000"
-    volumes:
-      - ./apps/cv-service/weights:/app/weights:ro
-      - ./apps/cv-service/app:/app/app:ro
 
     healthcheck:
       test:
