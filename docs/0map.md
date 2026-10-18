@@ -16,6 +16,10 @@
 
 - [[project_structure]]
 
+## API & Integration
+
+- [[api_contract]]
+
 ## Database
 
 - [[database_schema]]
