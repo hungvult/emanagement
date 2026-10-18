@@ -6,7 +6,7 @@
 
 - [technical_requirements]
 
-- [[functional_decomposition_diagram]]
+- [[functional_decomposition]]
 
 ## Architecture
 
