@@ -99,4 +99,58 @@ class EmployeeServiceImplTest {
         assertEquals("ACTIVE", result.getStatus());
         verify(refreshTokenRepository, never()).revokeAllByUserId(anyLong());
     }
+
+    @Test
+    @DisplayName("deleteEmployee: Xóa cả avatar và eKYC photos trên MinIO khi nhân viên có avatar")
+    void deleteEmployee_WithAvatar_DeletesAvatarAndFacesAndUser() {
+        user.setAvatarUrl("avatars/2026/10/20/avatar_EMP010.jpg");
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(faceDataRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+
+        employeeService.deleteEmployee(10L);
+
+        verify(storageService, times(1)).deleteImageByUrl("avatars/2026/10/20/avatar_EMP010.jpg");
+        verify(userRepository, times(1)).delete(user);
+    }
+
+    @Test
+    @DisplayName("deleteEmployee: Khi MinIO lỗi khi xóa avatar thì vẫn xóa user và không ném Exception")
+    void deleteEmployee_AvatarDeletionThrows_ContinuesAndDeletesUser() {
+        user.setAvatarUrl("avatars/2026/10/20/avatar_EMP010.jpg");
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(faceDataRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+        doThrow(new RuntimeException("MinIO connection timed out")).when(storageService).deleteImageByUrl(anyString());
+
+        assertDoesNotThrow(() -> employeeService.deleteEmployee(10L));
+
+        verify(storageService, times(1)).deleteImageByUrl("avatars/2026/10/20/avatar_EMP010.jpg");
+        verify(userRepository, times(1)).delete(user);
+    }
+
+    @Test
+    @DisplayName("deleteEmployee: Không có avatar thì không gọi storageService xóa avatar")
+    void deleteEmployee_NoAvatar_DoesNotCallDeleteImageByUrl() {
+        user.setAvatarUrl(null);
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(faceDataRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+
+        employeeService.deleteEmployee(10L);
+
+        verify(storageService, never()).deleteImageByUrl(anyString());
+        verify(userRepository, times(1)).delete(user);
+    }
+
+    @Test
+    @DisplayName("deleteEmployee: Avatar là chuỗi trắng (blank) thì không gọi storageService xóa avatar")
+    void deleteEmployee_BlankAvatar_DoesNotCallDeleteImageByUrl() {
+        user.setAvatarUrl("   ");
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(faceDataRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+
+        employeeService.deleteEmployee(10L);
+
+        verify(storageService, never()).deleteImageByUrl(anyString());
+        verify(userRepository, times(1)).delete(user);
+    }
 }
+

@@ -320,9 +320,9 @@ public class BulkImportServiceImpl implements BulkImportService {
             }
 
             // Tải ảnh đại diện lên MinIO Object Storage
-            String avatarUrl;
+            String avatarKey;
             try (InputStream is = Files.newInputStream(imgPath)) {
-                avatarUrl = storageService.uploadStream(
+                avatarKey = storageService.uploadStream(
                         is,
                         imgBytes.length,
                         "image/jpeg",
@@ -339,7 +339,7 @@ public class BulkImportServiceImpl implements BulkImportService {
                     row.email(),
                     row.phone(),
                     DEFAULT_PASSWORD_HASH,
-                    avatarUrl,
+                    avatarKey,
                     vectorString));
 
         } catch (Exception e) {
