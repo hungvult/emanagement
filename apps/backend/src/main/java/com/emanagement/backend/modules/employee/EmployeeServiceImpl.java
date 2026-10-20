@@ -165,6 +165,15 @@ public class EmployeeServiceImpl implements EmployeeService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + id));
 
+        // Xóa ảnh đại diện (avatar) của nhân viên trên MinIO nếu có
+        if (user.getAvatarUrl() != null && !user.getAvatarUrl().isBlank()) {
+            try {
+                storageService.deleteImageByUrl(user.getAvatarUrl());
+            } catch (Exception e) {
+                log.warn("Lỗi khi xóa ảnh đại diện nhân viên trên MinIO ({}): {}", user.getAvatarUrl(), e.getMessage());
+            }
+        }
+
         // Xóa ảnh eKYC của nhân viên trên MinIO nếu có
         List<FaceData> existingFaces = faceDataRepository.findByUserId(user.getId());
         for (FaceData face : existingFaces) {
@@ -224,13 +233,13 @@ public class EmployeeServiceImpl implements EmployeeService {
                     String step = stepNames[i];
                     String prefix = "ekyc_" + user.getEmployeeCode() + "_" + step;
                     try {
-                        String url = storageService.uploadBase64Image(base64Img, "faces", prefix);
+                        String objectKey = storageService.uploadBase64Image(base64Img, StorageService.FOLDER_FACES, prefix);
                         switch (i) {
-                            case 0 -> newFace.setFrontImageUrl(url);
-                            case 1 -> newFace.setBlinkImageUrl(url);
-                            case 2 -> newFace.setLeftImageUrl(url);
-                            case 3 -> newFace.setRightImageUrl(url);
-                            case 4 -> newFace.setUpImageUrl(url);
+                            case 0 -> newFace.setFrontImageUrl(objectKey);
+                            case 1 -> newFace.setBlinkImageUrl(objectKey);
+                            case 2 -> newFace.setLeftImageUrl(objectKey);
+                            case 3 -> newFace.setRightImageUrl(objectKey);
+                            case 4 -> newFace.setUpImageUrl(objectKey);
                         }
                     } catch (Exception e) {
                         log.warn("Không thể lưu ảnh eKYC bước {} cho nhân viên {}: {}", step, user.getEmployeeCode(), e.getMessage());

@@ -8,6 +8,7 @@ import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -30,22 +31,68 @@ import lombok.extern.slf4j.Slf4j;
 public class MinioStorageServiceImpl implements StorageService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+    private static final java.util.regex.Pattern STANDARD_FOLDER_PATTERN = java.util.regex.Pattern.compile(
+            "(?:^|/)(" + FOLDER_AVATARS + "|" + FOLDER_FACES + "|" + FOLDER_SNAPSHOTS + ")/");
+    private static final java.util.regex.Pattern WHITESPACE_PATTERN = java.util.regex.Pattern.compile("\\s+");
 
     private final MinioClient minioClient;
     private final String bucketName;
     private final String publicUrl;
+    private final String endpointHost;
+    private final int endpointPort;
     private final java.util.concurrent.atomic.AtomicBoolean bucketInitialized = new java.util.concurrent.atomic.AtomicBoolean(false);
 
+    @Autowired
     public MinioStorageServiceImpl(
             MinioClient minioClient,
             @Value("${minio.bucket-name:attendance-images}") String bucketName,
-            @Value("${minio.public-url:/storage}") String publicUrl) {
+            @Value("${minio.public-url:/storage}") String publicUrl,
+            @Value("${minio.endpoint:http://localhost:9000}") String endpoint) {
         this.minioClient = minioClient;
         String sanitizedBucket = (bucketName != null) ? bucketName.trim().replaceAll("^/+|/+$", "") : "";
         this.bucketName = sanitizedBucket.isEmpty() ? "attendance-images" : sanitizedBucket;
         String sanitizedPublicUrl = (publicUrl != null) ? publicUrl.trim().replaceAll("/+$", "") : "";
         this.publicUrl = sanitizedPublicUrl.isEmpty() ? "/storage" : sanitizedPublicUrl;
+
+        String parsedHost = null;
+        int parsedPort = -1;
+        if (endpoint != null && !endpoint.trim().isEmpty()) {
+            try {
+                String trimmed = endpoint.trim();
+                if (!trimmed.regionMatches(true, 0, "http://", 0, 7) && !trimmed.regionMatches(true, 0, "https://", 0, 8)) {
+                    trimmed = "http://" + trimmed;
+                }
+                URI endpointUri = URI.create(trimmed);
+                parsedHost = endpointUri.getHost();
+                parsedPort = endpointUri.getPort();
+                if (parsedHost == null && endpointUri.getAuthority() != null) {
+                    String auth = endpointUri.getAuthority();
+                    int colon = auth.lastIndexOf(':');
+                    parsedHost = (colon != -1) ? auth.substring(0, colon) : auth;
+                    if (parsedPort == -1 && colon != -1) {
+                        try {
+                            parsedPort = Integer.parseInt(auth.substring(colon + 1));
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+                if (parsedPort == -1) {
+                    parsedPort = "https".equalsIgnoreCase(endpointUri.getScheme()) ? 443 : 80;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse minio.endpoint '{}': {}", endpoint, e.getMessage());
+            }
+        }
+        this.endpointHost = (parsedHost != null && !parsedHost.isBlank()) ? parsedHost.toLowerCase() : "localhost";
+        this.endpointPort = (parsedPort > 0) ? parsedPort : 9000;
     }
+
+    public MinioStorageServiceImpl(
+            MinioClient minioClient,
+            String bucketName,
+            String publicUrl) {
+        this(minioClient, bucketName, publicUrl, "http://localhost:9000");
+    }
+
 
     @Override
     public String uploadBase64Image(String base64Data, String folder, String fileNamePrefix) {
@@ -76,7 +123,7 @@ public class MinioStorageServiceImpl implements StorageService {
             }
         }
 
-        payload = payload.replaceAll("\\s+", "");
+        payload = WHITESPACE_PATTERN.matcher(payload).replaceAll("");
 
         byte[] imageBytes;
         try {
@@ -93,7 +140,7 @@ public class MinioStorageServiceImpl implements StorageService {
 
         String cleanFolder = (folder != null) ? folder.trim().replaceAll("^/+|/+$", "") : "";
         if (cleanFolder.isEmpty()) {
-            cleanFolder = "snapshots";
+            cleanFolder = FOLDER_SNAPSHOTS;
         }
         String prefix = (fileNamePrefix != null && !fileNamePrefix.trim().isEmpty())
                 ? fileNamePrefix.trim()
@@ -119,9 +166,8 @@ public class MinioStorageServiceImpl implements StorageService {
             throw new RuntimeException("Failed to upload image to MinIO: " + e.getMessage(), e);
         }
 
-        String resultUrl = String.format("%s/%s/%s", publicUrl, bucketName, objectName);
-        log.info("Public image URL stored: {}", resultUrl);
-        return resultUrl;
+        log.info("Stored image object key: {}", objectName);
+        return objectName;
     }
 
     @Override
@@ -136,25 +182,9 @@ public class MinioStorageServiceImpl implements StorageService {
             return clean;
         }
 
-        // Return external absolute URLs unchanged unless pointing to internal endpoints
-        if (clean.startsWith("http://") || clean.startsWith("https://")) {
-            try {
-                URI uri = URI.create(clean);
-                String host = uri.getHost();
-                boolean isInternalHost = "minio".equalsIgnoreCase(host)
-                        || "localhost".equalsIgnoreCase(host)
-                        || "127.0.0.1".equalsIgnoreCase(host);
-
-                if (!isInternalHost && !clean.startsWith(publicUrl)) {
-                    return clean;
-                }
-            } catch (Exception e) {
-                return clean;
-            }
-        }
-
         String objectName = extractObjectName(clean);
         if (objectName == null || objectName.isEmpty()) {
+            // External URL (e.g. Google avatar, CDN) or unextractable path
             return rawPathOrUrl;
         }
 
@@ -176,13 +206,13 @@ public class MinioStorageServiceImpl implements StorageService {
             return publicUrl + pathAndQuery;
         } catch (Exception e) {
             log.error("Failed to generate presigned URL for object '{}': {}", objectName, e.getMessage());
-            return rawPathOrUrl;
+            return String.format("%s/%s/%s", publicUrl, bucketName, objectName);
         }
     }
 
     @Override
-    public void deleteImageByUrl(String imageUrl) {
-        String objectName = extractObjectName(imageUrl);
+    public void deleteImageByUrl(String objectKeyOrUrl) {
+        String objectName = extractObjectName(objectKeyOrUrl);
         if (objectName != null && !objectName.isEmpty()) {
             try {
                 minioClient.removeObject(
@@ -198,22 +228,150 @@ public class MinioStorageServiceImpl implements StorageService {
         }
     }
 
+    boolean isInternalHost(String host, int port) {
+        if (host == null || host.isBlank()) {
+            return false;
+        }
+        String h = host.trim().toLowerCase();
+        boolean hostMatches = h.equals(endpointHost)
+                || h.equals("minio")
+                || h.equals("localhost")
+                || h.equals("127.0.0.1")
+                || h.equals("::1")
+                || h.equals("[::1]");
+
+        if (!hostMatches) {
+            return false;
+        }
+
+        return port == endpointPort
+                || port == 9000
+                || port == 80
+                || port == 443
+                || port == -1;
+    }
+
+    private boolean containsPathTraversal(String path) {
+        if (path == null) {
+            return false;
+        }
+        if (path.contains("..")) {
+            return true;
+        }
+        String lower = path.toLowerCase();
+        if (lower.contains("%2e%2e") || lower.contains("%2e.") || lower.contains(".%2e")) {
+            return true;
+        }
+        try {
+            String decoded = java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8);
+            String decodedLower = decoded.toLowerCase();
+            if (decoded.contains("..") || decodedLower.contains("%2e%2e") || decodedLower.contains("%2e.") || decodedLower.contains(".%2e")) {
+                return true;
+            }
+            if (decoded.contains("%")) {
+                String doubleDecoded = java.net.URLDecoder.decode(decoded, java.nio.charset.StandardCharsets.UTF_8);
+                String doubleLower = doubleDecoded.toLowerCase();
+                if (doubleDecoded.contains("..") || doubleLower.contains("%2e%2e") || doubleLower.contains("%2e.") || doubleLower.contains(".%2e")) {
+                    return true;
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("Malformed percent-encoding detected in storage path: {}", path);
+            return true;
+        } catch (Exception e) {
+            log.warn("Unexpected exception decoding storage path: {}", path, e);
+            return true;
+        }
+        return false;
+    }
+
     String extractObjectName(String pathOrUrl) {
         if (pathOrUrl == null || pathOrUrl.trim().isEmpty()) {
             return null;
         }
         String clean = pathOrUrl.trim();
 
+        if (containsPathTraversal(clean)) {
+            log.warn("Potential path traversal detected in storage path: {}", clean);
+            return null;
+        }
+
+        // 1. Inline data URIs have no object name in MinIO
+        if (clean.regionMatches(true, 0, "data:", 0, 5)) {
+            return null;
+        }
+
+        // 2. Strip query parameters if present
         int qIdx = clean.indexOf("?");
         if (qIdx != -1) {
             clean = clean.substring(0, qIdx);
         }
 
-        if (clean.startsWith("http://") || clean.startsWith("https://")) {
-            try {
-                clean = URI.create(clean).getPath();
-            } catch (Exception ignored) {
+        // 3. Handle protocol-relative URLs (e.g. //attacker-evil.com/... or //localhost:9000/...)
+        if (clean.startsWith("//") && !clean.startsWith("///")) {
+            String afterDoubleSlash = clean.substring(2);
+            boolean isLocalFolder = afterDoubleSlash.startsWith(FOLDER_AVATARS + "/")
+                    || afterDoubleSlash.startsWith(FOLDER_FACES + "/")
+                    || afterDoubleSlash.startsWith(FOLDER_SNAPSHOTS + "/")
+                    || afterDoubleSlash.startsWith("storage/")
+                    || afterDoubleSlash.startsWith(bucketName + "/");
+            if (!isLocalFolder) {
+                clean = "http:" + clean;
             }
+        }
+
+        // 4. Reject Non-HTTP URI Schemes (e.g. file:///etc/passwd, ftp://evil.com/img.jpg, javascript:alert(1))
+        // and inspect HTTP / HTTPS URLs (including cases with leading slashes)
+        String schemeCandidate = clean.replaceAll("^[/\\\\]+", "");
+        int colonIdx = schemeCandidate.indexOf(':');
+        int slashIdx = schemeCandidate.indexOf('/');
+        if (colonIdx != -1 && (slashIdx == -1 || colonIdx < slashIdx)) {
+            String scheme = schemeCandidate.substring(0, colonIdx).toLowerCase();
+            if ("http".equals(scheme) || "https".equals(scheme)) {
+                try {
+                    URI uri = URI.create(schemeCandidate);
+                    String host = uri.getHost();
+                    int port = uri.getPort();
+                    if (port == -1) {
+                        port = "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+                    }
+
+                    boolean isInternalStorageUrl = isInternalHost(host, port)
+                            || (publicUrl.startsWith("http") && (clean.startsWith(publicUrl + "/") || clean.equals(publicUrl)));
+
+                    if (!isInternalStorageUrl) {
+                        return null; // External URL (e.g. Google avatar, CDN) has no MinIO object name
+                    }
+                    clean = (uri.getPath() != null) ? uri.getPath() : "";
+                } catch (Exception e) {
+                    return null;
+                }
+            } else {
+                log.warn("Non-HTTP URI scheme rejected: {}", clean);
+                return null;
+            }
+        }
+
+        if (clean == null || clean.trim().isEmpty() || clean.equals("/")) {
+            return null;
+        }
+
+        // 5. Standard storage folders matching: avatars, faces, snapshots
+        java.util.regex.Matcher folderMatcher = STANDARD_FOLDER_PATTERN.matcher(clean);
+        if (folderMatcher.find()) {
+            int start = folderMatcher.start();
+            if (clean.charAt(start) == '/') {
+                start++;
+            }
+            return clean.substring(start);
+        }
+
+        // 6. Fallback for custom folders:
+        // Fast-path: already a clean relative object key
+        if (!clean.startsWith("/")
+                && !clean.startsWith(bucketName + "/")
+                && !clean.startsWith("storage/")) {
+            return clean;
         }
 
         String bucketPrefix = "/" + bucketName + "/";
@@ -234,10 +392,19 @@ public class MinioStorageServiceImpl implements StorageService {
             if (clean.startsWith(bucketNoSlash)) {
                 clean = clean.substring(bucketNoSlash.length());
             }
-            return clean;
+            return clean.isEmpty() ? null : clean;
         }
 
-        return clean.replaceAll("^/+", "");
+        if (clean.startsWith("storage/")) {
+            clean = clean.substring("storage/".length());
+            if (clean.startsWith(bucketNoSlash)) {
+                clean = clean.substring(bucketNoSlash.length());
+            }
+            return clean.isEmpty() ? null : clean;
+        }
+
+        String result = clean.replaceAll("^/+", "");
+        return result.isEmpty() ? null : result;
     }
 
     @Override
@@ -250,7 +417,7 @@ public class MinioStorageServiceImpl implements StorageService {
 
         String cleanFolder = (folder != null) ? folder.trim().replaceAll("^/+|/+$", "") : "";
         if (cleanFolder.isEmpty()) {
-            cleanFolder = "avatars";
+            cleanFolder = FOLDER_AVATARS;
         }
         String prefix = (fileNamePrefix != null && !fileNamePrefix.trim().isEmpty())
                 ? fileNamePrefix.trim()
@@ -287,7 +454,8 @@ public class MinioStorageServiceImpl implements StorageService {
             throw new RuntimeException("Failed to upload image to MinIO: " + e.getMessage(), e);
         }
 
-        return String.format("%s/%s/%s", publicUrl, bucketName, objectName);
+        log.debug("Stored image stream object key: {}", objectName);
+        return objectName;
     }
 
     private void ensureBucketExists() {

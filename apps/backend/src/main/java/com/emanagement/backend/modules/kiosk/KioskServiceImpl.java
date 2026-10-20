@@ -163,11 +163,11 @@ public class KioskServiceImpl implements KioskService {
             record.setCheckInTime(now);
             record.setStatus(status);
 
-            String snapshotUrl = null;
+            String snapshotKey = null;
             if (cleanBase64 != null && !cleanBase64.isBlank()) {
-                snapshotUrl = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkin_" + user.getEmployeeCode());
+                snapshotKey = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkin_" + user.getEmployeeCode());
             }
-            record.setSnapshotUrl(snapshotUrl);
+            record.setSnapshotUrl(snapshotKey);
         } else {
             record = todayRecords.get(todayRecords.size() - 1);
             
@@ -184,11 +184,11 @@ public class KioskServiceImpl implements KioskService {
             record.setCheckOutTime(now);
             status = record.getStatus();
 
-            String checkoutSnapshotUrl = null;
+            String checkoutSnapshotKey = null;
             if (cleanBase64 != null && !cleanBase64.isBlank()) {
-                checkoutSnapshotUrl = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkout_" + user.getEmployeeCode());
+                checkoutSnapshotKey = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkout_" + user.getEmployeeCode());
             }
-            record.setCheckoutSnapshotUrl(checkoutSnapshotUrl);
+            record.setCheckoutSnapshotUrl(checkoutSnapshotKey);
         }
 
         attendanceRecordRepository.save(record);

@@ -202,7 +202,13 @@ def verify_image_proxy():
         capture_output=True, text=True
     )
     avatar_url = res_raw.stdout.strip()
-    full_avatar_url = f"{BASE_URL}{avatar_url}" if avatar_url.startswith("/") else avatar_url
+    if avatar_url.startswith("/"):
+        full_avatar_url = f"{BASE_URL}{avatar_url}"
+    elif avatar_url.startswith("http://") or avatar_url.startswith("https://"):
+        full_avatar_url = avatar_url
+    else:
+        bucket = os.environ.get("MINIO_BUCKET", "attendance-images-prod")
+        full_avatar_url = f"{BASE_URL}/storage/{bucket}/{avatar_url}"
     print(f"  -> Testing avatar URL: {full_avatar_url}")
     req = urllib.request.Request(full_avatar_url)
     with urllib.request.urlopen(req) as resp:
