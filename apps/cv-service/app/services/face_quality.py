@@ -55,6 +55,14 @@ class FaceQualityAssessor:
 
         details["face_size_valid"] = True
 
+        # Attendance has an explicit lighting gate. Evaluate it before blur so
+        # a dark frame is reported as IMAGE_TOO_DARK instead of being masked by
+        # a low-texture IMAGE_TOO_BLURRY result.
+        if require_lighting:
+            status, score, lighting_details = self.evaluate_lighting(face_crop)
+            details.update(lighting_details)
+            return status, score, details
+
         gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY) if len(face_crop.shape) == 3 else face_crop
         laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
         is_blurry = laplacian_var < settings.BLUR_THRESHOLD
@@ -64,12 +72,7 @@ class FaceQualityAssessor:
         if is_blurry:
             return CvStatus.IMAGE_TOO_BLURRY, 0.0, details
 
-        details["is_too_dark"] = False
         details["quality_score"] = 1.0
-        if require_lighting:
-            status, score, lighting_details = self.evaluate_lighting(face_crop)
-            details.update(lighting_details)
-            return status, score, details
 
         return CvStatus.VALID, 1.0, details
 

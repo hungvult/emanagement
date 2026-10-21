@@ -1,6 +1,10 @@
 """Test cấp API: /health, /validate-frame, /enroll, /recognize."""
 
+import json
+from types import SimpleNamespace
+
 import cv2
+import httpx
 import numpy as np
 import pytest
 
@@ -9,6 +13,28 @@ from app.core.constants import CvStatus
 from tests.conftest import to_base64
 
 pytestmark = pytest.mark.usefixtures("registry")
+
+
+@pytest.fixture
+def backend(monkeypatch):
+    from app.api.v1 import enrollment
+
+    state = SimpleNamespace(requests=[], status_code=200, error=None)
+
+    def handle(request):
+        state.requests.append(request)
+        assert request.method == "POST"
+        assert str(request.url) == f"{settings.SPRING_BOOT_URL}/api/v1/employees/ekyc-enroll"
+        if state.error is not None:
+            raise state.error
+        return httpx.Response(state.status_code, json={"status": "SUCCESS"})
+
+    def client(**kwargs):
+        return httpx.Client(transport=httpx.MockTransport(handle), **kwargs)
+
+    # Patch only enrollment's dependency; FastAPI TestClient keeps real httpx.
+    monkeypatch.setattr(enrollment, "httpx", SimpleNamespace(Client=client))
+    return state
 
 
 def _variants(img: np.ndarray, count: int) -> list[np.ndarray]:
@@ -54,6 +80,26 @@ def test_validate_frame_reports_no_face(client, no_face):
     assert body["data"]["face_count"] == 0
 
 
+def test_multiple_faces_are_rejected_before_enrollment_and_recognition(client, face_a, backend):
+    image = to_base64(np.hstack([face_a, face_a]))
+    validated = client.post("/api/v1/cv/validate-frame", json={"image": image}).json()
+    assert validated["status"] == CvStatus.MULTIPLE_FACES.value
+    assert validated["data"]["face_count"] >= 2
+
+    enrolled = client.post(
+        "/api/v1/cv/enroll", json={"userId": 7, "images": [image] * settings.MIN_ENROLL_IMAGES}
+    ).json()
+    assert enrolled["success"] is False
+    assert enrolled["status"] == CvStatus.MULTIPLE_FACES.value
+    assert backend.requests == []
+
+    recognized = client.post(
+        "/api/v1/cv/recognize", json={"imageFrameBase64": image, "candidates": []}
+    ).json()
+    assert recognized["success"] is False
+    assert recognized["status"] == CvStatus.MULTIPLE_FACES.value
+
+
 def test_validate_frame_rejects_garbage_image(client):
     body = client.post("/api/v1/cv/validate-frame", json={"image": "khong-phai-base64"}).json()
     assert body["success"] is False
@@ -78,20 +124,47 @@ def test_enroll_rejects_images_without_face(client, no_face):
     assert body["data"]["embedding"] == []
 
 
-def test_enroll_succeeds_with_real_faces(client, face_a):
+def test_enroll_succeeds_with_real_faces(client, face_a, backend):
     images = [to_base64(v) for v in _variants(face_a, settings.MIN_ENROLL_IMAGES)]
-    body = client.post("/api/v1/cv/enroll", json={"userId": 7, "images": images}).json()
+    body = client.post(
+        "/api/v1/cv/enroll",
+        json={"userId": 7, "images": images},
+        headers={"Authorization": "Bearer test-token"},
+    ).json()
     assert body["success"] is True, body["message"]
     data = body["data"]
     assert data["userId"] == 7
     assert data["processedFrames"] == settings.MIN_ENROLL_IMAGES
     assert data["embeddingDimension"] == settings.EMBEDDING_DIMENSION
     assert float(np.linalg.norm(data["embedding"])) == pytest.approx(1.0, abs=1e-3)
+    assert len(backend.requests) == 1
+    request = backend.requests[0]
+    assert request.headers["Authorization"] == "Bearer test-token"
+    payload = json.loads(request.content)
+    assert payload["userId"] == 7
+    assert payload["images"] == images
+    assert payload["faceVector"] == data["embedding"]
 
 
-def test_recognize_matches_enrolled_person(client, face_a):
+@pytest.mark.parametrize("failure", ["http_error", "connection_error"])
+def test_enroll_reports_backend_failure(client, face_a, backend, failure):
+    if failure == "http_error":
+        backend.status_code = 500
+    else:
+        backend.error = httpx.ConnectError("Backend unavailable")
+    images = [to_base64(v) for v in _variants(face_a, settings.MIN_ENROLL_IMAGES)]
+    body = client.post("/api/v1/cv/enroll", json={"userId": 7, "images": images}).json()
+    assert len(backend.requests) == 1
+    assert body["success"] is False
+    assert body["status"] == CvStatus.INTERNAL_ERROR.value
+    assert body["data"]["embedding"] == []
+
+
+def test_recognize_matches_enrolled_person(client, face_a, backend):
     images = [to_base64(v) for v in _variants(face_a, settings.MIN_ENROLL_IMAGES)]
     enrolled = client.post("/api/v1/cv/enroll", json={"userId": 42, "images": images}).json()
+    assert enrolled["success"] is True, enrolled["message"]
+    assert len(backend.requests) == 1
     embedding = enrolled["data"]["embedding"]
 
     probe = cv2.convertScaleAbs(face_a, alpha=1.0, beta=-20)
@@ -108,9 +181,11 @@ def test_recognize_matches_enrolled_person(client, face_a):
     assert body["data"]["similarityScore"] >= settings.FACE_MATCH_THRESHOLD
 
 
-def test_recognize_rejects_other_person(client, face_a, face_b):
+def test_recognize_rejects_other_person(client, face_a, face_b, backend):
     images = [to_base64(v) for v in _variants(face_a, settings.MIN_ENROLL_IMAGES)]
     enrolled = client.post("/api/v1/cv/enroll", json={"userId": 42, "images": images}).json()
+    assert enrolled["success"] is True, enrolled["message"]
+    assert len(backend.requests) == 1
 
     body = client.post(
         "/api/v1/cv/recognize",
