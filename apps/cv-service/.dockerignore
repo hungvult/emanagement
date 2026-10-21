@@ -1,16 +1,26 @@
+# Docker metadata and repository files
 Dockerfile
 .dockerignore
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-env
-venv
-.venv
 .git
 .gitignore
-.idea
-.vscode
-.pytest_cache
+.idea/
+.vscode/
+
+# Model files
+weights/
+
+# Tests and local-development files
+tests/
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+env/
+.Python
+*.py[cod]
 *.log
+
+# Documentation and local configuration
+README.md
+.env
+.env.*

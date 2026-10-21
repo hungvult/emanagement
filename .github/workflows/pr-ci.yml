@@ -1,0 +1,145 @@
+name: PR CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_API_URL: /api/v1
+          NEXT_PUBLIC_ATTENDANCE_BRIGHTNESS_MIN: 100
+        run: npm run build
+
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Verify
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B -ntp verify
+
+  cv_service:
+    name: CV service tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/cv-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/cv-service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Download and verify models
+        run: python scripts/download_models.py
+
+      - name: Test
+        run: python -m pytest -q --require-models
+
+  infrastructure:
+    name: Infrastructure validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Compose files
+        env:
+          DB_USER: ci
+          DB_PASSWORD: ci-password
+          MINIO_ACCESS_KEY: ci-minio
+          MINIO_SECRET_KEY: ci-minio-secret
+          JWT_SECRET: ci-jwt-secret-for-compose-validation-only
+          GRAFANA_ADMIN_USER: ci
+          GRAFANA_ADMIN_PASSWORD: ci-grafana-password
+        run: |
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.resources.yml \
+            -f docker-compose.monitoring.yml \
+            config --quiet
+
+      - name: Validate Nginx configuration
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:alpine nginx -t
+
+  ci-gate:
+    name: PR CI gate
+    if: always()
+    needs:
+      - frontend
+      - backend
+      - cv_service
+      - infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all checks to pass
+        env:
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          CV_RESULT: ${{ needs.cv_service.result }}
+          INFRASTRUCTURE_RESULT: ${{ needs.infrastructure.result }}
+        run: |
+          test "$FRONTEND_RESULT" = success
+          test "$BACKEND_RESULT" = success
+          test "$CV_RESULT" = success
+          test "$INFRASTRUCTURE_RESULT" = success
