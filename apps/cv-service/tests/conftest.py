@@ -15,6 +15,10 @@ from fastapi.testclient import TestClient
 ASSETS = Path(__file__).parent / "assets"
 
 
+def pytest_addoption(parser):
+    parser.addoption("--require-models", action="store_true", help="Fail if CV models cannot load")
+
+
 def _read(name: str) -> np.ndarray:
     img = cv2.imread(str(ASSETS / name))
     if img is None:
@@ -49,11 +53,13 @@ def no_face() -> np.ndarray:
 
 
 @pytest.fixture(scope="session")
-def registry():
+def registry(request):
     from app.core.models import model_registry
 
     model_registry.load()
     if not model_registry.is_ready:
+        if request.config.getoption("--require-models"):
+            pytest.fail(f"Model chưa sẵn sàng: {model_registry.load_error}")
         pytest.skip(f"Model chưa sẵn sàng: {model_registry.load_error}")
     return model_registry
 

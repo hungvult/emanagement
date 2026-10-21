@@ -93,8 +93,9 @@ class FaceDetector:
 
         faces.sort(key=lambda f: f.area, reverse=True)
 
-        # Trả về khuôn mặt lớn nhất (gần nhất) thay vì báo lỗi MULTIPLE_FACES
-        return CvStatus.VALID, [faces[0]]
+        if len(faces) > 1:
+            return CvStatus.MULTIPLE_FACES, faces
+        return CvStatus.VALID, faces
 
 
 face_detector = FaceDetector()
