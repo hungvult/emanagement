@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.common.exception.ResourceNotFoundException;
+import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.modules.alert.dto.AnomalyAlertResponseDto;
 import com.emanagement.backend.modules.alert.dto.ResolveAlertRequestDto;
 import com.emanagement.backend.modules.employee.User;
@@ -27,6 +28,7 @@ public class AlertServiceImpl implements AlertService {
     private final UserRepository userRepository;
     private final EmployeeShiftRepository employeeShiftRepository;
     private final ShiftRepository shiftRepository;
+    private final StorageService storageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -93,6 +95,7 @@ public class AlertServiceImpl implements AlertService {
                 .description(alert.getDescription())
                 .isResolved(alert.getIsResolved())
                 .resolvedByName(alert.getResolvedBy() != null ? alert.getResolvedBy().getFullName() : null)
+                .snapshotUrl(storageService.getPresignedUrl(alert.getSnapshotUrl(), 30))
                 .createdAt(alert.getCreatedAt())
                 .build();
     }
