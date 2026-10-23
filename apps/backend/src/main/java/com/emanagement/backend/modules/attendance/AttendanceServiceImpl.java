@@ -1,11 +1,18 @@
 package com.emanagement.backend.modules.attendance;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -23,6 +30,7 @@ import com.emanagement.backend.modules.shift.EmployeeShiftRepository;
 import com.emanagement.backend.modules.shift.Shift;
 import com.emanagement.backend.modules.shift.ShiftRepository;
 
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -32,6 +40,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final EmployeeShiftRepository employeeShiftRepository;
     private final ShiftRepository shiftRepository;
     private final StorageService storageService;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional(readOnly = true)
@@ -269,5 +278,206 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .snapshotUrl(storageService.getPresignedUrl(record.getSnapshotUrl(), 15))
                 .checkoutSnapshotUrl(storageService.getPresignedUrl(record.getCheckoutSnapshotUrl(), 15))
                 .build();
+    }
+
+    private static final byte[] UTF8_BOM = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final String CSV_HEADER = "STT,Mã nhân viên,Họ và tên,Ngày làm việc,Ca làm việc,Giờ vào,Giờ ra,Số giờ làm,Trạng thái,Trạm Kiosk\r\n";
+
+    @Override
+    @Transactional(readOnly = true)
+    public void exportAttendanceToCsv(OutputStream outputStream, LocalDate startDate, LocalDate endDate,
+            String status, Long shiftId, String search) throws IOException {
+        LocalDate effectiveStart = startDate != null ? startDate : LocalDate.now().withDayOfMonth(1);
+        LocalDate effectiveEnd = endDate != null ? endDate : LocalDate.now();
+
+        // 1. Ghi UTF-8 BOM vào đầu stream để Excel Windows/macOS không bị lỗi font tiếng Việt
+        outputStream.write(UTF8_BOM);
+
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+        writer.write(CSV_HEADER);
+        writer.flush();
+
+        if (effectiveStart.isAfter(effectiveEnd)) {
+            return;
+        }
+
+        LocalDateTime start = effectiveStart.atStartOfDay();
+        LocalDateTime end = effectiveEnd.plusDays(1).atStartOfDay();
+        String statusFilter = (status != null && !status.isBlank()) ? status.trim().toUpperCase() : null;
+        boolean hasShiftId = shiftId != null;
+        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        boolean hasSearch = searchParam != null;
+
+        long stt = 1;
+        final int batchSize = 500;
+        Shift fallbackShift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+
+        // 2. Xuất các bản ghi chấm công từ attendance_records chunked theo batchSize
+        int page = 0;
+        boolean hasStatus = statusFilter != null;
+        while (true) {
+            Page<AttendanceRecord> records = attendanceRecordRepository.findAllWithExportFilters(
+                    true, start,
+                    true, end,
+                    hasStatus, statusFilter != null ? statusFilter : "",
+                    hasShiftId, shiftId,
+                    hasSearch, searchParam != null ? searchParam : "",
+                    PageRequest.of(page, batchSize));
+
+            for (AttendanceRecord record : records.getContent()) {
+                writeRecordCsvRow(writer, stt++, record, fallbackShift);
+            }
+            writer.flush();
+            entityManager.clear();
+
+            if (!records.hasNext()) {
+                break;
+            }
+            page++;
+        }
+
+        // 3. Xuất các ca làm việc chưa chấm công từ employee_shifts (cho NO_DATA hoặc khi không lọc trạng thái)
+        if (statusFilter == null || "NO_DATA".equals(statusFilter)) {
+            List<AttendanceHistoryDto> unattended = getUnattendedShifts(null, effectiveStart, effectiveEnd, shiftId);
+            if (hasSearch) {
+                String sLower = searchParam.toLowerCase();
+                unattended = unattended.stream()
+                        .filter(u -> (u.getFullName() != null && u.getFullName().toLowerCase().contains(sLower))
+                                || (u.getEmployeeCode() != null && u.getEmployeeCode().toLowerCase().contains(sLower)))
+                        .collect(Collectors.toList());
+            }
+            unattended.sort(Comparator.comparing(AttendanceHistoryDto::getWorkDate, Comparator.nullsLast(Comparator.reverseOrder())));
+            for (AttendanceHistoryDto dto : unattended) {
+                writeDtoCsvRow(writer, stt++, dto);
+            }
+            writer.flush();
+        }
+    }
+
+    private void writeRecordCsvRow(BufferedWriter writer, long stt, AttendanceRecord record, Shift fallbackShift) throws IOException {
+        String empCode = (record.getUser() != null && record.getUser().getEmployeeCode() != null)
+                ? record.getUser().getEmployeeCode()
+                : "";
+        String fullName = (record.getUser() != null && record.getUser().getFullName() != null)
+                ? record.getUser().getFullName()
+                : "";
+
+        LocalDate workDate = record.getCheckInTime() != null ? record.getCheckInTime().toLocalDate()
+                : (record.getCreatedAt() != null ? record.getCreatedAt().toLocalDate() : null);
+        String workDateStr = workDate != null ? workDate.toString() : "";
+
+        String shiftName = resolveShiftName(record, workDate, fallbackShift);
+
+        String checkInStr = record.getCheckInTime() != null ? record.getCheckInTime().format(TIME_FORMATTER) : "";
+        String checkOutStr = record.getCheckOutTime() != null ? record.getCheckOutTime().format(TIME_FORMATTER) : "";
+        String workHoursStr = calculateWorkHours(record.getCheckInTime(), record.getCheckOutTime());
+
+        String statusStr = translateStatus(record.getStatus());
+        String kioskName = (record.getKiosk() != null && record.getKiosk().getName() != null)
+                ? record.getKiosk().getName()
+                : "—";
+
+        String row = String.format(Locale.US, "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s\r\n",
+                stt,
+                escapeCsvValue(empCode),
+                escapeCsvText(fullName),
+                workDateStr,
+                escapeCsvText(shiftName),
+                checkInStr,
+                checkOutStr,
+                workHoursStr,
+                escapeCsvText(statusStr),
+                escapeCsvText(kioskName));
+
+        writer.write(row);
+    }
+
+    private void writeDtoCsvRow(BufferedWriter writer, long stt, AttendanceHistoryDto dto) throws IOException {
+        String empCode = dto.getEmployeeCode() != null ? dto.getEmployeeCode() : "";
+        String fullName = dto.getFullName() != null ? dto.getFullName() : "";
+        String workDateStr = dto.getWorkDate() != null ? dto.getWorkDate().toString() : "";
+        String shiftName = dto.getShiftName() != null ? dto.getShiftName() : "—";
+        String checkInStr = dto.getCheckInTime() != null ? dto.getCheckInTime().format(TIME_FORMATTER) : "";
+        String checkOutStr = dto.getCheckOutTime() != null ? dto.getCheckOutTime().format(TIME_FORMATTER) : "";
+        String workHoursStr = calculateWorkHours(dto.getCheckInTime(), dto.getCheckOutTime());
+        String statusStr = translateStatus(dto.getStatus());
+        String kioskName = dto.getKioskName() != null ? dto.getKioskName() : "—";
+
+        String row = String.format(Locale.US, "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s\r\n",
+                stt,
+                escapeCsvValue(empCode),
+                escapeCsvText(fullName),
+                workDateStr,
+                escapeCsvText(shiftName),
+                checkInStr,
+                checkOutStr,
+                workHoursStr,
+                escapeCsvText(statusStr),
+                escapeCsvText(kioskName));
+
+        writer.write(row);
+    }
+
+    private String resolveShiftName(AttendanceRecord record, LocalDate workDate, Shift fallbackShift) {
+        if (record.getShift() != null && record.getShift().getName() != null) {
+            return record.getShift().getName();
+        }
+        if (workDate != null && record.getUser() != null && record.getUser().getId() != null) {
+            EmployeeShift es = employeeShiftRepository.findByUserIdAndAssignedDate(record.getUser().getId(), workDate).orElse(null);
+            if (es != null) {
+                if (es.getShiftName() != null && !es.getShiftName().isBlank()) {
+                    return es.getShiftName();
+                }
+                if (es.getShift() != null && es.getShift().getName() != null) {
+                    return es.getShift().getName();
+                }
+            } else if (fallbackShift != null && fallbackShift.getName() != null) {
+                return fallbackShift.getName();
+            }
+        }
+        return "—";
+    }
+
+    private String calculateWorkHours(LocalDateTime checkIn, LocalDateTime checkOut) {
+        if (checkIn == null || checkOut == null) {
+            return "";
+        }
+        long seconds = java.time.Duration.between(checkIn, checkOut).getSeconds();
+        if (seconds < 0) {
+            return "0.00";
+        }
+        double hours = seconds / 3600.0;
+        return String.format(Locale.US, "%.2f", hours);
+    }
+
+    private String translateStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "";
+        }
+        return switch (status.toUpperCase()) {
+            case "ON_TIME" -> "Đúng giờ";
+            case "LATE" -> "Đi muộn";
+            case "EARLY_LEAVE" -> "Về sớm";
+            case "NO_DATA" -> "Chưa chấm công";
+            default -> status;
+        };
+    }
+
+    private String escapeCsvText(String value) {
+        if (value == null || value.isBlank()) {
+            return "\"\"";
+        }
+        return "\"" + value.replace("\"", "\"\"") + "\"";
+    }
+
+    private String escapeCsvValue(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        if (value.contains("\"") || value.contains(",") || value.contains("\n") || value.contains("\r")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 }

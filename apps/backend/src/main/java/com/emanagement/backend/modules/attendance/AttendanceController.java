@@ -1,13 +1,19 @@
 package com.emanagement.backend.modules.attendance;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import com.emanagement.backend.common.dto.ApiResponse;
 import com.emanagement.backend.common.dto.PageResponse;
@@ -50,4 +56,30 @@ public class AttendanceController {
         PageResponse<AttendanceHistoryDto> response = attendanceService.getAllRecords(page, size, startDate, endDate, status, shiftId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @Operation(summary = "Xuất báo cáo chấm công định dạng CSV Streaming", description = "Xuất dữ liệu chấm công CSV kèm UTF-8 BOM, hỗ trợ bộ lọc và tối ưu bộ nhớ cho doanh nghiệp lớn")
+    public ResponseEntity<StreamingResponseBody> exportAttendance(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long shiftId,
+            @RequestParam(required = false) String search) {
+        LocalDate effectiveStart = startDate != null ? startDate : LocalDate.now().withDayOfMonth(1);
+        LocalDate effectiveEnd = endDate != null ? endDate : LocalDate.now();
+
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String filename = "bang_cham_cong_" + timestamp + ".csv";
+
+        StreamingResponseBody stream = outputStream -> {
+            attendanceService.exportAttendanceToCsv(outputStream, effectiveStart, effectiveEnd, status, shiftId, search);
+        };
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(stream);
+    }
 }
+
