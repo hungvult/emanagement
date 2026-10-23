@@ -76,7 +76,7 @@ export function ShiftCatalog({
                       </div>
                     </div>
                     {/* Nút Sửa / Xóa */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleOpenEdit(shift)}
                         title="Chỉnh sửa ca"

@@ -101,7 +101,7 @@ export function EmployeeTable({
                       </TableHead>
                     )}
                     {columnVis.actions && (
-                      <TableHead className="text-right font-bold text-slate-600 h-14 pr-6">
+                      <TableHead className="text-right font-bold text-slate-600 h-14 pr-6 sticky right-0 z-10 bg-slate-50/95 backdrop-blur-sm shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]">
                         Hành động
                       </TableHead>
                     )}
@@ -193,7 +193,7 @@ export function EmployeeTable({
                                   <Check className="h-3 w-3" /> Đã có Face ID
                                 </span>
                                 <div
-                                  className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-slate-100 rounded-lg shadow-sm overflow-hidden"
+                                  className="flex items-center bg-white border border-slate-100 rounded-lg shadow-sm overflow-hidden"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <Button
@@ -253,7 +253,7 @@ export function EmployeeTable({
                         )}
                         {columnVis.actions && (
                           <TableCell
-                            className="text-right pr-6"
+                            className="text-right pr-6 sticky right-0 z-10 bg-white group-hover:bg-slate-50/95 transition-colors shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]"
                             onClick={() => openDetailModal(emp)}
                           >
                             <div
