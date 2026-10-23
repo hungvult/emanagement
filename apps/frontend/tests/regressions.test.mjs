@@ -906,3 +906,411 @@ test("header displays responsive title and resolves page titles correctly", () =
     assert.ok(roles.length > 0, "Renders default employee role when roles array is missing");
   }, "Header must not crash when user.roles is missing");
 });
+
+function findNodes(node, predicate, acc = []) {
+  if (!node) return acc;
+  if (Array.isArray(node)) {
+    for (const item of node) findNodes(item, predicate, acc);
+    return acc;
+  }
+  if (predicate(node)) acc.push(node);
+  if (node.props?.children) {
+    const children = Array.isArray(node.props.children)
+      ? node.props.children
+      : [node.props.children];
+    for (const child of children) {
+      findNodes(child, predicate, acc);
+    }
+  }
+  return acc;
+}
+
+const sharedJsxRuntime = {
+  jsx: (type, props) => (typeof type === "function" ? type(props) : { type, props }),
+  jsxs: (type, props) => (typeof type === "function" ? type(props) : { type, props }),
+  Fragment: Symbol.for("react.fragment"),
+};
+
+const dummyIcon = () => null;
+
+test("employee table pins actions column on horizontal scroll and keeps face ID buttons visible", () => {
+  const { EmployeeTable } = loadTs(
+    "components/employees/employee-table.tsx",
+    {},
+    {
+      "react/jsx-runtime": sharedJsxRuntime,
+      "@/components/ui/button": {
+        Button: (props) => ({ type: "button", props }),
+      },
+      "@/components/ui/pagination": {
+        Pagination: (props) => ({ type: "pagination", props }),
+      },
+      "@/components/ui/table": {
+        Table: (props) => ({ type: "table", props }),
+        TableHeader: (props) => ({ type: "thead", props }),
+        TableBody: (props) => ({ type: "tbody", props }),
+        TableRow: (props) => ({ type: "tr", props }),
+        TableHead: (props) => ({ type: "th", props }),
+        TableCell: (props) => ({ type: "td", props }),
+      },
+      "@/lib/utils": {
+        formatDateTime: (str) => str ?? "—",
+      },
+      "lucide-react": new Proxy({}, { get: () => dummyIcon }),
+    },
+  );
+
+  const mockEmployees = [
+    {
+      id: 1,
+      employeeCode: "NV001",
+      fullName: "Nguyễn Văn A",
+      email: "a@example.com",
+      phone: "0901234567",
+      status: "ACTIVE",
+      roles: ["ROLE_USER"],
+      hasRegisteredFace: true,
+      createdAt: "2026-10-01T08:00:00",
+    },
+    {
+      id: 2,
+      employeeCode: "NV002",
+      fullName: "Trần Thị B",
+      email: "b@example.com",
+      phone: null,
+      status: "INACTIVE",
+      roles: ["ROLE_ADMIN"],
+      hasRegisteredFace: false,
+      createdAt: "2026-10-02T09:00:00",
+    },
+  ];
+
+  let openedFaceEmp = null;
+  let openedEkycEmp = null;
+  let deletedFaceEmp = null;
+
+  const defaultProps = {
+    isLoading: false,
+    columnVis: {
+      employeeCode: true,
+      fullName: true,
+      emailPhone: true,
+      status: true,
+      ekycFaceId: true,
+      createdAt: true,
+      actions: true,
+    },
+    employees: mockEmployees,
+    openDetailModal: () => {},
+    openFaceModal: (emp) => { openedFaceEmp = emp; },
+    openEkycModal: (emp) => { openedEkycEmp = emp; },
+    handleDeleteFace: (emp) => { deletedFaceEmp = emp; },
+    handleOpenEdit: () => {},
+    handleDelete: () => {},
+    page: 0,
+    totalPages: 1,
+    setPage: () => {},
+    fetchEmployees: () => {},
+  };
+
+  const vdom = EmployeeTable(defaultProps);
+
+  // 1. ST3-01: TableHead actions column has sticky classes and styling
+  const actionHeads = findNodes(
+    vdom,
+    (n) => n.type === "th" && n.props?.children === "Hành động",
+  );
+  assert.equal(actionHeads.length, 1, "Must render exactly one actions TableHead");
+  const headClasses = actionHeads[0].props.className || "";
+  assert.ok(headClasses.includes("sticky"), "Action head must be sticky");
+  assert.ok(headClasses.includes("right-0"), "Action head must stick to right-0");
+  assert.ok(headClasses.includes("z-10"), "Action head must have z-10");
+  assert.ok(headClasses.includes("bg-slate-50/95"), "Action head must have backdrop background");
+  assert.ok(headClasses.includes("backdrop-blur-sm"), "Action head must have backdrop blur");
+  assert.ok(
+    headClasses.includes("shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]"),
+    "Action head must have left shadow",
+  );
+
+  // 2. ST3-01: TableCell actions of employee rows has sticky classes and hover styling
+  const actionCells = findNodes(
+    vdom,
+    (n) =>
+      n.type === "td" &&
+      typeof n.props?.className === "string" &&
+      n.props.className.includes("sticky right-0"),
+  );
+  assert.equal(
+    actionCells.length,
+    mockEmployees.length,
+    "Each row must have a sticky actions TableCell",
+  );
+  for (const cell of actionCells) {
+    const cellClasses = cell.props.className;
+    assert.ok(cellClasses.includes("sticky right-0 z-10"), "Action cell must be sticky right-0 z-10");
+    assert.ok(cellClasses.includes("bg-white"), "Action cell must have bg-white");
+    assert.ok(cellClasses.includes("group-hover:bg-slate-50/95"), "Action cell must have group-hover bg");
+    assert.ok(cellClasses.includes("transition-colors"), "Action cell must have transition-colors");
+    assert.ok(
+      cellClasses.includes("shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]"),
+      "Action cell must have left shadow",
+    );
+  }
+
+  // 3. ST3-02: Face ID buttons container must NOT contain opacity-0, group-hover:opacity-100, or transition-opacity
+  const faceButtonContainers = findNodes(
+    vdom,
+    (n) =>
+      n.type === "div" &&
+      typeof n.props?.className === "string" &&
+      n.props.className.includes("border border-slate-100 rounded-lg shadow-sm overflow-hidden"),
+  );
+  assert.equal(faceButtonContainers.length, 1, "Must find Face ID buttons container for emp with face");
+  const faceBtnClasses = faceButtonContainers[0].props.className;
+  assert.ok(!faceBtnClasses.includes("opacity-0"), "Face ID buttons must NOT have opacity-0");
+  assert.ok(
+    !faceBtnClasses.includes("group-hover:opacity-100"),
+    "Face ID buttons must NOT require hover to be visible",
+  );
+  assert.ok(
+    !faceBtnClasses.includes("transition-opacity"),
+    "Face ID buttons must NOT have transition-opacity",
+  );
+
+  // Verify 3 Face ID buttons inside the container
+  const faceBtns = findNodes(faceButtonContainers[0], (n) => n.type === "button");
+  assert.equal(faceBtns.length, 3, "Face ID container must contain 3 buttons (View, Re-enroll, Delete)");
+  assert.equal(faceBtns[0].props.title, "Xem khuôn mặt");
+  assert.equal(faceBtns[1].props.title, "Quét lại Face ID");
+  assert.equal(faceBtns[2].props.title, "Xóa dữ liệu khuôn mặt");
+
+  faceBtns[0].props.onClick();
+  assert.equal(openedFaceEmp?.id, 1, "Clicking 'Xem khuôn mặt' triggers openFaceModal");
+  faceBtns[1].props.onClick();
+  assert.equal(openedEkycEmp?.id, 1, "Clicking 'Quét lại Face ID' triggers openEkycModal");
+  faceBtns[2].props.onClick();
+  assert.equal(deletedFaceEmp?.id, 1, "Clicking 'Xóa dữ liệu khuôn mặt' triggers handleDeleteFace");
+
+  // Employee without Face ID (emp 2)
+  const noFaceButtons = findNodes(
+    vdom,
+    (n) =>
+      n.type === "button" &&
+      typeof n.props?.className === "string" &&
+      n.props.className.includes("text-indigo-600 border-indigo-200"),
+  );
+  assert.equal(noFaceButtons.length, 1, "Must render 'Quét khuôn mặt' button for employee without Face ID");
+  const noFaceText = findNodes(noFaceButtons[0], (n) => typeof n === "string").join(" ");
+  assert.ok(noFaceText.includes("Quét"), "Button text must contain 'Quét'");
+  assert.ok(
+    !noFaceButtons[0].props.className?.includes("opacity-0"),
+    "Face ID enroll button must not have opacity-0",
+  );
+
+  // Row action buttons: User vs Admin
+  const rowActionButtons = findNodes(
+    vdom,
+    (n) => n.type === "button" && (n.props?.title === "Chỉnh sửa" || n.props?.title === "Vô hiệu hóa"),
+  );
+  assert.equal(rowActionButtons.length, 4, "Must render 2 action buttons per row (total 4 for 2 rows)");
+  assert.equal(rowActionButtons[1].props.disabled, false, "ROLE_USER delete button must be enabled");
+  assert.equal(rowActionButtons[3].props.disabled, true, "ROLE_ADMIN delete button must be disabled");
+
+  // Row phone number render check (emp.phone vs fallback)
+  const phone1 = findNodes(vdom, (n) => n.props?.children === "0901234567");
+  assert.equal(phone1.length, 1, "Employee phone number must be rendered");
+  const fallbackPhones = findNodes(vdom, (n) => n.props?.children === "—");
+  assert.ok(fallbackPhones.length >= 1, "Fallback '—' rendered for null phone");
+
+  // 4. Edge cases:
+  // Hidden actions column: neither TableHead nor TableCell should be rendered
+  const vdomNoActions = EmployeeTable({
+    ...defaultProps,
+    columnVis: { ...defaultProps.columnVis, actions: false },
+  });
+  const noActionHeads = findNodes(
+    vdomNoActions,
+    (n) => n.type === "th" && n.props?.children === "Hành động",
+  );
+  assert.equal(noActionHeads.length, 0, "No action head rendered when columnVis.actions is false");
+  const noActionCells = findNodes(
+    vdomNoActions,
+    (n) =>
+      n.type === "td" &&
+      typeof n.props?.className === "string" &&
+      n.props.className.includes("sticky right-0"),
+  );
+  assert.equal(noActionCells.length, 0, "No action cell rendered when columnVis.actions is false");
+
+  // Hidden Face ID column
+  const vdomNoFace = EmployeeTable({
+    ...defaultProps,
+    columnVis: { ...defaultProps.columnVis, ekycFaceId: false },
+  });
+  const noFaceHeads = findNodes(
+    vdomNoFace,
+    (n) => n.type === "th" && n.props?.children === "eKYC Face ID",
+  );
+  assert.equal(noFaceHeads.length, 0, "No Face ID head rendered when columnVis.ekycFaceId is false");
+
+  // Loading state
+  const vdomLoading = EmployeeTable({
+    ...defaultProps,
+    isLoading: true,
+  });
+  const loadingTexts = findNodes(
+    vdomLoading,
+    (n) => n.props?.children === "Đang tải dữ liệu nhân viên...",
+  );
+  assert.equal(loadingTexts.length, 1, "Renders loading state properly");
+
+  // Empty state
+  const vdomEmpty = EmployeeTable({
+    ...defaultProps,
+    employees: [],
+  });
+  const emptyTexts = findNodes(
+    vdomEmpty,
+    (n) => n.props?.children === "Không tìm thấy nhân viên nào phù hợp",
+  );
+  assert.equal(emptyTexts.length, 1, "Renders empty state message when employees list is empty");
+  const emptyColSpanCells = findNodes(
+    vdomEmpty,
+    (n) => n.type === "td" && n.props?.colSpan === 7,
+  );
+  assert.equal(emptyColSpanCells.length, 1, "Empty row spans all 7 visible columns");
+});
+
+test("shift catalog edit and delete buttons are always visible without hover", () => {
+  const { ShiftCatalog } = loadTs(
+    "components/shifts/shift-catalog.tsx",
+    {},
+    {
+      "react/jsx-runtime": sharedJsxRuntime,
+      "@/components/ui/badge": {
+        Badge: (props) => ({ type: "badge", props }),
+      },
+      "@/components/ui/card": {
+        Card: (props) => ({ type: "card", props }),
+        CardHeader: (props) => ({ type: "card-header", props }),
+        CardTitle: (props) => ({ type: "card-title", props }),
+        CardContent: (props) => ({ type: "card-content", props }),
+      },
+      "@/lib/shifts-helpers": {
+        SHIFT_COLORS: [
+          { text: "text-blue-700", border: "border-blue-200", bg: "bg-blue-50" },
+        ],
+      },
+      "lucide-react": new Proxy({}, { get: () => dummyIcon }),
+    },
+  );
+
+  const mockShifts = [
+    {
+      id: 1,
+      shiftCode: "DEFAULT",
+      name: "Ca Hành Chính",
+      startTime: "08:00:00",
+      endTime: "17:00:00",
+      gracePeriodMinutes: 15,
+      active: true,
+    },
+    {
+      id: 2,
+      shiftCode: "S1",
+      name: "Ca Sáng",
+      startTime: "06:00:00",
+      endTime: "14:00:00",
+      gracePeriodMinutes: 10,
+      active: false,
+    },
+  ];
+
+  let editedShift = null;
+  let deletedShift = null;
+
+  const defaultProps = {
+    shifts: mockShifts,
+    includeInactive: true,
+    setIncludeInactive: () => {},
+    handleOpenEdit: (shift) => { editedShift = shift; },
+    handleOpenDelete: (shift) => { deletedShift = shift; },
+  };
+
+  const vdom = ShiftCatalog(defaultProps);
+
+  // ST4-04: Button containers must NOT have opacity-0, hover-only opacity, or transition-opacity
+  const editButtons = findNodes(
+    vdom,
+    (n) => n.type === "button" && n.props?.title === "Chỉnh sửa ca",
+  );
+  assert.equal(editButtons.length, mockShifts.length, "Each shift card must have an edit button");
+
+  const cards = findNodes(vdom, (n) => n.type === "card");
+  assert.equal(cards.length, mockShifts.length, "Renders a card for each shift");
+
+  for (const card of cards) {
+    const actionContainers = findNodes(
+      card,
+      (n) =>
+        n.type === "div" &&
+        n.props?.className === "flex items-center gap-1",
+    );
+    assert.equal(actionContainers.length, 1, "Each card must have exactly one action container");
+    const classes = actionContainers[0].props.className || "";
+    assert.ok(
+      classes.includes("flex items-center gap-1"),
+      "Action container must maintain flex items-center gap-1",
+    );
+    assert.ok(!classes.includes("opacity-0"), "Shift action buttons container must NOT contain opacity-0");
+    assert.ok(
+      !classes.includes("group-hover:opacity-100"),
+      "Shift action buttons container must NOT require hover to be visible",
+    );
+    assert.ok(
+      !classes.includes("transition-opacity"),
+      "Shift action buttons container must NOT contain transition-opacity",
+    );
+  }
+
+  // Default shift cannot be deleted (only 1 edit button in container)
+  const defaultCard = cards[0];
+  const defaultButtons = findNodes(defaultCard, (n) => n.type === "button");
+  assert.equal(defaultButtons.length, 1, "Default shift card must only have edit button");
+  assert.equal(defaultButtons[0].props.title, "Chỉnh sửa ca");
+
+  defaultButtons[0].props.onClick();
+  assert.equal(editedShift?.id, 1, "Clicking edit button calls handleOpenEdit with default shift");
+
+  // Non-default shift has both edit and delete buttons
+  const customCard = cards[1];
+  const customButtons = findNodes(customCard, (n) => n.type === "button");
+  assert.equal(customButtons.length, 2, "Custom shift card must have edit and delete buttons");
+  assert.equal(customButtons[0].props.title, "Chỉnh sửa ca");
+  assert.equal(customButtons[1].props.title, "Xóa / Ngừng sử dụng ca");
+
+  customButtons[0].props.onClick();
+  assert.equal(editedShift?.id, 2, "Clicking edit button calls handleOpenEdit with custom shift");
+  customButtons[1].props.onClick();
+  assert.equal(deletedShift?.id, 2, "Clicking delete button calls handleOpenDelete with custom shift");
+
+  // Inactive shift badge & styling
+  const inactiveBadges = findNodes(
+    vdom,
+    (n) => n.type === "badge" && n.props?.children === "Ngừng dùng",
+  );
+  assert.equal(inactiveBadges.length, 1, "Inactive shift must display 'Ngừng dùng' badge");
+  assert.ok(
+    customCard.props.className.includes("border-dashed"),
+    "Inactive shift card must have border-dashed styling",
+  );
+
+  // Edge case: Empty shifts list
+  const emptyVdom = ShiftCatalog({
+    ...defaultProps,
+    shifts: [],
+  });
+  const emptyCards = findNodes(emptyVdom, (n) => n.type === "card");
+  assert.equal(emptyCards.length, 0, "Empty shifts renders 0 cards without error");
+});
+
