@@ -630,3 +630,279 @@ test("shift time validation correctly validates format, ordering, and duration l
     "Định dạng thời gian không hợp lệ",
   );
 });
+
+test("sidebar displays /my-schedule for both admin and standard users and handles edge cases", () => {
+  function renderSidebar(roles, pathname = "/dashboard", isMobile = false) {
+    let capturedHrefs = [];
+    let capturedActiveHrefs = [];
+    const jsxRuntime = {
+      jsx: (type, props) => {
+        if (props?.href) {
+          capturedHrefs.push(props.href);
+          if (props.className && props.className.includes("text-indigo-600")) {
+            capturedActiveHrefs.push(props.href);
+          }
+        }
+        return { type, props };
+      },
+      jsxs: (type, props) => {
+        if (props?.href) {
+          capturedHrefs.push(props.href);
+          if (props.className && props.className.includes("text-indigo-600")) {
+            capturedActiveHrefs.push(props.href);
+          }
+        }
+        return { type, props };
+      },
+      Fragment: Symbol.for("react.fragment"),
+    };
+    const dummyIcon = () => null;
+    const { Sidebar } = loadTs(
+      "components/layout/sidebar.tsx",
+      {},
+      {
+        "react/jsx-runtime": jsxRuntime,
+        "@/hooks/use-auth": {
+          useAuth: () => ({
+            hasRole: (role) => roles.includes(role),
+          }),
+        },
+        "@/lib/utils": {
+          cn: (...args) => args.filter(Boolean).join(" "),
+        },
+        "next/link": (props) => ({ type: "a", props }),
+        "next/navigation": {
+          usePathname: () => pathname,
+        },
+        "lucide-react": new Proxy(
+          {},
+          {
+            get: () => dummyIcon,
+          },
+        ),
+      },
+    );
+
+    const vdom = Sidebar({ isMobile });
+    return { vdom, hrefs: capturedHrefs, activeHrefs: capturedActiveHrefs };
+  }
+
+  // Admin user
+  const adminResult = renderSidebar(["ROLE_ADMIN", "ROLE_USER"]);
+  assert.ok(
+    adminResult.hrefs.includes("/my-schedule"),
+    "Admin sidebar must include /my-schedule",
+  );
+  assert.ok(
+    adminResult.hrefs.includes("/employees"),
+    "Admin sidebar must include /employees",
+  );
+  assert.ok(
+    adminResult.hrefs.includes("/shifts"),
+    "Admin sidebar must include /shifts",
+  );
+  assert.ok(
+    adminResult.hrefs.includes("/alerts"),
+    "Admin sidebar must include /alerts",
+  );
+
+  // Admin with only ROLE_ADMIN
+  const adminOnlyResult = renderSidebar(["ROLE_ADMIN"]);
+  assert.ok(
+    adminOnlyResult.hrefs.includes("/my-schedule"),
+    "Admin-only sidebar must include /my-schedule",
+  );
+
+  // Standard user
+  const userResult = renderSidebar(["ROLE_USER"]);
+  assert.ok(
+    userResult.hrefs.includes("/my-schedule"),
+    "User sidebar must include /my-schedule",
+  );
+  assert.ok(
+    !userResult.hrefs.includes("/employees"),
+    "User sidebar must NOT include /employees",
+  );
+  assert.ok(
+    !userResult.hrefs.includes("/shifts"),
+    "User sidebar must NOT include /shifts",
+  );
+  assert.ok(
+    !userResult.hrefs.includes("/alerts"),
+    "User sidebar must NOT include /alerts",
+  );
+
+  // Mobile drawer rendering (isMobile: true)
+  const mobileResult = renderSidebar(["ROLE_USER"], "/dashboard", true);
+  assert.ok(
+    mobileResult.hrefs.includes("/my-schedule"),
+    "Mobile sidebar must include /my-schedule",
+  );
+
+  // Null pathname edge case during SSR/hydration must not throw
+  assert.doesNotThrow(() => {
+    const nullPathResult = renderSidebar(["ROLE_USER"], null);
+    assert.ok(
+      nullPathResult.hrefs.includes("/my-schedule"),
+      "Sidebar with null pathname renders items safely",
+    );
+    assert.equal(
+      nullPathResult.activeHrefs.length,
+      0,
+      "No item active when pathname is null",
+    );
+  }, "Sidebar must not crash when pathname is null");
+
+  // Sub-path and prefix boundary matching
+  const subRouteResult = renderSidebar(["ROLE_ADMIN"], "/employees/123");
+  assert.ok(
+    subRouteResult.activeHrefs.includes("/employees"),
+    "Sub-route /employees/123 must activate /employees menu item",
+  );
+
+  const prefixCollisionResult = renderSidebar(["ROLE_ADMIN"], "/shifts-archived");
+  assert.ok(
+    !prefixCollisionResult.activeHrefs.includes("/shifts"),
+    "Unrelated route /shifts-archived must NOT activate /shifts menu item",
+  );
+});
+
+test("header displays responsive title and resolves page titles correctly", () => {
+  function renderHeader(pathname, user = { fullName: "Nguyễn Văn A", roles: ["ROLE_ADMIN"] }) {
+    const jsxRuntime = {
+      jsx: (type, props) => ({ type, props }),
+      jsxs: (type, props) => ({ type, props }),
+      Fragment: Symbol.for("react.fragment"),
+    };
+    const dummyIcon = () => null;
+    const { Header } = loadTs(
+      "components/layout/header.tsx",
+      {},
+      {
+        "react/jsx-runtime": jsxRuntime,
+        "@/hooks/use-auth": {
+          useAuth: () => ({
+            user,
+            logout: () => {},
+          }),
+        },
+        "@/components/layout/notification-bell": {
+          NotificationBell: () => null,
+        },
+        "@/components/layout/sidebar": {
+          Sidebar: () => null,
+        },
+        "@/components/ui/sheet": {
+          Sheet: ({ children }) => children,
+          SheetContent: ({ children }) => children,
+          SheetDescription: ({ children }) => children,
+          SheetTitle: ({ children }) => children,
+          SheetTrigger: ({ render, children }) => render || children,
+        },
+        "next/image": (props) => ({ type: "img", props }),
+        "next/navigation": {
+          usePathname: () => pathname,
+        },
+        "lucide-react": new Proxy(
+          {},
+          {
+            get: () => dummyIcon,
+          },
+        ),
+      },
+    );
+
+    return Header();
+  }
+
+  function findNodes(node, predicate, acc = []) {
+    if (!node) return acc;
+    if (predicate(node)) acc.push(node);
+    if (node.props?.children) {
+      const children = Array.isArray(node.props.children)
+        ? node.props.children
+        : [node.props.children];
+      for (const child of children) {
+        findNodes(child, predicate, acc);
+      }
+    }
+    return acc;
+  }
+
+  // Check title matching across different routes including null/empty and subroutes
+  const testCases = [
+    ["/my-schedule", "Lịch của tôi"],
+    ["/dashboard", "Tổng quan"],
+    ["/employees", "Nhân viên"],
+    ["/employees/123", "Nhân viên"],
+    ["/attendance", "Chấm công"],
+    ["/shifts", "Ca làm việc"],
+    ["/shifts/preview", "Ca làm việc"],
+    ["/shifts-archived", "Tổng quan"], // prefix collision check
+    ["/leave-requests", "Nghỉ phép"],
+    ["/alerts", "Cảnh báo"],
+    ["/profile", "Hồ sơ"],
+    ["/other-route", "Tổng quan"],
+    ["", "Tổng quan"],
+    [null, "Tổng quan"],
+    [undefined, "Tổng quan"],
+  ];
+
+  for (const [path, expectedTitle] of testCases) {
+    const vdom = renderHeader(path);
+    const headings = findNodes(vdom, (n) => n.type === "h1");
+    assert.equal(headings.length, 1, `Expected one h1 heading on route ${path}`);
+    assert.equal(
+      headings[0].props.children,
+      expectedTitle,
+      `Header title for ${path} should be ${expectedTitle}`,
+    );
+
+    // Verify title attribute for accessibility when truncated
+    assert.equal(
+      headings[0].props.title,
+      expectedTitle,
+      `Heading must include title attribute matching "${expectedTitle}"`,
+    );
+
+    // Verify responsiveness & truncation classes
+    assert.ok(
+      headings[0].props.className.includes("truncate"),
+      "Heading must include truncate class",
+    );
+    assert.ok(
+      headings[0].props.className.includes("text-base sm:text-xl"),
+      "Heading must be responsive font size",
+    );
+
+    // Verify title container is not hidden on mobile and has min-w-0
+    const titleContainers = findNodes(
+      vdom,
+      (n) =>
+        typeof n.props?.className === "string" &&
+        n.props.className.includes("gap-2.5 sm:gap-3"),
+    );
+    assert.equal(titleContainers.length, 1, "Expected title container");
+    assert.ok(
+      !titleContainers[0].props.className.includes("hidden"),
+      "Title container must not be hidden on mobile/tablet",
+    );
+    assert.ok(
+      titleContainers[0].props.className.includes("min-w-0"),
+      "Title container must have min-w-0 for ellipsis truncation",
+    );
+  }
+
+  // Edge cases for user authentication state (null user, missing roles array)
+  assert.doesNotThrow(() => {
+    const vdomNullUser = renderHeader("/dashboard", null);
+    const names = findNodes(vdomNullUser, (n) => n.props?.children === "Người dùng");
+    assert.ok(names.length > 0, "Renders fallback name for null user");
+  }, "Header must not crash when user is null");
+
+  assert.doesNotThrow(() => {
+    const vdomNoRoles = renderHeader("/dashboard", { fullName: "Test User" });
+    const roles = findNodes(vdomNoRoles, (n) => n.props?.children === "Nhân viên");
+    assert.ok(roles.length > 0, "Renders default employee role when roles array is missing");
+  }, "Header must not crash when user.roles is missing");
+});

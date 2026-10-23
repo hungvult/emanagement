@@ -48,7 +48,7 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
       title: "Lịch của tôi",
       icon: Calendar,
       href: "/my-schedule",
-      show: !hasRole("ROLE_ADMIN"),
+      show: true,
     },
     {
       title: "Nghỉ phép",
@@ -89,7 +89,8 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
           .filter((item) => item.show)
           .map((item) => {
             const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+              Boolean(pathname) &&
+              (pathname === item.href || pathname.startsWith(item.href + "/"));
             const Icon = item.icon;
 
             return (

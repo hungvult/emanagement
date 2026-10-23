@@ -31,19 +31,20 @@ export const Header = () => {
 
   // Tìm tiêu đề phù hợp nhất dựa trên pathname hiện tại
   const currentTitle =
-    PAGE_TITLES[pathname] ||
-    Object.entries(PAGE_TITLES).find(([key]) =>
-      pathname.startsWith(key),
-    )?.[1] ||
+    (pathname && PAGE_TITLES[pathname]) ||
+    (pathname &&
+      Object.entries(PAGE_TITLES).find(
+        ([key]) => pathname === key || pathname.startsWith(`${key}/`),
+      )?.[1]) ||
     "Tổng quan";
 
   return (
     <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-xl px-6 md:px-8 transition-all shadow-sm">
-      <div className="flex items-center">
+      <div className="flex items-center min-w-0 mr-2">
         <Sheet>
           <SheetTrigger
             render={
-              <button className="mr-3 rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden transition-colors" />
+              <button className="mr-3 rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden transition-colors shrink-0" />
             }
           >
             <Menu className="h-6 w-6" />
@@ -61,21 +62,24 @@ export const Header = () => {
           </SheetContent>
         </Sheet>
 
-        <div className="hidden lg:flex items-center gap-3">
-          <div className="h-6 w-1.5 rounded-full bg-indigo-500"></div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="h-6 w-1.5 rounded-full bg-indigo-500 shrink-0"></div>
+          <h1
+            title={currentTitle}
+            className="text-base sm:text-xl font-bold text-slate-800 tracking-tight truncate"
+          >
             {currentTitle}
           </h1>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 md:gap-6">
+      <div className="flex items-center gap-4 md:gap-6 shrink-0">
         <div className="hidden flex-col items-end sm:flex">
           <span className="text-sm font-bold text-slate-800 tracking-tight">
             {user?.fullName || "Người dùng"}
           </span>
           <span className="text-xs text-slate-500 font-medium">
-            {user?.roles.includes("ROLE_ADMIN") ? "Quản trị viên" : "Nhân viên"}
+            {user?.roles?.includes("ROLE_ADMIN") ? "Quản trị viên" : "Nhân viên"}
           </span>
         </div>
 
