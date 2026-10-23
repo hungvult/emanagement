@@ -1,8 +1,9 @@
 "use client";
+import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { addDays, toISODate } from "@/lib/shifts-helpers";
+import { addDays, getTimeValidationError, toISODate } from "@/lib/shifts-helpers";
 
 import type { useShifts } from "@/hooks/shifts/use-shifts";
 
@@ -24,6 +25,19 @@ export function ShiftEditDialog({
   setEditForm,
   isUpdating,
 }: Props) {
+  const timeError = useMemo(
+    () => getTimeValidationError(editForm.startTime, editForm.endTime),
+    [editForm.startTime, editForm.endTime],
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (timeError) {
+      return;
+    }
+    handleEditSubmit(e);
+  };
+
   return (
     <>
       <Modal
@@ -31,34 +45,39 @@ export function ShiftEditDialog({
         onClose={() => setIsEditOpen(false)}
         title="Chỉnh sửa ca làm việc"
       >
-        <form onSubmit={handleEditSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Tên ca làm việc *"
             value={editForm.name}
             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
             required
           />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Giờ bắt đầu *"
-              type="time"
-              step="1"
-              value={editForm.startTime}
-              onChange={(e) =>
-                setEditForm({ ...editForm, startTime: e.target.value })
-              }
-              required
-            />
-            <Input
-              label="Giờ kết thúc *"
-              type="time"
-              step="1"
-              value={editForm.endTime}
-              onChange={(e) =>
-                setEditForm({ ...editForm, endTime: e.target.value })
-              }
-              required
-            />
+          <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Giờ bắt đầu *"
+                type="time"
+                step="1"
+                value={editForm.startTime}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, startTime: e.target.value })
+                }
+                required
+              />
+              <Input
+                label="Giờ kết thúc *"
+                type="time"
+                step="1"
+                value={editForm.endTime}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, endTime: e.target.value })
+                }
+                required
+              />
+            </div>
+            {timeError && (
+              <p className="text-xs text-rose-500 font-medium">{timeError}</p>
+            )}
           </div>
           <Input
             label="Số phút cho phép đi trễ (0 - 120)"
@@ -113,7 +132,7 @@ export function ShiftEditDialog({
             >
               Hủy
             </Button>
-            <Button type="submit" isLoading={isUpdating}>
+            <Button type="submit" isLoading={isUpdating} disabled={!!timeError}>
               Lưu thay đổi
             </Button>
           </div>

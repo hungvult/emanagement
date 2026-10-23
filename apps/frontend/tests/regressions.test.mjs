@@ -555,3 +555,78 @@ test("a stale /auth/me response cannot sign a user back in after logout", async 
   assert.equal(state[0], null);
   assert.equal(store.getItem("access_token"), null);
 });
+
+test("shift time validation correctly validates format, ordering, and duration limits", () => {
+  const { getTimeValidationError, parseTimeToSeconds } = loadTs("lib/shifts-helpers.ts");
+
+  // Format and seconds parsing
+  assert.equal(parseTimeToSeconds("08:00"), 28800);
+  assert.equal(parseTimeToSeconds("08:30:15"), 30615);
+  assert.equal(parseTimeToSeconds(""), null);
+  assert.equal(parseTimeToSeconds("invalid"), null);
+  assert.equal(parseTimeToSeconds("25:00"), null);
+  assert.equal(parseTimeToSeconds("-01:00"), null);
+  assert.equal(parseTimeToSeconds("08:60"), null);
+
+  // Missing or empty inputs
+  assert.equal(
+    getTimeValidationError("", "17:00"),
+    "Giờ bắt đầu và giờ kết thúc ca không được để trống",
+  );
+  assert.equal(
+    getTimeValidationError("08:00", ""),
+    "Giờ bắt đầu và giờ kết thúc ca không được để trống",
+  );
+  assert.equal(
+    getTimeValidationError(undefined, undefined),
+    "Giờ bắt đầu và giờ kết thúc ca không được để trống",
+  );
+
+  // Valid standard shift
+  assert.equal(getTimeValidationError("08:00", "17:00"), null);
+  assert.equal(getTimeValidationError("08:00:00", "17:30:00"), null);
+
+  // Boundary 30 minutes
+  assert.equal(getTimeValidationError("08:00", "08:30"), null);
+
+  // Under 30 minutes: 29 minutes and 20 minutes
+  assert.equal(
+    getTimeValidationError("08:00", "08:29"),
+    "Thời lượng ca làm việc tối thiểu phải từ 30 phút trở lên",
+  );
+  assert.equal(
+    getTimeValidationError("08:00", "08:20"),
+    "Thời lượng ca làm việc tối thiểu phải từ 30 phút trở lên",
+  );
+
+  // Boundary 16 hours
+  assert.equal(getTimeValidationError("06:00", "22:00"), null);
+
+  // Exceeds 16 hours: 16 hours 1 min and 17 hours
+  assert.equal(
+    getTimeValidationError("06:00", "22:01"),
+    "Thời lượng ca làm việc tối đa không được vượt quá 16 giờ",
+  );
+  assert.equal(
+    getTimeValidationError("06:00", "23:00"),
+    "Thời lượng ca làm việc tối đa không được vượt quá 16 giờ",
+  );
+
+  // End before start (overnight not supported)
+  assert.equal(
+    getTimeValidationError("17:00", "08:00"),
+    "Giờ kết thúc phải sau giờ bắt đầu (hiện chưa hỗ trợ ca qua đêm)",
+  );
+
+  // End equals start (0 duration)
+  assert.equal(
+    getTimeValidationError("08:00", "08:00"),
+    "Giờ kết thúc phải sau giờ bắt đầu (hiện chưa hỗ trợ ca qua đêm)",
+  );
+
+  // Invalid time string
+  assert.equal(
+    getTimeValidationError("abc", "17:00"),
+    "Định dạng thời gian không hợp lệ",
+  );
+});

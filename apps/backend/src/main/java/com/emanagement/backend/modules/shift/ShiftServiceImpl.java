@@ -1,6 +1,7 @@
 package com.emanagement.backend.modules.shift;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -586,9 +587,19 @@ public class ShiftServiceImpl implements ShiftService {
     }
 
     private void validateTimeRange(LocalTime start, LocalTime end) {
+        if (start == null || end == null) {
+            throw new BusinessException("Giờ bắt đầu và giờ kết thúc ca không được để trống");
+        }
         if (!start.isBefore(end)) {
             throw new BusinessException(
                     "Giờ kết thúc phải sau giờ bắt đầu (hiện chưa hỗ trợ ca qua đêm)");
+        }
+        long durationMinutes = Duration.between(start, end).toMinutes();
+        if (durationMinutes < 30) {
+            throw new BusinessException("Thời lượng ca làm việc tối thiểu phải từ 30 phút trở lên");
+        }
+        if (durationMinutes > 16 * 60) {
+            throw new BusinessException("Thời lượng ca làm việc tối đa không được vượt quá 16 giờ");
         }
     }
 
