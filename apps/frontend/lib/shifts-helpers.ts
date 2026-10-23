@@ -60,3 +60,41 @@ export const SHIFT_COLORS = [
     text: "text-cyan-700 dark:text-cyan-400",
   },
 ];
+
+export function parseTimeToSeconds(timeStr?: string): number | null {
+  if (!timeStr) return null;
+  const parts = timeStr.split(":");
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const s = parts.length > 2 ? parseInt(parts[2], 10) : 0;
+  if (isNaN(h) || isNaN(m) || isNaN(s)) return null;
+  if (h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) return null;
+  return h * 3600 + m * 60 + s;
+}
+
+export function getTimeValidationError(
+  startTime?: string,
+  endTime?: string,
+): string | null {
+  if (!startTime || !endTime) {
+    return "Giờ bắt đầu và giờ kết thúc ca không được để trống";
+  }
+  const startSec = parseTimeToSeconds(startTime);
+  const endSec = parseTimeToSeconds(endTime);
+  if (startSec === null || endSec === null) {
+    return "Định dạng thời gian không hợp lệ";
+  }
+  if (endSec <= startSec) {
+    return "Giờ kết thúc phải sau giờ bắt đầu (hiện chưa hỗ trợ ca qua đêm)";
+  }
+  const durationMinutes = Math.floor((endSec - startSec) / 60);
+  if (durationMinutes < 30) {
+    return "Thời lượng ca làm việc tối thiểu phải từ 30 phút trở lên";
+  }
+  if (durationMinutes > 16 * 60) {
+    return "Thời lượng ca làm việc tối đa không được vượt quá 16 giờ";
+  }
+  return null;
+}
+
