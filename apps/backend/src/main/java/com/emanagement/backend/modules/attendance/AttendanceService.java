@@ -1,5 +1,7 @@
 package com.emanagement.backend.modules.attendance;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.time.LocalDate;
 
 import com.emanagement.backend.common.dto.PageResponse;
@@ -11,4 +13,7 @@ public interface AttendanceService {
 
     PageResponse<AttendanceHistoryDto> getAllRecords(int page, int size,
             LocalDate startDate, LocalDate endDate, String status, Long shiftId);
+
+    void exportAttendanceToCsv(OutputStream outputStream, LocalDate startDate, LocalDate endDate,
+            String status, Long shiftId, String search) throws IOException;
 }
