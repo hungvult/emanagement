@@ -12,4 +12,15 @@ export interface AttendanceHistory {
   status: "ON_TIME" | "LATE" | "EARLY_LEAVE" | "NO_DATA" | string;
   snapshotUrl: string | null;
   checkoutSnapshotUrl?: string | null;
+  note?: string | null;
+}
+
+export interface ManualAttendancePayload {
+  userId?: number;
+  shiftId?: number | null;
+  workDate?: string | null;
+  checkInTime: string; // YYYY-MM-DDTHH:mm:ss
+  checkOutTime?: string | null; // YYYY-MM-DDTHH:mm:ss
+  status?: string | null;
+  note?: string | null;
 }
