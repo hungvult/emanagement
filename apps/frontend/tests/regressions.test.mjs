@@ -1314,3 +1314,807 @@ test("shift catalog edit and delete buttons are always visible without hover", (
   assert.equal(emptyCards.length, 0, "Empty shifts renders 0 cards without error");
 });
 
+test("formatDate and formatDateTime format pure ISO, local datetime, offset ISO, and edge cases correctly", () => {
+  const { formatDate, formatDateTime } = loadTs("lib/utils.ts", {}, {
+    cn: (...args) => args.filter(Boolean).join(" "),
+  });
+
+  // 1. Pure ISO date strings (avoids timezone roll-over shift)
+  assert.equal(formatDate("2026-10-17"), "17/10/2026");
+  assert.equal(formatDateTime("2026-10-17"), "00:00 17/10/2026");
+  assert.equal(formatDate("2026-05-03"), "03/05/2026");
+  assert.equal(formatDateTime("2026-05-03"), "00:00 03/05/2026");
+  // Single-digit month and day
+  assert.equal(formatDate("2026-5-3"), "03/05/2026");
+  assert.equal(formatDateTime("2026-5-3"), "00:00 03/05/2026");
+  // Whitespace-padded pure ISO date strings
+  assert.equal(formatDate("  2026-10-17  "), "17/10/2026");
+  assert.equal(formatDateTime("  2026-10-17  "), "00:00 17/10/2026");
+
+  // 2. LocalDateTime strings without offset (both T and space separator, with or without microsecond decimals)
+  assert.equal(formatDate("2026-10-17T14:30:00"), "17/10/2026");
+  assert.equal(formatDateTime("2026-10-17T14:30:00"), "14:30 17/10/2026");
+  assert.equal(formatDate("2026-10-17 14:30:00.123456"), "17/10/2026");
+  assert.equal(formatDateTime("2026-10-17 14:30:00.123456"), "14:30 17/10/2026");
+  assert.equal(formatDate("2026-10-17T08:05"), "17/10/2026");
+  assert.equal(formatDateTime("2026-10-17T08:05"), "08:05 17/10/2026");
+  assert.equal(formatDate("  2026-10-17T14:30:00  "), "17/10/2026");
+  assert.equal(formatDateTime("  2026-10-17T14:30:00  "), "14:30 17/10/2026");
+
+  // 3. Date object & ISO string with offset (Z, +07:00, -05:00)
+  const localDateObj = new Date(2026, 9, 17, 14, 30, 0); // month 9 is October
+  assert.equal(formatDate(localDateObj), "17/10/2026");
+  assert.equal(formatDateTime(localDateObj), "14:30 17/10/2026");
+
+  // Offset Z string: check that format matches Date object interpretation
+  const zString = "2026-10-17T14:30:00Z";
+  const zDate = new Date(zString);
+  const expZH = String(zDate.getHours()).padStart(2, "0");
+  const expZM = String(zDate.getMinutes()).padStart(2, "0");
+  const expZD = String(zDate.getDate()).padStart(2, "0");
+  const expZMo = String(zDate.getMonth() + 1).padStart(2, "0");
+  const expZY = zDate.getFullYear();
+  assert.equal(formatDateTime(zString), `${expZH}:${expZM} ${expZD}/${expZMo}/${expZY}`);
+  assert.equal(formatDate(zString), `${expZD}/${expZMo}/${expZY}`);
+
+  // Offset +07:00 string
+  const offsetString = "2026-10-17T14:30:00+07:00";
+  const offsetDate = new Date(offsetString);
+  const expOH = String(offsetDate.getHours()).padStart(2, "0");
+  const expOM = String(offsetDate.getMinutes()).padStart(2, "0");
+  const expOD = String(offsetDate.getDate()).padStart(2, "0");
+  const expOMo = String(offsetDate.getMonth() + 1).padStart(2, "0");
+  const expOY = offsetDate.getFullYear();
+  assert.equal(formatDateTime(offsetString), `${expOH}:${expOM} ${expOD}/${expOMo}/${expOY}`);
+  assert.equal(formatDate(offsetString), `${expOD}/${expOMo}/${expOY}`);
+
+  // 4. Leap year 2024-02-29 valid vs non-leap / invalid / roll-over dates -> "—"
+  assert.equal(formatDate("2024-02-29"), "29/02/2024");
+  assert.equal(formatDateTime("2024-02-29"), "00:00 29/02/2024");
+  assert.equal(formatDate("2024-02-29T10:15:00"), "29/02/2024");
+  assert.equal(formatDateTime("2024-02-29T10:15:00"), "10:15 29/02/2024");
+  assert.equal(formatDate("2020-02-29"), "29/02/2020");
+  assert.equal(formatDate("2000-02-29"), "29/02/2000"); // Century leap year
+  assert.equal(formatDate("1900-02-29"), "—"); // Century non-leap year
+
+  const invalidDates = [
+    "2025-02-29",
+    "2026-02-29",
+    "2026-02-31",
+    "2026-04-31",
+    "2026-06-31",
+    "2026-09-31",
+    "2026-11-31",
+    "2026-13-01",
+    "2026-02-31T14:30:00Z",
+    "2026-02-31T14:30:00+07:00",
+    "2025-02-29T10:00:00+07:00",
+    "2026-04-31T14:30:00Z",
+    "2025-02-29T10:00:00",
+    "2025-02-29 10:00:00",
+    "2026-00-10",
+    "2026-10-00",
+    "2026-10-32",
+    "2026-10-17T24:00:00",
+    "2026-10-17T14:60:00",
+    "2026-10-17T14:30:60",
+    "0999-10-17",
+  ];
+  for (const inv of invalidDates) {
+    assert.equal(formatDate(inv), "—", `formatDate must return "—" for invalid date: ${inv}`);
+    assert.equal(formatDateTime(inv), "—", `formatDateTime must return "—" for invalid date: ${inv}`);
+  }
+
+  // 5. Empty / weird / non-date values -> "—"
+  assert.equal(formatDate(), "—", "formatDate with no arguments must return '—'");
+  assert.equal(formatDateTime(), "—", "formatDateTime with no arguments must return '—'");
+
+  const weirdValues = [
+    null,
+    undefined,
+    "",
+    "   ",
+    "abc",
+    "invalid-date",
+    new Date(NaN),
+    true,
+    false,
+    12345,
+    0,
+    {},
+    [],
+    () => {},
+  ];
+  for (const weird of weirdValues) {
+    assert.equal(formatDate(weird), "—", `formatDate must return "—" for weird value: ${String(weird)}`);
+    assert.equal(formatDateTime(weird), "—", `formatDateTime must return "—" for weird value: ${String(weird)}`);
+  }
+});
+
+function createLeaveHarness({ user, leaveServiceMock }) {
+  let states = [];
+  let stateCursor = 0;
+  let effectSlots = [];
+  let effectCursor = 0;
+  let callbackSlots = [];
+  let callbackCursor = 0;
+  let currentTree = null;
+  const toastErrors = [];
+  const toastSuccesses = [];
+
+  const toastError = (msg) => { toastErrors.push(msg); };
+  const toastSuccess = (msg) => { toastSuccesses.push(msg); };
+  const toastObj = { error: toastError, success: toastSuccess };
+  const beginRequestFn = () => () => true;
+
+  function shallowEqual(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  const mockReact = {
+    useState(initial) {
+      const idx = stateCursor++;
+      if (states.length <= idx) {
+        states.push(typeof initial === "function" ? initial() : initial);
+      }
+      const setState = (next) => {
+        const nextVal = typeof next === "function" ? next(states[idx]) : next;
+        if (states[idx] !== nextVal) {
+          states[idx] = nextVal;
+          scheduleRender();
+        }
+      };
+      return [states[idx], setState];
+    },
+    useCallback(fn, deps) {
+      const idx = callbackCursor++;
+      if (callbackSlots.length <= idx) {
+        callbackSlots.push({ fn, deps });
+        return fn;
+      }
+      const slot = callbackSlots[idx];
+      if (deps && shallowEqual(slot.deps, deps)) {
+        return slot.fn;
+      }
+      callbackSlots[idx] = { fn, deps };
+      return fn;
+    },
+    useRef(val) {
+      return { current: val };
+    },
+    useEffect(fn, deps) {
+      const idx = effectCursor++;
+      if (effectSlots.length <= idx) {
+        effectSlots.push({ fn, deps, run: true });
+        return;
+      }
+      const slot = effectSlots[idx];
+      if (!deps || !shallowEqual(slot.deps, deps)) {
+        slot.fn = fn;
+        slot.deps = deps;
+        slot.run = true;
+      }
+    },
+  };
+
+  let PageComponent;
+  let isRendering = false;
+  let pendingRender = false;
+
+  function doRender() {
+    if (isRendering) {
+      pendingRender = true;
+      return;
+    }
+    isRendering = true;
+    try {
+      do {
+        pendingRender = false;
+        stateCursor = 0;
+        effectCursor = 0;
+        callbackCursor = 0;
+        currentTree = PageComponent();
+        for (const slot of effectSlots) {
+          if (slot.run) {
+            slot.run = false;
+            slot.fn();
+          }
+        }
+      } while (pendingRender);
+    } finally {
+      isRendering = false;
+    }
+  }
+
+  function scheduleRender() {
+    if (PageComponent) {
+      doRender();
+    }
+  }
+
+  const jsxRuntime = {
+    jsx: (type, props) => (typeof type === "function" ? type(props) : { type, props }),
+    jsxs: (type, props) => (typeof type === "function" ? type(props) : { type, props }),
+    Fragment: Symbol.for("react.fragment"),
+  };
+
+  const { formatDate, formatDateTime } = loadTs("lib/utils.ts", {}, {
+    cn: (...args) => args.filter(Boolean).join(" "),
+  });
+  const { getErrorMessage } = loadTs("lib/errors.ts");
+
+  const pageModule = loadTs(
+    "app/(dashboard)/leave-requests/page.tsx",
+    {},
+    {
+      react: mockReact,
+      "react/jsx-runtime": jsxRuntime,
+      "@/lib/errors": { getErrorMessage },
+      "@/components/ui/badge": { Badge: (props) => ({ type: "badge", props }) },
+      "@/components/ui/button": { Button: (props) => ({ type: "button", props }) },
+      "@/components/ui/modal": {
+        Modal: ({ isOpen, onClose, title, children, className }) => ({
+          type: "modal",
+          props: { isOpen, onClose, title, children, className },
+        }),
+      },
+      "@/components/ui/pagination": { Pagination: (props) => ({ type: "pagination", props }) },
+      "@/components/ui/table": {
+        Table: (props) => ({ type: "table", props }),
+        TableHeader: (props) => ({ type: "thead", props }),
+        TableBody: (props) => ({ type: "tbody", props }),
+        TableRow: (props) => ({ type: "tr", props }),
+        TableHead: (props) => ({ type: "th", props }),
+        TableCell: (props) => ({ type: "td", props }),
+      },
+      "@/components/ui/toast": {
+        useToast: () => toastObj,
+      },
+      "@/hooks/use-auth": {
+        useAuth: () => ({
+          user,
+          hasRole: (role) => (user?.roles || []).includes(role),
+        }),
+      },
+      "@/hooks/use-latest-request": {
+        useLatestRequest: () => beginRequestFn,
+      },
+      "@/lib/utils": { formatDate, formatDateTime },
+      "@/services/leave.service": { leaveService: leaveServiceMock },
+      "lucide-react": new Proxy({}, { get: () => () => null }),
+    },
+  );
+
+  PageComponent = pageModule.default;
+  doRender();
+
+  return {
+    getTree: () => currentTree,
+    toastErrors,
+    toastSuccesses,
+    flush: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    },
+  };
+}
+
+test("leave requests page displays dates correctly and enforces confirmation modal with validation for approval and rejection", async () => {
+  const mockAdmin = { id: 1, fullName: "Admin User", roles: ["ROLE_ADMIN"] };
+  const mockRequests = [
+    {
+      id: 101,
+      userId: 2,
+      employeeCode: "NV002",
+      fullName: "Trần Thị B",
+      startDate: "2026-10-17",
+      endDate: "2026-10-20",
+      reason: "Nghỉ việc cá nhân",
+      status: "PENDING",
+      approvedByName: null,
+      createdAt: "2026-10-15T09:30:00",
+    },
+    {
+      id: 102,
+      userId: 3,
+      employeeCode: "NV003",
+      fullName: "Lê Văn C",
+      startDate: "2026-10-18",
+      endDate: "2026-10-19",
+      reason: "Khám sức khỏe",
+      status: "APPROVED",
+      approvedByName: "Admin User",
+      createdAt: "2026-10-14T14:20:00",
+    },
+  ];
+
+  const approveCalls = [];
+  let getAllCalls = 0;
+  const leaveServiceMock = {
+    getAll: async () => {
+      getAllCalls++;
+      return {
+        status: "SUCCESS",
+        data: { content: mockRequests, totalPages: 1, pageNumber: 0 },
+      };
+    },
+    approve: async (id, data) => {
+      approveCalls.push({ id, data });
+      return { status: "SUCCESS", data: {} };
+    },
+  };
+
+  const harness = createLeaveHarness({ user: mockAdmin, leaveServiceMock });
+  await harness.flush();
+
+  // 1. Verify date formatting: ST5-08 (dd/MM/yyyy) & ST5-02 (HH:mm dd/MM/yyyy, not truncated by split(" ")[0])
+  const cells = findNodes(harness.getTree(), (n) => n.type === "td");
+  const cellTexts = cells.map((c) => {
+    const textNodes = findNodes(c, (child) => typeof child === "string");
+    return textNodes.join(" ");
+  });
+
+  assert.ok(cellTexts.some((t) => t.includes("17/10/2026")), "Start date must be formatted as 17/10/2026 (ST5-08)");
+  assert.ok(cellTexts.some((t) => t.includes("20/10/2026")), "End date must be formatted as 20/10/2026 (ST5-08)");
+
+  assert.ok(
+    cellTexts.some((t) => t.includes("09:30 15/10/2026")),
+    "Created time must display full 09:30 15/10/2026 without truncation (ST5-02)",
+  );
+  assert.ok(
+    cellTexts.some((t) => t.includes("14:20 14/10/2026")),
+    "Created time for second row must display full 14:20 14/10/2026 (ST5-02)",
+  );
+
+  assert.ok(cellTexts.some((t) => t.includes("Đã xử lý")), "Already processed requests show processed status");
+  assert.equal(getAllCalls, 1, "Initial render must fetch requests once");
+
+  // 2. ST5-01: Admin clicking Duyệt button must open Modal, NOT call approve API immediately
+  let buttons = findNodes(harness.getTree(), (n) => n.type === "button");
+  const duyetBtn = buttons.find((b) => b.props?.title === "Duyệt");
+  assert.ok(duyetBtn, "Duyệt button must be present for PENDING request");
+
+  duyetBtn.props.onClick();
+  assert.equal(approveCalls.length, 0, "Clicking Duyệt must NOT call leaveService.approve immediately (ST5-01)");
+
+  let approveModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận duyệt đơn nghỉ phép",
+  )[0];
+  assert.ok(approveModal, "Approval confirmation modal must open with proper title");
+
+  const modalText = findNodes(approveModal, (n) => typeof n === "string").join(" ");
+  assert.ok(modalText.includes("Trần Thị B"), "Approval modal must display employee name");
+  assert.ok(modalText.includes("NV002"), "Approval modal must display employee code");
+  assert.ok(modalText.includes("17/10/2026") && modalText.includes("20/10/2026"), "Approval modal must display date range");
+  assert.ok(modalText.includes("Nghỉ việc cá nhân"), "Approval modal must display reason");
+
+  let modalForm = findNodes(approveModal, (n) => n.type === "form")[0];
+  assert.ok(modalForm, "Modal form must be rendered");
+  modalForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+
+  assert.equal(approveCalls.length, 1, "Submitting approval calls leaveService.approve");
+  assert.equal(approveCalls[0].id, 101);
+  assert.equal(approveCalls[0].data.status, "APPROVED");
+  assert.equal(approveCalls[0].data.approvedByUserId, 1);
+  assert.ok(harness.toastSuccesses.includes("Đã duyệt đơn nghỉ phép"));
+  assert.equal(getAllCalls, 2, "Successful approval must refetch requests list");
+
+  approveModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.title === "Xác nhận duyệt đơn nghỉ phép",
+  )[0];
+  assert.equal(approveModal.props.isOpen, false, "Modal must be closed after successful approval");
+
+  // 3. ST5-01 & Rejection validation: Admin clicking Từ chối button
+  buttons = findNodes(harness.getTree(), (n) => n.type === "button");
+  const tuChoiBtn = buttons.find((b) => b.props?.title === "Từ chối");
+  assert.ok(tuChoiBtn, "Từ chối button must be present for PENDING request");
+
+  tuChoiBtn.props.onClick();
+  assert.equal(approveCalls.length, 1, "Clicking Từ chối must NOT call leaveService.approve immediately (ST5-01)");
+
+  let rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  assert.ok(rejectModal, "Rejection confirmation modal must open with proper title");
+
+  // Validation: empty note
+  let rejectForm = findNodes(rejectModal, (n) => n.type === "form")[0];
+  let rejectTextarea = findNodes(rejectModal, (n) => n.type === "textarea")[0];
+  rejectForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+
+  assert.equal(approveCalls.length, 1, "API must NOT be called when rejection note is empty");
+  assert.equal(harness.toastErrors.length, 1);
+  assert.equal(harness.toastErrors[0], "Vui lòng nhập lý do từ chối (tối thiểu 3 ký tự)");
+
+  // Validation: whitespace only
+  rejectTextarea.props.onChange({ target: { value: "     " } });
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  rejectForm = findNodes(rejectModal, (n) => n.type === "form")[0];
+  rejectForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+  assert.equal(approveCalls.length, 1, "API must NOT be called when note is whitespace only");
+  assert.equal(harness.toastErrors.length, 2);
+
+  // Validation: 1 character
+  rejectTextarea.props.onChange({ target: { value: " a " } });
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  rejectForm = findNodes(rejectModal, (n) => n.type === "form")[0];
+  rejectForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+  assert.equal(approveCalls.length, 1, "API must NOT be called when note is 1 char after trim");
+  assert.equal(harness.toastErrors.length, 3);
+
+  // Validation: 2 characters
+  rejectTextarea.props.onChange({ target: { value: "  ko  " } });
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  rejectForm = findNodes(rejectModal, (n) => n.type === "form")[0];
+  rejectForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+  assert.equal(approveCalls.length, 1, "API must NOT be called when rejection note has 2 chars after trim");
+  assert.equal(harness.toastErrors.length, 4);
+
+  // Test Modal onClose callback (escape / backdrop click)
+  rejectModal.props.onClose();
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  assert.equal(rejectModal.props.isOpen, false, "Modal onClose must close modal");
+  assert.equal(approveCalls.length, 1, "API must not be called after modal close");
+
+  // Re-open and verify note was reset to empty string
+  tuChoiBtn.props.onClick();
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  rejectTextarea = findNodes(rejectModal, (n) => n.type === "textarea")[0];
+  assert.equal(rejectTextarea.props.value, "", "Re-opening modal must reset reviewNote to empty");
+
+  // Test boundary: exactly 3 characters after trim (e.g. "abc") -> must be accepted!
+  rejectTextarea.props.onChange({ target: { value: "  abc  " } });
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  rejectForm = findNodes(rejectModal, (n) => n.type === "form")[0];
+  rejectForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+
+  assert.equal(approveCalls.length, 2, "API must be called when exactly 3 characters are provided after trim");
+  assert.equal(approveCalls[1].id, 101);
+  assert.equal(approveCalls[1].data.status, "REJECTED");
+  assert.equal(approveCalls[1].data.approvedByUserId, 1);
+  assert.ok(harness.toastSuccesses.includes("Đã từ chối đơn nghỉ phép"));
+  assert.equal(getAllCalls, 3, "Successful rejection must refetch requests list");
+
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  assert.equal(rejectModal.props.isOpen, false, "Modal must be closed after rejection");
+});
+
+test("leave requests page handles approval and rejection API errors by keeping modal open", async () => {
+  const mockAdmin = { id: 1, fullName: "Admin User", roles: ["ROLE_ADMIN"] };
+  const mockRequests = [
+    {
+      id: 301,
+      userId: 4,
+      employeeCode: "NV004",
+      fullName: "Đỗ Thị D",
+      startDate: "2026-10-22",
+      endDate: "2026-10-25",
+      reason: "Việc cá nhân",
+      status: "PENDING",
+      approvedByName: null,
+      createdAt: "2026-10-16T08:00:00",
+    },
+  ];
+
+  let shouldRejectApi = false;
+  let apiErrorMessage = "";
+  const leaveServiceMock = {
+    getAll: async () => ({
+      status: "SUCCESS",
+      data: { content: mockRequests, totalPages: 1, pageNumber: 0 },
+    }),
+    approve: async () => {
+      if (shouldRejectApi) {
+        throw new Error("Mất kết nối mạng");
+      }
+      if (apiErrorMessage) {
+        return {
+          status: "ERROR",
+          message: apiErrorMessage,
+          response: { data: { message: apiErrorMessage } },
+        };
+      }
+      return { status: "SUCCESS", data: {} };
+    },
+  };
+
+  const harness = createLeaveHarness({ user: mockAdmin, leaveServiceMock });
+  await harness.flush();
+
+  // Test 1: API returns error status response -> modal remains open
+  apiErrorMessage = "Đơn nghỉ phép này đã được xử lý bởi quản trị viên khác";
+  const buttons = findNodes(harness.getTree(), (n) => n.type === "button");
+  const duyetBtn = buttons.find((b) => b.props?.title === "Duyệt");
+  duyetBtn.props.onClick();
+
+  let approveModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận duyệt đơn nghỉ phép",
+  )[0];
+  let approveForm = findNodes(approveModal, (n) => n.type === "form")[0];
+  approveForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+
+  assert.ok(
+    harness.toastErrors.includes("Đơn nghỉ phép này đã được xử lý bởi quản trị viên khác"),
+    "Must display server error message on API failure",
+  );
+  approveModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.title === "Xác nhận duyệt đơn nghỉ phép",
+  )[0];
+  assert.equal(approveModal.props.isOpen, true, "Modal must remain open when API returns error status");
+
+  // Close modal via cancel button
+  const cancelBtn = findNodes(approveModal, (n) => n.type === "button" && n.props?.children === "Hủy")[0];
+  cancelBtn.props.onClick();
+
+  // Test 2: API throws network exception -> modal remains open and retains input
+  shouldRejectApi = true;
+  apiErrorMessage = "";
+  const tuChoiBtn = findNodes(harness.getTree(), (n) => n.type === "button" && n.props?.title === "Từ chối")[0];
+  tuChoiBtn.props.onClick();
+
+  let rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  let rejectTextarea = findNodes(rejectModal, (n) => n.type === "textarea")[0];
+  rejectTextarea.props.onChange({ target: { value: "Không đồng ý vì lý do công tác" } });
+
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  let rejectForm = findNodes(rejectModal, (n) => n.type === "form")[0];
+  rejectForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+
+  assert.ok(
+    harness.toastErrors.some((err) => err.includes("Mất kết nối mạng") || err.includes("Lỗi khi xử lý đơn phép")),
+    "Must display toast error when network call rejects",
+  );
+  rejectModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.title === "Xác nhận từ chối đơn nghỉ phép",
+  )[0];
+  assert.equal(rejectModal.props.isOpen, true, "Modal must remain open when network call rejects");
+  rejectTextarea = findNodes(rejectModal, (n) => n.type === "textarea")[0];
+  assert.equal(
+    rejectTextarea.props.value,
+    "Không đồng ý vì lý do công tác",
+    "User rejection note must be retained on network failure",
+  );
+});
+
+test("leave requests page admin status filter and empty data state", async () => {
+  const mockAdmin = { id: 1, fullName: "Admin User", roles: ["ROLE_ADMIN"] };
+  let lastFilterStatus = null;
+  let requestsToReturn = [];
+
+  const leaveServiceMock = {
+    getAll: async (page, size, status) => {
+      lastFilterStatus = status;
+      return {
+        status: "SUCCESS",
+        data: { content: requestsToReturn, totalPages: 1, pageNumber: 0 },
+      };
+    },
+  };
+
+  const harness = createLeaveHarness({ user: mockAdmin, leaveServiceMock });
+  await harness.flush();
+
+  // Test empty state
+  const cells = findNodes(harness.getTree(), (n) => n.type === "td");
+  const cellTexts = cells.map((c) => findNodes(c, (child) => typeof child === "string").join(" "));
+  assert.ok(
+    cellTexts.some((t) => t.includes("Không có dữ liệu đơn phép")),
+    "Must show empty data placeholder when requests array is empty",
+  );
+  assert.equal(cells[0].props?.colSpan, 8, "Admin empty state must span 8 columns");
+
+  // Test status filter select
+  const selects = findNodes(harness.getTree(), (n) => n.type === "select");
+  assert.equal(selects.length, 1, "Admin view renders status filter select");
+  selects[0].props.onChange({ target: { value: "PENDING" } });
+  await harness.flush();
+  assert.equal(lastFilterStatus, "PENDING", "Changing select to PENDING calls getAll with PENDING filter");
+
+  selects[0].props.onChange({ target: { value: "" } });
+  await harness.flush();
+  assert.equal(lastFilterStatus, undefined, "Changing select to empty calls getAll with undefined filter");
+});
+
+test("leave requests page for non-admin user loads personal requests, handles empty state, and validates create form", async () => {
+  const mockEmployeeUser = { id: 5, fullName: "Phan Văn E", roles: ["ROLE_USER"] };
+  const mockUserRequests = [
+    {
+      id: 201,
+      userId: 5,
+      employeeCode: "NV005",
+      fullName: "Phan Văn E",
+      startDate: "2026-11-01",
+      endDate: "2026-11-03",
+      reason: "Nghỉ phép năm",
+      status: "PENDING",
+      approvedByName: null,
+      createdAt: "2026-10-20T10:00:00",
+    },
+  ];
+
+  let getMyRequestsCalled = 0;
+  const createCalls = [];
+  const leaveServiceMock = {
+    getMyRequests: async (userId) => {
+      getMyRequestsCalled++;
+      assert.equal(userId, 5);
+      return { status: "SUCCESS", data: mockUserRequests };
+    },
+    getAll: async () => {
+      throw new Error("Standard user should NOT call getAll");
+    },
+    create: async (data) => {
+      createCalls.push(data);
+      return { status: "SUCCESS", data: { id: 202, ...data } };
+    },
+  };
+
+  const harness = createLeaveHarness({ user: mockEmployeeUser, leaveServiceMock });
+  await harness.flush();
+
+  assert.equal(getMyRequestsCalled, 1, "Must call getMyRequests with user id");
+
+  // Title check: "Đơn phép của tôi"
+  const titles = findNodes(harness.getTree(), (n) => n.type === "h1");
+  const titleText = findNodes(titles[0], (n) => typeof n === "string").join(" ");
+  assert.ok(titleText.includes("Đơn phép của tôi"), "Employee view shows 'Đơn phép của tôi'");
+
+  // Create button exists
+  const createButtons = findNodes(harness.getTree(), (n) => n.type === "button" && findNodes(n, (c) => typeof c === "string").join(" ").includes("Tạo đơn mới"));
+  assert.equal(createButtons.length, 1, "Must display 'Tạo đơn mới' button for employee");
+
+  // No admin columns: "Nhân viên" or "Hành động"
+  const tableHeads = findNodes(harness.getTree(), (n) => n.type === "th");
+  const headTexts = tableHeads.map((th) => findNodes(th, (c) => typeof c === "string").join(" "));
+  assert.ok(!headTexts.includes("Nhân viên"), "Non-admin table does not display 'Nhân viên' column");
+  assert.ok(!headTexts.includes("Hành động"), "Non-admin table does not display 'Hành động' column");
+
+  // Dates formatted correctly in user row
+  const cells = findNodes(harness.getTree(), (n) => n.type === "td");
+  const cellTexts = cells.map((c) => findNodes(c, (child) => typeof child === "string").join(" "));
+  assert.ok(cellTexts.some((t) => t.includes("01/11/2026")), "Start date formatted as 01/11/2026");
+  assert.ok(cellTexts.some((t) => t.includes("03/11/2026")), "End date formatted as 03/11/2026");
+  assert.ok(cellTexts.some((t) => t.includes("10:00 20/10/2026")), "Created time formatted as 10:00 20/10/2026");
+
+  // Test employee "Tạo đơn mới" modal and submission validations
+  createButtons[0].props.onClick();
+  let createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  assert.ok(createModal, "Create leave request modal must open");
+
+  // Submit without dates
+  let createForm = findNodes(createModal, (n) => n.type === "form")[0];
+  createForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+  assert.ok(
+    harness.toastErrors.includes("Vui lòng chọn ngày bắt đầu và kết thúc"),
+    "Must error when start or end date is missing",
+  );
+  assert.equal(createCalls.length, 0);
+
+  // Submit startDate > endDate
+  let dateInputs = findNodes(createModal, (n) => n.type === "input" && n.props?.type === "date");
+  dateInputs[0].props.onChange({ target: { value: "2026-11-10" } });
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  dateInputs = findNodes(createModal, (n) => n.type === "input" && n.props?.type === "date");
+  dateInputs[1].props.onChange({ target: { value: "2026-11-05" } });
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  createForm = findNodes(createModal, (n) => n.type === "form")[0];
+  createForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+  assert.ok(
+    harness.toastErrors.includes("Ngày bắt đầu không được lớn hơn ngày kết thúc"),
+    "Must error when startDate > endDate",
+  );
+  assert.equal(createCalls.length, 0);
+
+  // Submit reason < 5 characters
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  dateInputs = findNodes(createModal, (n) => n.type === "input" && n.props?.type === "date");
+  dateInputs[1].props.onChange({ target: { value: "2026-11-12" } });
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  let reasonTextarea = findNodes(createModal, (n) => n.type === "textarea")[0];
+  reasonTextarea.props.onChange({ target: { value: "Nghỉ" } });
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  createForm = findNodes(createModal, (n) => n.type === "form")[0];
+  createForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+  assert.ok(
+    harness.toastErrors.includes("Lý do xin nghỉ phép phải từ 5 ký tự trở lên"),
+    "Must error when reason < 5 chars",
+  );
+  assert.equal(createCalls.length, 0);
+
+  // Submit valid create request
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  reasonTextarea = findNodes(createModal, (n) => n.type === "textarea")[0];
+  reasonTextarea.props.onChange({ target: { value: "Nghỉ phép giải quyết việc gia đình" } });
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.isOpen && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  createForm = findNodes(createModal, (n) => n.type === "form")[0];
+  createForm.props.onSubmit({ preventDefault() {} });
+  await harness.flush();
+
+  assert.equal(createCalls.length, 1, "Must call leaveService.create with valid form");
+  assert.equal(createCalls[0].userId, 5);
+  assert.equal(createCalls[0].startDate, "2026-11-10");
+  assert.equal(createCalls[0].endDate, "2026-11-12");
+  assert.equal(createCalls[0].reason, "Nghỉ phép giải quyết việc gia đình");
+  assert.ok(harness.toastSuccesses.includes("Đã gửi đơn xin nghỉ phép thành công!"));
+
+  createModal = findNodes(
+    harness.getTree(),
+    (n) => n.type === "modal" && n.props?.title === "Tạo đơn xin nghỉ phép",
+  )[0];
+  assert.equal(createModal.props.isOpen, false, "Create modal must close on success");
+  assert.equal(getMyRequestsCalled, 2, "Must refetch user requests after creating");
+});
+
+
+
