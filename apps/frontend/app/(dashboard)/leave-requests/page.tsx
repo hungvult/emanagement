@@ -16,7 +16,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLatestRequest } from "@/hooks/use-latest-request";
-import { formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { leaveService } from "@/services/leave.service";
 import { LeaveRequestCreate, LeaveRequestResponse } from "@/types/leave.types";
 import { CalendarRange, Check, Plus, X } from "lucide-react";
@@ -46,6 +46,19 @@ export default function LeaveRequestsPage() {
     reason: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Review / Approval Modal State (ST5-01)
+  const [reviewModalState, setReviewModalState] = useState<{
+    isOpen: boolean;
+    request: LeaveRequestResponse | null;
+    status: "APPROVED" | "REJECTED";
+  }>({
+    isOpen: false,
+    request: null,
+    status: "APPROVED",
+  });
+  const [reviewNote, setReviewNote] = useState("");
+  const [isReviewSubmitting, setIsReviewSubmitting] = useState(false);
 
   const fetchRequests = useCallback(
     async (pageNumber: number) => {
@@ -129,25 +142,58 @@ export default function LeaveRequestsPage() {
     }
   };
 
-  const handleApprove = async (id: number, status: "APPROVED" | "REJECTED") => {
-    if (!user) return;
+  const openReviewModal = (
+    request: LeaveRequestResponse,
+    status: "APPROVED" | "REJECTED",
+  ) => {
+    setReviewModalState({
+      isOpen: true,
+      request,
+      status,
+    });
+    setReviewNote("");
+  };
+
+  const closeReviewModal = () => {
+    if (isReviewSubmitting) return;
+    setReviewModalState((prev) => ({ ...prev, isOpen: false }));
+    setReviewNote("");
+  };
+
+  const handleConfirmReview = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!user || !reviewModalState.request || isReviewSubmitting) return;
+
+    if (
+      reviewModalState.status === "REJECTED" &&
+      reviewNote.trim().length < 3
+    ) {
+      error("Vui lòng nhập lý do từ chối (tối thiểu 3 ký tự)");
+      return;
+    }
+
+    setIsReviewSubmitting(true);
     try {
-      const res = await leaveService.approve(id, {
+      const res = await leaveService.approve(reviewModalState.request.id, {
         approvedByUserId: user.id,
-        status: status,
+        status: reviewModalState.status,
       });
       if (res.status === "SUCCESS") {
         success(
-          status === "APPROVED"
+          reviewModalState.status === "APPROVED"
             ? "Đã duyệt đơn nghỉ phép"
             : "Đã từ chối đơn nghỉ phép",
         );
+        setReviewModalState((prev) => ({ ...prev, isOpen: false }));
+        setReviewNote("");
         fetchRequests(page);
       } else {
         error(getErrorMessage(res, "Không thể xử lý đơn"));
       }
     } catch (err: unknown) {
       error(getErrorMessage(err, "Lỗi khi xử lý đơn phép"));
+    } finally {
+      setIsReviewSubmitting(false);
     }
   };
 
@@ -241,9 +287,11 @@ export default function LeaveRequestsPage() {
                       </TableCell>
                     )}
                     <TableCell className="font-medium">
-                      {req.startDate}
+                      {formatDate(req.startDate)}
                     </TableCell>
-                    <TableCell className="font-medium">{req.endDate}</TableCell>
+                    <TableCell className="font-medium">
+                      {formatDate(req.endDate)}
+                    </TableCell>
                     <TableCell
                       className="max-w-[200px] truncate"
                       title={req.reason}
@@ -271,9 +319,7 @@ export default function LeaveRequestsPage() {
                       {req.approvedByName || "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      {req.createdAt
-                        ? formatDateTime(req.createdAt).split(" ")[0]
-                        : "—"}
+                      {formatDateTime(req.createdAt)}
                     </TableCell>
                     {isAdmin && (
                       <TableCell className="text-right">
@@ -283,7 +329,7 @@ export default function LeaveRequestsPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 text-success hover:bg-success/10 hover:text-success"
-                              onClick={() => handleApprove(req.id, "APPROVED")}
+                              onClick={() => openReviewModal(req, "APPROVED")}
                               title="Duyệt"
                             >
                               <Check className="h-4 w-4" />
@@ -292,7 +338,7 @@ export default function LeaveRequestsPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 text-danger hover:bg-danger/10 hover:text-danger"
-                              onClick={() => handleApprove(req.id, "REJECTED")}
+                              onClick={() => openReviewModal(req, "REJECTED")}
                               title="Từ chối"
                             >
                               <X className="h-4 w-4" />
@@ -391,6 +437,101 @@ export default function LeaveRequestsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal xác nhận Duyệt / Từ chối đơn nghỉ phép (ST5-01) */}
+      <Modal
+        isOpen={reviewModalState.isOpen}
+        onClose={closeReviewModal}
+        title={
+          reviewModalState.status === "APPROVED"
+            ? "Xác nhận duyệt đơn nghỉ phép"
+            : "Xác nhận từ chối đơn nghỉ phép"
+        }
+        className="max-w-md"
+      >
+        {reviewModalState.request && (
+          <form onSubmit={handleConfirmReview} className="space-y-4">
+            <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Nhân viên:</span>
+                <span className="font-semibold text-slate-900">
+                  {reviewModalState.request.fullName || "—"} -{" "}
+                  {reviewModalState.request.employeeCode || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Khoảng ngày nghỉ:</span>
+                <span className="font-semibold text-slate-900">
+                  {formatDate(reviewModalState.request.startDate)} –{" "}
+                  {formatDate(reviewModalState.request.endDate)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 font-medium block mb-1">
+                  Lý do xin nghỉ:
+                </span>
+                <p className="text-slate-700 bg-white p-2.5 rounded-lg border border-slate-200/60 text-sm whitespace-pre-wrap">
+                  {reviewModalState.request.reason || "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+                {reviewModalState.status === "APPROVED" ? (
+                  "Ghi chú phản hồi (khuyến nghị)"
+                ) : (
+                  <>
+                    Lý do từ chối <span className="text-rose-500">*</span>
+                  </>
+                )}
+              </label>
+              <textarea
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all min-h-[90px] resize-none"
+                placeholder={
+                  reviewModalState.status === "APPROVED"
+                    ? "Nhập ghi chú phản hồi cho nhân viên (nếu có)..."
+                    : "Nhập lý do từ chối đơn phép (bắt buộc, tối thiểu 3 ký tự)..."
+                }
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                disabled={isReviewSubmitting}
+              />
+              {reviewModalState.status === "REJECTED" && (
+                <p className="text-xs text-slate-400 ml-1">
+                  Bắt buộc nhập tối thiểu 3 ký tự để tránh thao tác nhầm.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={closeReviewModal}
+                disabled={isReviewSubmitting}
+                className="rounded-xl font-semibold hover:bg-slate-100"
+              >
+                Hủy
+              </Button>
+              <Button
+                type="submit"
+                isLoading={isReviewSubmitting}
+                disabled={isReviewSubmitting}
+                className={`rounded-xl font-bold px-5 ${
+                  reviewModalState.status === "APPROVED"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20"
+                    : "bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-500/20"
+                }`}
+              >
+                {reviewModalState.status === "APPROVED"
+                  ? "Xác nhận duyệt"
+                  : "Xác nhận từ chối"}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );
