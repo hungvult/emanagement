@@ -5,9 +5,12 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,16 +19,27 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
+import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.common.exception.BusinessException;
 import com.emanagement.backend.common.exception.ResourceNotFoundException;
+import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.modules.attendance.AttendanceRecordRepository;
+import com.emanagement.backend.modules.auth.Role;
+import com.emanagement.backend.modules.employee.User;
 import com.emanagement.backend.modules.employee.UserRepository;
+import com.emanagement.backend.modules.employee.dto.EmployeeResponseDto;
 import com.emanagement.backend.modules.leave.LeaveRequestRepository;
 import com.emanagement.backend.modules.notification.NotificationService;
+import com.emanagement.backend.modules.shift.dto.EmployeeShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftCreateDto;
 import com.emanagement.backend.modules.shift.dto.ShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftUpdateDto;
+import com.emanagement.backend.modules.shift.dto.WeeklyScheduleResponseDto;
 
 @ExtendWith(MockitoExtension.class)
 class ShiftServiceImplTest {
@@ -47,6 +61,9 @@ class ShiftServiceImplTest {
 
     @Mock
     private AttendanceRecordRepository attendanceRecordRepository;
+
+    @Mock
+    private StorageService storageService;
 
     @InjectMocks
     private ShiftServiceImpl shiftService;
@@ -481,6 +498,488 @@ class ShiftServiceImplTest {
 
         assertThrows(ResourceNotFoundException.class, () -> shiftService.updateShift(999L, dto));
         verify(shiftRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // getWeeklySchedulePaged Tests
+    // =========================================================================
+
+    private User createTestUser(Long id, String employeeCode, String fullName, String email, String avatarKey) {
+        return User.builder()
+                .id(id)
+                .employeeCode(employeeCode)
+                .fullName(fullName)
+                .email(email)
+                .phone("090" + id)
+                .avatarUrl(avatarKey)
+                .status("ACTIVE")
+                .roles(Set.of(new Role(1L, "ROLE_USER", "Nhân viên")))
+                .createdAt(LocalDateTime.of(2026, 1, 1, 8, 0))
+                .build();
+    }
+
+    private EmployeeShift createTestEmployeeShift(Long id, User user, Shift shift, LocalDate assignedDate) {
+        EmployeeShift es = new EmployeeShift();
+        es.setId(id);
+        es.setUser(user);
+        es.setShift(shift);
+        es.setAssignedDate(assignedDate);
+        es.setShiftName(shift.getName());
+        es.setStartTime(shift.getStartTime());
+        es.setEndTime(shift.getEndTime());
+        es.setGracePeriodMinutes(shift.getGracePeriodMinutes());
+        es.setCreatedAt(LocalDateTime.now());
+        return es;
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged succeeds with paged employees, presigned avatars, and sorted assignments")
+    void getWeeklySchedulePaged_Success_ReturnsEmployeesWithPresignedUrlAndSortedAssignments() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        String keyword = "Nguyen";
+        int page = 0;
+        int size = 10;
+
+        User user1 = createTestUser(101L, "EMP101", "Nguyen Van A", "a@example.com", "avatars/u101.jpg");
+        User user2 = createTestUser(102L, "EMP102", "Nguyen Van B", "b@example.com", "avatars/u102.jpg");
+
+        Page<User> usersPage = new PageImpl<>(List.of(user1, user2), PageRequest.of(page, size), 2);
+        when(userRepository.findEmployeesForWeeklySchedule(eq("Nguyen"), eq(startDate), eq(endDate), eq(PageRequest.of(page, size))))
+                .thenReturn(usersPage);
+
+        when(storageService.getPresignedUrl("avatars/u101.jpg", 60)).thenReturn("https://minio.local/presigned/u101.jpg");
+        when(storageService.getPresignedUrl("avatars/u102.jpg", 60)).thenReturn("https://minio.local/presigned/u102.jpg");
+
+        // Decouple id and assignedDate to strictly test sort: assignedDate ASC, id ASC
+        // Date 20: id=50, id=10
+        // Date 22: id=25, id=5
+        // Expected sort:
+        // 1. (Date 20, id=10)
+        // 2. (Date 20, id=50)
+        // 3. (Date 22, id=5)
+        // 4. (Date 22, id=25)
+        EmployeeShift es1 = createTestEmployeeShift(50L, user1, existingShift, LocalDate.of(2026, 10, 20));
+        EmployeeShift es2 = createTestEmployeeShift(10L, user2, existingShift, LocalDate.of(2026, 10, 20));
+        EmployeeShift es3 = createTestEmployeeShift(25L, user2, existingShift, LocalDate.of(2026, 10, 22));
+        EmployeeShift es4 = createTestEmployeeShift(5L, user1, existingShift, LocalDate.of(2026, 10, 22));
+
+        when(employeeShiftRepository.findByUserIdInAndAssignedDateBetween(List.of(101L, 102L), startDate, endDate))
+                .thenReturn(List.of(es1, es3, es4, es2));
+
+        WeeklyScheduleResponseDto result = shiftService.getWeeklySchedulePaged(startDate, endDate, page, size, keyword);
+
+        assertNotNull(result);
+
+        // Verify employees page response
+        PageResponse<EmployeeResponseDto> employees = result.getEmployees();
+        assertNotNull(employees);
+        assertEquals(0, employees.getPageNumber());
+        assertEquals(10, employees.getPageSize());
+        assertEquals(2, employees.getTotalElement());
+        assertEquals(1, employees.getTotalPages());
+        assertEquals(2, employees.getContent().size());
+
+        EmployeeResponseDto empDto1 = employees.getContent().get(0);
+        assertEquals(101L, empDto1.getId());
+        assertEquals("EMP101", empDto1.getEmployeeCode());
+        assertEquals("Nguyen Van A", empDto1.getFullName());
+        assertEquals("a@example.com", empDto1.getEmail());
+        assertEquals("090101", empDto1.getPhone());
+        assertEquals("https://minio.local/presigned/u101.jpg", empDto1.getAvatarUrl());
+        assertEquals("ACTIVE", empDto1.getStatus());
+        assertFalse(empDto1.isHasRegisteredFace());
+        assertEquals(LocalDateTime.of(2026, 1, 1, 8, 0), empDto1.getCreatedAt());
+        assertEquals(Set.of("ROLE_USER"), empDto1.getRoles());
+
+        EmployeeResponseDto empDto2 = employees.getContent().get(1);
+        assertEquals(102L, empDto2.getId());
+        assertEquals("EMP102", empDto2.getEmployeeCode());
+        assertEquals("Nguyen Van B", empDto2.getFullName());
+        assertEquals("b@example.com", empDto2.getEmail());
+        assertEquals("090102", empDto2.getPhone());
+        assertEquals("https://minio.local/presigned/u102.jpg", empDto2.getAvatarUrl());
+        assertEquals("ACTIVE", empDto2.getStatus());
+        assertFalse(empDto2.isHasRegisteredFace());
+        assertEquals(LocalDateTime.of(2026, 1, 1, 8, 0), empDto2.getCreatedAt());
+        assertEquals(Set.of("ROLE_USER"), empDto2.getRoles());
+
+        // Verify assignments sorted strictly by assignedDate ASC, id ASC
+        List<EmployeeShiftResponseDto> assignments = result.getAssignments();
+        assertNotNull(assignments);
+        assertEquals(4, assignments.size());
+
+        // 1st: es2 (2026-10-20, id=10)
+        assertEquals(10L, assignments.get(0).getId());
+        assertEquals(102L, assignments.get(0).getUserId());
+        assertEquals("EMP102", assignments.get(0).getEmployeeCode());
+        assertEquals("Nguyen Van B", assignments.get(0).getFullName());
+        assertEquals(1L, assignments.get(0).getShiftId());
+        assertEquals("Ca Hành Chính", assignments.get(0).getShiftName());
+        assertEquals("SHIFT-001", assignments.get(0).getShiftCode());
+        assertEquals(LocalTime.of(8, 0), assignments.get(0).getStartTime());
+        assertEquals(LocalTime.of(17, 30), assignments.get(0).getEndTime());
+        assertEquals(15, assignments.get(0).getGracePeriodMinutes());
+        assertEquals(LocalDate.of(2026, 10, 20), assignments.get(0).getAssignedDate());
+
+        // 2nd: es1 (2026-10-20, id=50)
+        assertEquals(50L, assignments.get(1).getId());
+        assertEquals(101L, assignments.get(1).getUserId());
+        assertEquals("EMP101", assignments.get(1).getEmployeeCode());
+        assertEquals("Nguyen Van A", assignments.get(1).getFullName());
+        assertEquals(1L, assignments.get(1).getShiftId());
+        assertEquals("Ca Hành Chính", assignments.get(1).getShiftName());
+        assertEquals("SHIFT-001", assignments.get(1).getShiftCode());
+        assertEquals(LocalTime.of(8, 0), assignments.get(1).getStartTime());
+        assertEquals(LocalTime.of(17, 30), assignments.get(1).getEndTime());
+        assertEquals(15, assignments.get(1).getGracePeriodMinutes());
+        assertEquals(LocalDate.of(2026, 10, 20), assignments.get(1).getAssignedDate());
+
+        // 3rd: es4 (2026-10-22, id=5)
+        assertEquals(5L, assignments.get(2).getId());
+        assertEquals(101L, assignments.get(2).getUserId());
+        assertEquals("EMP101", assignments.get(2).getEmployeeCode());
+        assertEquals("Nguyen Van A", assignments.get(2).getFullName());
+        assertEquals(LocalDate.of(2026, 10, 22), assignments.get(2).getAssignedDate());
+
+        // 4th: es3 (2026-10-22, id=25)
+        assertEquals(25L, assignments.get(3).getId());
+        assertEquals(102L, assignments.get(3).getUserId());
+        assertEquals("EMP102", assignments.get(3).getEmployeeCode());
+        assertEquals("Nguyen Van B", assignments.get(3).getFullName());
+        assertEquals(LocalDate.of(2026, 10, 22), assignments.get(3).getAssignedDate());
+
+        verify(userRepository).findEmployeesForWeeklySchedule("Nguyen", startDate, endDate, PageRequest.of(0, 10));
+        verify(employeeShiftRepository).findByUserIdInAndAssignedDateBetween(List.of(101L, 102L), startDate, endDate);
+        verify(storageService).getPresignedUrl("avatars/u101.jpg", 60);
+        verify(storageService).getPresignedUrl("avatars/u102.jpg", 60);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged maps user with null roles and null avatarUrl correctly")
+    void getWeeklySchedulePaged_UserWithNullRolesAndAvatar_HandledSafely() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+
+        User userWithoutRoles = User.builder()
+                .id(201L)
+                .employeeCode("EMP201")
+                .fullName("User No Roles")
+                .roles(null)
+                .avatarUrl(null)
+                .build();
+
+        Page<User> usersPage = new PageImpl<>(List.of(userWithoutRoles), PageRequest.of(0, 20), 1);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(usersPage);
+        when(storageService.getPresignedUrl(null, 60)).thenReturn(null);
+        when(employeeShiftRepository.findByUserIdInAndAssignedDateBetween(List.of(201L), startDate, endDate))
+                .thenReturn(Collections.emptyList());
+
+        WeeklyScheduleResponseDto result = shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null);
+
+        assertNotNull(result);
+        assertEquals(1, result.getEmployees().getContent().size());
+        EmployeeResponseDto empDto = result.getEmployees().getContent().get(0);
+        assertNotNull(empDto.getRoles());
+        assertTrue(empDto.getRoles().isEmpty());
+        assertNull(empDto.getAvatarUrl());
+        verify(storageService).getPresignedUrl(null, 60);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged maps user with multiple roles correctly")
+    void getWeeklySchedulePaged_MapsUserWithMultipleRolesCorrectly() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+
+        User userWithRoles = User.builder()
+                .id(202L)
+                .employeeCode("EMP202")
+                .fullName("Multi Role User")
+                .roles(Set.of(
+                        new Role(1L, "ROLE_EMPLOYEE", "Nhân viên"),
+                        new Role(2L, "ROLE_MANAGER", "Quản lý")
+                ))
+                .avatarUrl("avatars/u202.png")
+                .build();
+
+        Page<User> usersPage = new PageImpl<>(List.of(userWithRoles), PageRequest.of(0, 20), 1);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(usersPage);
+        when(storageService.getPresignedUrl("avatars/u202.png", 60)).thenReturn("https://minio.local/presigned/u202.png");
+        when(employeeShiftRepository.findByUserIdInAndAssignedDateBetween(List.of(202L), startDate, endDate))
+                .thenReturn(Collections.emptyList());
+
+        WeeklyScheduleResponseDto result = shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null);
+
+        assertNotNull(result);
+        assertEquals(1, result.getEmployees().getContent().size());
+        EmployeeResponseDto empDto = result.getEmployees().getContent().get(0);
+        assertEquals(2, empDto.getRoles().size());
+        assertTrue(empDto.getRoles().contains("ROLE_EMPLOYEE"));
+        assertTrue(empDto.getRoles().contains("ROLE_MANAGER"));
+        assertEquals("https://minio.local/presigned/u202.png", empDto.getAvatarUrl());
+        verify(storageService).getPresignedUrl("avatars/u202.png", 60);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged normalizes page < 0 to 0 (boundaries: -1 and -10)")
+    void getWeeklySchedulePaged_NormalizesNegativePage_ToZero() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20))))
+                .thenReturn(Page.empty());
+
+        // Boundary -1
+        shiftService.getWeeklySchedulePaged(startDate, endDate, -1, 20, null);
+        // Deep negative -10
+        shiftService.getWeeklySchedulePaged(startDate, endDate, -10, 20, null);
+
+        verify(userRepository, times(2)).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20)));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged preserves non-negative page index (page = 0 and page = 2)")
+    void getWeeklySchedulePaged_PreservesNonNegativePage_Correctly() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null);
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 2, 20, null);
+
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20)));
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(2, 20)));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged normalizes size <= 0 to 1 (boundaries: 0, -1, -50)")
+    void getWeeklySchedulePaged_NormalizesNonPositiveSize_ToOne() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 1))))
+                .thenReturn(Page.empty());
+
+        // Test size = 0
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 0, null);
+        // Test size = -1
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, -1, null);
+        // Test size = -50
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, -50, null);
+
+        verify(userRepository, times(3)).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 1)));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged preserves valid size within [1, 100] (boundaries: 1, 50, 100)")
+    void getWeeklySchedulePaged_PreservesValidSize_WithinRange() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        // Min boundary: 1
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 1, null);
+        // Mid value: 50
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 50, null);
+        // Max boundary: 100
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 100, null);
+
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 1)));
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 50)));
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 100)));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged normalizes size > 100 to 100 (boundaries: 101, 500)")
+    void getWeeklySchedulePaged_NormalizesSizeExceeding100_To100() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 100))))
+                .thenReturn(Page.empty());
+
+        // Boundary + 1: 101
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 101, null);
+        // Large size: 500
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 500, null);
+
+        verify(userRepository, times(2)).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 100)));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged trims keyword with leading and trailing whitespaces, tabs, newlines")
+    void getWeeklySchedulePaged_TrimsKeywordWithWhitespace() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        when(userRepository.findEmployeesForWeeklySchedule(eq("EMP001"), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20))))
+                .thenReturn(Page.empty());
+
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, "  EMP001  ");
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, "\t\n  EMP001  \t\n");
+
+        verify(userRepository, times(2)).findEmployeesForWeeklySchedule(eq("EMP001"), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20)));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged normalizes blank, empty, and whitespace-only keyword to null")
+    void getWeeklySchedulePaged_NormalizesBlankKeyword_ToNull() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20))))
+                .thenReturn(Page.empty());
+
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null);
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, "");
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, "   ");
+        shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, "\t \n ");
+
+        verify(userRepository, times(4)).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20)));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged returns empty assignments and does not query shifts when users page is empty")
+    void getWeeklySchedulePaged_WhenUsersPageIsEmpty_ReturnsEmptyAssignmentsAndSkipsShiftQuery() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+        Page<User> emptyPage = new PageImpl<>(Collections.emptyList(), PageRequest.of(0, 20), 0);
+
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20))))
+                .thenReturn(emptyPage);
+
+        WeeklyScheduleResponseDto result = shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null);
+
+        assertNotNull(result);
+        assertNotNull(result.getEmployees());
+        assertTrue(result.getEmployees().getContent().isEmpty());
+        assertEquals(0, result.getEmployees().getTotalElement());
+        assertNotNull(result.getAssignments());
+        assertTrue(result.getAssignments().isEmpty());
+
+        verify(employeeShiftRepository, never()).findByUserIdInAndAssignedDateBetween(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged returns employees and empty assignments when employees have no shifts in date range")
+    void getWeeklySchedulePaged_WhenEmployeesHaveNoShifts_ReturnsEmployeesWithEmptyAssignments() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+
+        User user1 = createTestUser(101L, "EMP101", "Nguyen Van A", "a@example.com", "avatars/u101.jpg");
+        Page<User> usersPage = new PageImpl<>(List.of(user1), PageRequest.of(0, 20), 1);
+
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), eq(PageRequest.of(0, 20))))
+                .thenReturn(usersPage);
+        when(storageService.getPresignedUrl("avatars/u101.jpg", 60)).thenReturn("https://minio.local/presigned/u101.jpg");
+        when(employeeShiftRepository.findByUserIdInAndAssignedDateBetween(List.of(101L), startDate, endDate))
+                .thenReturn(Collections.emptyList());
+
+        WeeklyScheduleResponseDto result = shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null);
+
+        assertNotNull(result);
+        assertEquals(1, result.getEmployees().getContent().size());
+        assertNotNull(result.getAssignments());
+        assertTrue(result.getAssignments().isEmpty());
+        verify(employeeShiftRepository).findByUserIdInAndAssignedDateBetween(List.of(101L), startDate, endDate);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged throws BusinessException when startDate is null")
+    void getWeeklySchedulePaged_ThrowsException_WhenStartDateIsNull() {
+        LocalDate endDate = LocalDate.of(2026, 10, 25);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> shiftService.getWeeklySchedulePaged(null, endDate, 0, 20, null));
+
+        assertEquals("Ngày bắt đầu và ngày kết thúc không được để trống", ex.getMessage());
+        verifyNoInteractions(userRepository, employeeShiftRepository, storageService);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged throws BusinessException when endDate is null")
+    void getWeeklySchedulePaged_ThrowsException_WhenEndDateIsNull() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> shiftService.getWeeklySchedulePaged(startDate, null, 0, 20, null));
+
+        assertEquals("Ngày bắt đầu và ngày kết thúc không được để trống", ex.getMessage());
+        verifyNoInteractions(userRepository, employeeShiftRepository, storageService);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged throws BusinessException when both startDate and endDate are null")
+    void getWeeklySchedulePaged_ThrowsException_WhenBothDatesAreNull() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> shiftService.getWeeklySchedulePaged(null, null, 0, 20, null));
+
+        assertEquals("Ngày bắt đầu và ngày kết thúc không được để trống", ex.getMessage());
+        verifyNoInteractions(userRepository, employeeShiftRepository, storageService);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged throws BusinessException when endDate is before startDate")
+    void getWeeklySchedulePaged_ThrowsException_WhenEndDateIsBeforeStartDate() {
+        LocalDate startDate = LocalDate.of(2026, 10, 25);
+        LocalDate endDate = LocalDate.of(2026, 10, 24); // 1 day before
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null));
+
+        assertEquals("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu", ex.getMessage());
+        verifyNoInteractions(userRepository, employeeShiftRepository, storageService);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged throws BusinessException when date range exceeds 92 days")
+    void getWeeklySchedulePaged_ThrowsException_WhenDateRangeExceeds92Days() {
+        LocalDate startDate = LocalDate.of(2026, 1, 1);
+        LocalDate endDate = startDate.plusDays(93); // ChronoUnit.DAYS.between(startDate, endDate) == 93 > 92
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null));
+
+        assertEquals("Chỉ được xem lịch tối đa 93 ngày mỗi lần", ex.getMessage());
+        verifyNoInteractions(userRepository, employeeShiftRepository, storageService);
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged succeeds when date range is exactly 92 days (boundary)")
+    void getWeeklySchedulePaged_Success_WhenDateRangeIsExactly92Days() {
+        LocalDate startDate = LocalDate.of(2026, 1, 1);
+        LocalDate endDate = startDate.plusDays(92); // ChronoUnit.DAYS.between(startDate, endDate) == 92 <= 92
+
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        assertDoesNotThrow(() -> shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null));
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged succeeds when startDate equals endDate (single day)")
+    void getWeeklySchedulePaged_Success_WhenStartDateEqualsEndDate() {
+        LocalDate singleDate = LocalDate.of(2026, 10, 20);
+
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(singleDate), eq(singleDate), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        assertDoesNotThrow(() -> shiftService.getWeeklySchedulePaged(singleDate, singleDate, 0, 20, null));
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(singleDate), eq(singleDate), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getWeeklySchedulePaged succeeds for standard 7-day week (startDate to startDate + 6 days)")
+    void getWeeklySchedulePaged_Success_ForStandardSevenDayWeek() {
+        LocalDate startDate = LocalDate.of(2026, 10, 19); // Monday
+        LocalDate endDate = startDate.plusDays(6);        // Sunday (2026-10-25)
+
+        when(userRepository.findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        assertDoesNotThrow(() -> shiftService.getWeeklySchedulePaged(startDate, endDate, 0, 20, null));
+        verify(userRepository).findEmployeesForWeeklySchedule(isNull(), eq(startDate), eq(endDate), any(Pageable.class));
     }
 }
 

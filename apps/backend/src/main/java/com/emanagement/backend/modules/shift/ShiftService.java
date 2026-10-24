@@ -12,6 +12,7 @@ import com.emanagement.backend.modules.shift.dto.EmployeeShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftCreateDto;
 import com.emanagement.backend.modules.shift.dto.ShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftUpdateDto;
+import com.emanagement.backend.modules.shift.dto.WeeklyScheduleResponseDto;
 
 public interface ShiftService {
     ShiftResponseDto createShift(ShiftCreateDto dto);
@@ -31,6 +32,9 @@ public interface ShiftService {
     BulkAssignResultDto copyWeek(CopyWeekDto dto);
 
     List<EmployeeShiftResponseDto> getSchedule(LocalDate startDate, LocalDate endDate);
+
+    WeeklyScheduleResponseDto getWeeklySchedulePaged(
+            LocalDate startDate, LocalDate endDate, int page, int size, String keyword);
 
     List<EmployeeShiftResponseDto> getMySchedule(Long userId, LocalDate startDate, LocalDate endDate);
 
