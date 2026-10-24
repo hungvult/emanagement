@@ -33,8 +33,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import com.emanagement.backend.common.dto.PageResponse;
+import com.emanagement.backend.common.exception.BusinessException;
+import com.emanagement.backend.common.exception.ResourceNotFoundException;
 import com.emanagement.backend.common.service.StorageService;
+import com.emanagement.backend.modules.attendance.dto.AttendanceHistoryDto;
+import com.emanagement.backend.modules.attendance.dto.ManualAttendanceRequestDto;
 import com.emanagement.backend.modules.employee.User;
+import com.emanagement.backend.modules.employee.UserRepository;
 import com.emanagement.backend.modules.kiosk.Kiosk;
 import com.emanagement.backend.modules.shift.EmployeeShift;
 import com.emanagement.backend.modules.shift.EmployeeShiftRepository;
@@ -52,6 +58,9 @@ class AttendanceExportTest {
 
     @Mock
     private ShiftRepository shiftRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private StorageService storageService;
@@ -623,5 +632,263 @@ class AttendanceExportTest {
 
         assertEquals(2, lines.length);
         assertEquals("1,EMP260001,\"Ngô Văn Dũng\",2026-10-23,\"Ca hành chính\",17:00:00,08:00:00,0.00,\"Đúng giờ\",\"Trạm Kiosk Trụ Sở Chính\"", lines[1]);
+    }
+
+    // =========================================================================
+    // 10. Subtask 3.1 Unit Tests (ST5-04 & ST5-05)
+    // =========================================================================
+
+    @Test
+    @DisplayName("ST5-04: getAllRecords with search filters both attended records and unattended NO_DATA shifts by employee code")
+    void getAllRecords_WithSearch_FiltersAttendedAndUnattendedByEmployeeCode() {
+        LocalDate start = LocalDate.of(2026, 10, 1);
+        LocalDate end = LocalDate.of(2026, 10, 24);
+        String searchCode = "EMP260001";
+
+        // 1 attended record for sampleUser (EMP260001)
+        AttendanceRecord attendedRecord = AttendanceRecord.builder()
+                .id(101L)
+                .user(sampleUser)
+                .shift(sampleShift)
+                .kiosk(sampleKiosk)
+                .checkInTime(LocalDateTime.of(2026, 10, 24, 7, 55))
+                .checkOutTime(LocalDateTime.of(2026, 10, 24, 17, 5))
+                .status("ON_TIME")
+                .build();
+
+        when(attendanceRecordRepository.findAllWithExportFilters(
+                eq(true), eq(start.atStartOfDay()),
+                eq(true), eq(end.plusDays(1).atStartOfDay()),
+                eq(false), eq(""),
+                eq(false), isNull(),
+                eq(true), eq(searchCode),
+                eq(PageRequest.of(0, 1000))))
+                .thenReturn(new PageImpl<>(List.of(attendedRecord)));
+
+        // 2 scheduled unattended shifts: 1 for sampleUser (EMP260001), 1 for other user (EMP260002)
+        User otherUser = User.builder().id(2L).employeeCode("EMP260002").fullName("Trần Thị B").build();
+
+        EmployeeShift es1 = new EmployeeShift();
+        es1.setId(501L);
+        es1.setUser(sampleUser);
+        es1.setShift(sampleShift);
+        es1.setShiftName("Ca hành chính");
+        es1.setAssignedDate(LocalDate.of(2026, 10, 22));
+
+        EmployeeShift es2 = new EmployeeShift();
+        es2.setId(502L);
+        es2.setUser(otherUser);
+        es2.setShift(sampleShift);
+        es2.setShiftName("Ca hành chính");
+        es2.setAssignedDate(LocalDate.of(2026, 10, 22));
+
+        when(employeeShiftRepository.findByAssignedDateBetweenOrderByAssignedDateAsc(any(), any()))
+                .thenReturn(List.of(es1, es2));
+        when(attendanceRecordRepository.findByUserIdInAndCheckInTimeBetween(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+
+        PageResponse<AttendanceHistoryDto> result = attendanceService.getAllRecords(0, 10, start, end, null, null, searchCode);
+
+        assertNotNull(result);
+        assertEquals(2, result.getContent().size());
+        assertTrue(result.getContent().stream().allMatch(r -> searchCode.equals(r.getEmployeeCode())),
+                "All returned records must match search employee code EMP260001");
+        assertTrue(result.getContent().stream().anyMatch(r -> r.getId().equals(101L)), "Must include attended record");
+        assertTrue(result.getContent().stream().anyMatch(r -> r.getId().equals(-501L)), "Must include unattended shift (-501)");
+    }
+
+    @Test
+    @DisplayName("ST5-05: createManualRecord creates record, auto-infers status, updates existing same shift and does not overwrite other shift")
+    void createManualRecord_Success_AutoInfersStatusAndUpdatesSameShiftRecord() {
+        LocalDate workDate = LocalDate.of(2026, 10, 24);
+        LocalDateTime inTimeOnTime = LocalDateTime.of(2026, 10, 24, 8, 10);
+        LocalDateTime outTimeOnTime = LocalDateTime.of(2026, 10, 24, 17, 10);
+
+        // 1. Create new record with auto-inferred ON_TIME status
+        ManualAttendanceRequestDto dtoNew = ManualAttendanceRequestDto.builder()
+                .userId(1L)
+                .shiftId(10L)
+                .workDate(workDate)
+                .checkInTime(inTimeOnTime)
+                .checkOutTime(outTimeOnTime)
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+        when(shiftRepository.findById(10L)).thenReturn(Optional.of(sampleShift));
+        when(attendanceRecordRepository.findByUserIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(attendanceRecordRepository.save(any(AttendanceRecord.class))).thenAnswer(inv -> {
+            AttendanceRecord r = inv.getArgument(0);
+            r.setId(301L);
+            return r;
+        });
+
+        AttendanceHistoryDto resultOnTime = attendanceService.createManualRecord(dtoNew);
+        assertEquals("ON_TIME", resultOnTime.getStatus());
+        assertEquals(301L, resultOnTime.getId());
+
+        // 2. Auto-infer LATE when check-in is after grace period
+        ManualAttendanceRequestDto dtoLate = ManualAttendanceRequestDto.builder()
+                .userId(1L)
+                .shiftId(10L)
+                .workDate(workDate)
+                .checkInTime(LocalDateTime.of(2026, 10, 24, 8, 25))
+                .checkOutTime(outTimeOnTime)
+                .build();
+
+        AttendanceHistoryDto resultLate = attendanceService.createManualRecord(dtoLate);
+        assertEquals("LATE", resultLate.getStatus());
+
+        // 3. Auto-infer EARLY_LEAVE when checkout is before shift end
+        ManualAttendanceRequestDto dtoEarly = ManualAttendanceRequestDto.builder()
+                .userId(1L)
+                .shiftId(10L)
+                .workDate(workDate)
+                .checkInTime(LocalDateTime.of(2026, 10, 24, 8, 0))
+                .checkOutTime(LocalDateTime.of(2026, 10, 24, 16, 30))
+                .build();
+
+        AttendanceHistoryDto resultEarly = attendanceService.createManualRecord(dtoEarly);
+        assertEquals("EARLY_LEAVE", resultEarly.getStatus());
+
+        // 4. Updates existing record of SAME shift on that day
+        AttendanceRecord existingShift10 = AttendanceRecord.builder()
+                .id(777L)
+                .user(sampleUser)
+                .shift(sampleShift)
+                .checkInTime(LocalDateTime.of(2026, 10, 24, 8, 30))
+                .status("LATE")
+                .build();
+
+        when(attendanceRecordRepository.findByUserIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(existingShift10));
+        when(attendanceRecordRepository.save(any(AttendanceRecord.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AttendanceHistoryDto resultUpdated = attendanceService.createManualRecord(dtoNew);
+        assertEquals(777L, resultUpdated.getId(), "Must update existing record with ID 777");
+        assertEquals("ON_TIME", resultUpdated.getStatus());
+
+        // 5. Does NOT overwrite record of DIFFERENT shift on same day
+        Shift shiftOther = Shift.builder().id(20L).shiftCode("SHIFT-NIGHT").name("Ca đêm").startTime(LocalTime.of(22, 0)).endTime(LocalTime.of(6, 0)).build();
+        ManualAttendanceRequestDto dtoOtherShift = ManualAttendanceRequestDto.builder()
+                .userId(1L)
+                .shiftId(20L)
+                .workDate(workDate)
+                .checkInTime(LocalDateTime.of(2026, 10, 24, 22, 0))
+                .checkOutTime(LocalDateTime.of(2026, 10, 25, 6, 0))
+                .build();
+
+        when(shiftRepository.findById(20L)).thenReturn(Optional.of(shiftOther));
+        when(attendanceRecordRepository.findByUserIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(existingShift10)); // Existing is shift 10, request is shift 20
+        when(attendanceRecordRepository.save(any(AttendanceRecord.class))).thenAnswer(inv -> {
+            AttendanceRecord r = inv.getArgument(0);
+            assertNotEquals(777L, r.getId(), "Must not overwrite existing shift 10 record");
+            r.setId(888L);
+            return r;
+        });
+
+        AttendanceHistoryDto resultDifferentShift = attendanceService.createManualRecord(dtoOtherShift);
+        assertEquals(888L, resultDifferentShift.getId());
+        assertEquals("Ca đêm", resultDifferentShift.getShiftName());
+    }
+
+    @Test
+    @DisplayName("ST5-05: createManualRecord throws BusinessException when checkOut <= checkIn, and ResourceNotFoundException when user missing")
+    void createManualRecord_ValidationErrors_ThrowsBusinessAndNotFoundExceptions() {
+        LocalDateTime checkIn = LocalDateTime.of(2026, 10, 24, 8, 0);
+
+        // checkOut before checkIn
+        ManualAttendanceRequestDto dtoBefore = ManualAttendanceRequestDto.builder()
+                .userId(1L)
+                .checkInTime(checkIn)
+                .checkOutTime(LocalDateTime.of(2026, 10, 24, 7, 50))
+                .build();
+
+        BusinessException exBefore = assertThrows(BusinessException.class, () -> attendanceService.createManualRecord(dtoBefore));
+        assertEquals("Thời gian ra ca phải sau thời gian vào ca", exBefore.getMessage());
+
+        // checkOut equals checkIn
+        ManualAttendanceRequestDto dtoEqual = ManualAttendanceRequestDto.builder()
+                .userId(1L)
+                .checkInTime(checkIn)
+                .checkOutTime(checkIn)
+                .build();
+
+        BusinessException exEqual = assertThrows(BusinessException.class, () -> attendanceService.createManualRecord(dtoEqual));
+        assertEquals("Thời gian ra ca phải sau thời gian vào ca", exEqual.getMessage());
+
+        // User not found
+        ManualAttendanceRequestDto dtoUserNotFound = ManualAttendanceRequestDto.builder()
+                .userId(999L)
+                .checkInTime(checkIn)
+                .build();
+
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+        ResourceNotFoundException exUser = assertThrows(ResourceNotFoundException.class, () -> attendanceService.createManualRecord(dtoUserNotFound));
+        assertTrue(exUser.getMessage().contains("999"));
+    }
+
+    @Test
+    @DisplayName("ST5-05: updateManualRecord updates existing record when id > 0, and creates record via EmployeeShift when id < 0")
+    void updateManualRecord_Success_HandlesPositiveAndNegativeIds() {
+        LocalDateTime inTime = LocalDateTime.of(2026, 10, 24, 8, 0);
+        LocalDateTime outTime = LocalDateTime.of(2026, 10, 24, 17, 0);
+
+        // 1. id > 0: updates existing record
+        AttendanceRecord existing = AttendanceRecord.builder()
+                .id(100L)
+                .user(sampleUser)
+                .shift(sampleShift)
+                .checkInTime(LocalDateTime.of(2026, 10, 24, 8, 30))
+                .status("LATE")
+                .build();
+
+        ManualAttendanceRequestDto dtoUpdate = ManualAttendanceRequestDto.builder()
+                .shiftId(10L)
+                .checkInTime(inTime)
+                .checkOutTime(outTime)
+                .build();
+
+        when(attendanceRecordRepository.findById(100L)).thenReturn(Optional.of(existing));
+        when(shiftRepository.findById(10L)).thenReturn(Optional.of(sampleShift));
+        when(attendanceRecordRepository.save(any(AttendanceRecord.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AttendanceHistoryDto resPositive = attendanceService.updateManualRecord(100L, dtoUpdate);
+        assertNotNull(resPositive);
+        assertEquals(100L, resPositive.getId());
+        assertEquals("ON_TIME", resPositive.getStatus());
+        assertEquals(inTime, existing.getCheckInTime());
+        assertEquals(outTime, existing.getCheckOutTime());
+
+        // 2. id < 0: looks up EmployeeShift with id = -id and delegates to createManualRecord
+        EmployeeShift es = new EmployeeShift();
+        es.setId(42L);
+        es.setUser(sampleUser);
+        es.setShift(sampleShift);
+        es.setAssignedDate(LocalDate.of(2026, 10, 24));
+
+        when(employeeShiftRepository.findById(42L)).thenReturn(Optional.of(es));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+        when(attendanceRecordRepository.findByUserIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(attendanceRecordRepository.save(any(AttendanceRecord.class))).thenAnswer(inv -> {
+            AttendanceRecord r = inv.getArgument(0);
+            r.setId(999L);
+            return r;
+        });
+
+        ManualAttendanceRequestDto dtoNegative = ManualAttendanceRequestDto.builder()
+                .checkInTime(inTime)
+                .checkOutTime(outTime)
+                .build();
+
+        AttendanceHistoryDto resNegative = attendanceService.updateManualRecord(-42L, dtoNegative);
+        assertNotNull(resNegative);
+        assertEquals(999L, resNegative.getId());
+        assertEquals("ON_TIME", resNegative.getStatus());
+        assertEquals("Ca hành chính", resNegative.getShiftName());
+        assertEquals("Ngô Văn Dũng", resNegative.getFullName());
+        verify(employeeShiftRepository).findById(42L);
     }
 }

@@ -11,5 +11,8 @@ public interface AlertService {
 
     AnomalyAlertResponseDto resolveAlert(Long id, ResolveAlertRequestDto dto);
 
+    long getUnresolvedAlertCount();
+
     void createAlert(AnomalyAlert alert);
 }
+

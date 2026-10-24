@@ -7,6 +7,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,6 +17,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -23,50 +25,95 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.emanagement.backend.common.dto.PageResponse;
+import com.emanagement.backend.common.exception.BusinessException;
+import com.emanagement.backend.common.exception.ResourceNotFoundException;
 import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.modules.attendance.dto.AttendanceHistoryDto;
+import com.emanagement.backend.modules.attendance.dto.ManualAttendanceRequestDto;
+import com.emanagement.backend.modules.employee.User;
+import com.emanagement.backend.modules.employee.UserRepository;
 import com.emanagement.backend.modules.shift.EmployeeShift;
 import com.emanagement.backend.modules.shift.EmployeeShiftRepository;
 import com.emanagement.backend.modules.shift.Shift;
 import com.emanagement.backend.modules.shift.ShiftRepository;
 
 import jakarta.persistence.EntityManager;
-import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
 public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final EmployeeShiftRepository employeeShiftRepository;
     private final ShiftRepository shiftRepository;
+    private final UserRepository userRepository;
     private final StorageService storageService;
     private final EntityManager entityManager;
+
+    @Autowired
+    public AttendanceServiceImpl(
+            AttendanceRecordRepository attendanceRecordRepository,
+            EmployeeShiftRepository employeeShiftRepository,
+            ShiftRepository shiftRepository,
+            UserRepository userRepository,
+            StorageService storageService,
+            EntityManager entityManager) {
+        this.attendanceRecordRepository = attendanceRecordRepository;
+        this.employeeShiftRepository = employeeShiftRepository;
+        this.shiftRepository = shiftRepository;
+        this.userRepository = userRepository;
+        this.storageService = storageService;
+        this.entityManager = entityManager;
+    }
+
+    public AttendanceServiceImpl(
+            AttendanceRecordRepository attendanceRecordRepository,
+            EmployeeShiftRepository employeeShiftRepository,
+            ShiftRepository shiftRepository,
+            StorageService storageService,
+            EntityManager entityManager) {
+        this(attendanceRecordRepository, employeeShiftRepository, shiftRepository, null, storageService, entityManager);
+    }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<AttendanceHistoryDto> getUserHistory(Long userId, int page, int size,
             LocalDate startDate, LocalDate endDate, String status, Long shiftId) {
-        return getRecordsInternal(userId, page, size, startDate, endDate, status, shiftId);
+        return getRecordsInternal(userId, page, size, startDate, endDate, status, shiftId, null);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<AttendanceHistoryDto> getAllRecords(int page, int size,
             LocalDate startDate, LocalDate endDate, String status, Long shiftId) {
-        return getRecordsInternal(null, page, size, startDate, endDate, status, shiftId);
+        return getAllRecords(page, size, startDate, endDate, status, shiftId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<AttendanceHistoryDto> getAllRecords(int page, int size,
+            LocalDate startDate, LocalDate endDate, String status, Long shiftId, String search) {
+        return getRecordsInternal(null, page, size, startDate, endDate, status, shiftId, search);
     }
 
     private PageResponse<AttendanceHistoryDto> getRecordsInternal(Long userId, int page, int size,
-            LocalDate startDate, LocalDate endDate, String status, Long shiftId) {
+            LocalDate startDate, LocalDate endDate, String status, Long shiftId, String search) {
         PageRequest pageRequest = PageRequest.of(page, size);
         LocalDateTime start = startDate != null ? startDate.atStartOfDay() : null;
         LocalDateTime end = endDate != null ? endDate.plusDays(1).atStartOfDay() : null;
-        String statusFilter = (status != null && !status.isBlank()) ? status : null;
+        String statusFilter = (status != null && !status.isBlank()) ? status.trim().toUpperCase() : null;
         boolean hasShiftId = shiftId != null;
+        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        boolean hasSearch = searchParam != null;
 
         // Nếu lọc riêng trạng thái "Không có dữ liệu" (NO_DATA)
         if ("NO_DATA".equalsIgnoreCase(statusFilter)) {
             List<AttendanceHistoryDto> unattended = getUnattendedShifts(userId, startDate, endDate, shiftId);
+            if (hasSearch) {
+                String sLower = searchParam.toLowerCase();
+                unattended = unattended.stream()
+                        .filter(u -> (u.getFullName() != null && u.getFullName().toLowerCase().contains(sLower))
+                                || (u.getEmployeeCode() != null && u.getEmployeeCode().toLowerCase().contains(sLower)))
+                        .collect(Collectors.toList());
+            }
             unattended.sort(Comparator.comparing(AttendanceHistoryDto::getWorkDate, Comparator.nullsLast(Comparator.reverseOrder())));
             return paginateList(unattended, pageRequest);
         }
@@ -82,6 +129,14 @@ public class AttendanceServiceImpl implements AttendanceService {
                         true, statusFilter,
                         hasShiftId, shiftId,
                         pageRequest);
+            } else if (hasSearch) {
+                records = attendanceRecordRepository.findAllWithExportFilters(
+                        start != null, start,
+                        end != null, end,
+                        true, statusFilter,
+                        hasShiftId, shiftId,
+                        true, searchParam,
+                        pageRequest);
             } else {
                 records = attendanceRecordRepository.findAllWithFilters(
                         start != null, start,
@@ -95,6 +150,14 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         // Trạng thái = "Tất cả": Gom cả bản ghi đã chấm công VÀ các ca chưa chấm công (NO_DATA)
         List<AttendanceHistoryDto> unattended = getUnattendedShifts(userId, startDate, endDate, shiftId);
+        if (hasSearch) {
+            String sLower = searchParam.toLowerCase();
+            unattended = unattended.stream()
+                    .filter(u -> (u.getFullName() != null && u.getFullName().toLowerCase().contains(sLower))
+                            || (u.getEmployeeCode() != null && u.getEmployeeCode().toLowerCase().contains(sLower)))
+                    .collect(Collectors.toList());
+        }
+
         if (unattended.isEmpty()) {
             Page<AttendanceRecord> records;
             if (userId != null) {
@@ -104,6 +167,14 @@ public class AttendanceServiceImpl implements AttendanceService {
                         end != null, end,
                         false, null,
                         hasShiftId, shiftId,
+                        pageRequest);
+            } else if (hasSearch) {
+                records = attendanceRecordRepository.findAllWithExportFilters(
+                        start != null, start,
+                        end != null, end,
+                        false, "",
+                        hasShiftId, shiftId,
+                        true, searchParam,
                         pageRequest);
             } else {
                 records = attendanceRecordRepository.findAllWithFilters(
@@ -129,6 +200,14 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (hasShiftId) {
                 attendedRecords = attendedRecords.stream().filter(r -> r.getShift() != null && r.getShift().getId().equals(shiftId)).collect(Collectors.toList());
             }
+        } else if (hasSearch) {
+            attendedRecords = attendanceRecordRepository.findAllWithExportFilters(
+                    start != null, start,
+                    end != null, end,
+                    false, "",
+                    hasShiftId, shiftId,
+                    true, searchParam,
+                    PageRequest.of(0, 1000)).getContent();
         } else {
             // Lấy các bản ghi gần nhất (tối đa 1000)
             attendedRecords = attendanceRecordRepository.findAllWithFilters(
@@ -156,6 +235,174 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         return paginateList(allList, pageRequest);
     }
+
+    @Override
+    @Transactional
+    public AttendanceHistoryDto createManualRecord(ManualAttendanceRequestDto dto) {
+        if (dto == null) {
+            throw new BusinessException("Dữ liệu chấm công không được để trống");
+        }
+        if (dto.getCheckInTime() == null) {
+            throw new BusinessException("Thời gian vào ca không được để trống");
+        }
+        if (dto.getCheckOutTime() != null && !dto.getCheckOutTime().isAfter(dto.getCheckInTime())) {
+            throw new BusinessException("Thời gian ra ca phải sau thời gian vào ca");
+        }
+        if (dto.getUserId() == null) {
+            throw new BusinessException("ID nhân viên không được để trống");
+        }
+
+        User user = userRepository.findById(dto.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + dto.getUserId()));
+
+        Shift shift = null;
+        if (dto.getShiftId() != null) {
+            shift = shiftRepository.findById(dto.getShiftId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca làm việc với ID: " + dto.getShiftId()));
+        }
+
+        LocalDate workDate = dto.getWorkDate() != null ? dto.getWorkDate() : dto.getCheckInTime().toLocalDate();
+        if (shift == null) {
+            EmployeeShift es = employeeShiftRepository.findByUserIdAndAssignedDate(user.getId(), workDate).orElse(null);
+            if (es != null && es.getShift() != null) {
+                shift = es.getShift();
+            } else {
+                shift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+            }
+        }
+
+        String status = resolveStatus(dto.getStatus(), shift, workDate, dto.getCheckInTime(), dto.getCheckOutTime());
+
+        LocalDate checkInDate = dto.getCheckInTime().toLocalDate();
+        LocalDate minDate = workDate.isBefore(checkInDate) ? workDate : checkInDate;
+        LocalDate maxDate = workDate.isAfter(checkInDate) ? workDate : checkInDate;
+        LocalDateTime startOfDay = minDate.atStartOfDay();
+        LocalDateTime endOfDay = maxDate.atTime(LocalTime.MAX);
+        List<AttendanceRecord> existingRecords = attendanceRecordRepository.findByUserIdAndCheckInTimeBetween(user.getId(), startOfDay, endOfDay);
+
+        AttendanceRecord recordToSave = null;
+        if (!existingRecords.isEmpty()) {
+            if (shift != null) {
+                final Long sid = shift.getId();
+                recordToSave = existingRecords.stream()
+                        .filter(r -> r.getShift() != null && r.getShift().getId().equals(sid))
+                        .findFirst()
+                        .orElse(null);
+            } else {
+                recordToSave = existingRecords.stream()
+                        .filter(r -> r.getShift() == null)
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+
+        if (recordToSave == null) {
+            recordToSave = new AttendanceRecord();
+            recordToSave.setUser(user);
+        }
+
+        recordToSave.setShift(shift);
+        recordToSave.setCheckInTime(dto.getCheckInTime());
+        recordToSave.setCheckOutTime(dto.getCheckOutTime());
+        recordToSave.setStatus(status);
+
+        AttendanceRecord saved = attendanceRecordRepository.save(recordToSave);
+        return mapToDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public AttendanceHistoryDto updateManualRecord(Long id, ManualAttendanceRequestDto dto) {
+        if (id == null) {
+            throw new BusinessException("ID bản ghi chấm công không được để trống");
+        }
+        if (dto == null) {
+            throw new BusinessException("Dữ liệu chấm công không được để trống");
+        }
+        if (dto.getCheckInTime() == null) {
+            throw new BusinessException("Thời gian vào ca không được để trống");
+        }
+        if (dto.getCheckOutTime() != null && !dto.getCheckOutTime().isAfter(dto.getCheckInTime())) {
+            throw new BusinessException("Thời gian ra ca phải sau thời gian vào ca");
+        }
+
+        if (id < 0) {
+            Long employeeShiftId = -id;
+            EmployeeShift es = employeeShiftRepository.findById(employeeShiftId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca làm việc với ID: " + employeeShiftId));
+            if (dto.getUserId() == null && es.getUser() != null) {
+                dto.setUserId(es.getUser().getId());
+            }
+            if (dto.getShiftId() == null && es.getShift() != null) {
+                dto.setShiftId(es.getShift().getId());
+            }
+            if (dto.getWorkDate() == null && es.getAssignedDate() != null) {
+                dto.setWorkDate(es.getAssignedDate());
+            }
+            return createManualRecord(dto);
+        }
+
+        AttendanceRecord record = attendanceRecordRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản ghi chấm công với ID: " + id));
+
+        Shift shift = record.getShift();
+        if (dto.getShiftId() != null) {
+            shift = shiftRepository.findById(dto.getShiftId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca làm việc với ID: " + dto.getShiftId()));
+        }
+
+        if (shift == null && record.getUser() != null) {
+            LocalDate workDate = dto.getWorkDate() != null ? dto.getWorkDate() : dto.getCheckInTime().toLocalDate();
+            EmployeeShift es = employeeShiftRepository.findByUserIdAndAssignedDate(record.getUser().getId(), workDate).orElse(null);
+            if (es != null && es.getShift() != null) {
+                shift = es.getShift();
+            } else {
+                shift = shiftRepository.findByShiftCode("SHIFT-001").orElse(null);
+            }
+        }
+
+        LocalDate targetDate = dto.getWorkDate() != null ? dto.getWorkDate() : dto.getCheckInTime().toLocalDate();
+        String status = resolveStatus(dto.getStatus(), shift, targetDate, dto.getCheckInTime(), dto.getCheckOutTime());
+
+        record.setShift(shift);
+        record.setCheckInTime(dto.getCheckInTime());
+        record.setCheckOutTime(dto.getCheckOutTime());
+        record.setStatus(status);
+
+        AttendanceRecord saved = attendanceRecordRepository.save(record);
+        return mapToDto(saved);
+    }
+
+    private String resolveStatus(String requestedStatus, Shift shift, LocalDate workDate, LocalDateTime checkInTime, LocalDateTime checkOutTime) {
+        if (requestedStatus != null && !requestedStatus.isBlank()) {
+            return requestedStatus.trim().toUpperCase();
+        }
+        if (shift != null && shift.getStartTime() != null) {
+            int grace = shift.getGracePeriodMinutes() != null ? shift.getGracePeriodMinutes() : 15;
+            LocalDate baseDate = workDate != null ? workDate : checkInTime.toLocalDate();
+            LocalDateTime shiftStartDt = baseDate.atTime(shift.getStartTime());
+            LocalDateTime graceEndDt = shiftStartDt.plusMinutes(grace);
+
+            if (checkInTime.isAfter(graceEndDt)) {
+                return "LATE";
+            }
+            if (checkOutTime != null && shift.getEndTime() != null) {
+                LocalDateTime scheduledEndDt;
+                if (shift.getEndTime().isBefore(shift.getStartTime())) {
+                    // Ca qua đêm (ví dụ: 22h00 - 06h00)
+                    scheduledEndDt = baseDate.plusDays(1).atTime(shift.getEndTime());
+                } else {
+                    scheduledEndDt = baseDate.atTime(shift.getEndTime());
+                }
+                if (checkOutTime.isBefore(scheduledEndDt)) {
+                    return "EARLY_LEAVE";
+                }
+            }
+            return "ON_TIME";
+        }
+        return "ON_TIME";
+    }
+
 
     private List<AttendanceHistoryDto> getUnattendedShifts(Long userId, LocalDate startDate, LocalDate endDate, Long shiftId) {
         LocalDate today = LocalDate.now();

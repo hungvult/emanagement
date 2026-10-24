@@ -19,7 +19,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
+import com.emanagement.backend.common.dto.ApiResponse;
 import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.modules.alert.dto.AnomalyAlertResponseDto;
@@ -160,5 +163,56 @@ class AlertServiceImplTest {
     void createAlert_ShouldSaveAlert() {
         alertService.createAlert(alert);
         verify(anomalyAlertRepository).save(alert);
+    }
+
+    @Test
+    @DisplayName("getUnresolvedAlertCount returns count from anomalyAlertRepository")
+    void getUnresolvedAlertCount_ShouldReturnCount() {
+        when(anomalyAlertRepository.countByIsResolvedFalse()).thenReturn(12L);
+
+        long count = alertService.getUnresolvedAlertCount();
+
+        assertEquals(12L, count);
+        verify(anomalyAlertRepository).countByIsResolvedFalse();
+    }
+
+    @Test
+    @DisplayName("getUnresolvedAlertCount returns 0 when no unresolved alerts")
+    void getUnresolvedAlertCount_WhenNoUnresolved_ShouldReturnZero() {
+        when(anomalyAlertRepository.countByIsResolvedFalse()).thenReturn(0L);
+
+        long count = alertService.getUnresolvedAlertCount();
+
+        assertEquals(0L, count);
+        verify(anomalyAlertRepository).countByIsResolvedFalse();
+    }
+
+    @Test
+    @DisplayName("AlertController.getUnresolvedAlertCount returns ApiResponse with unresolved count")
+    void alertController_getUnresolvedAlertCount_ShouldReturnCount() {
+        AlertService mockService = mock(AlertService.class);
+        AlertController controller = new AlertController(mockService);
+        when(mockService.getUnresolvedAlertCount()).thenReturn(9L);
+
+        ResponseEntity<ApiResponse<Long>> response = controller.getUnresolvedAlertCount();
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("SUCCESS", response.getBody().getStatus());
+        assertEquals(9L, response.getBody().getData());
+        verify(mockService).getUnresolvedAlertCount();
+    }
+
+    @Test
+    @DisplayName("getUnresolvedAlertCount returns large count value correctly without overflow")
+    void getUnresolvedAlertCount_WhenLargeCount_ShouldReturnCorrectValue() {
+        long largeCount = 1_000_000L;
+        when(anomalyAlertRepository.countByIsResolvedFalse()).thenReturn(largeCount);
+
+        long count = alertService.getUnresolvedAlertCount();
+
+        assertEquals(largeCount, count);
+        verify(anomalyAlertRepository).countByIsResolvedFalse();
     }
 }

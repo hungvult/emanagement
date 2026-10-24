@@ -101,8 +101,15 @@ public class AlertServiceImpl implements AlertService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public long getUnresolvedAlertCount() {
+        return anomalyAlertRepository.countByIsResolvedFalse();
+    }
+
+    @Override
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void createAlert(AnomalyAlert alert) {
         anomalyAlertRepository.save(alert);
     }
 }
+

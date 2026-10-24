@@ -10,6 +10,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,9 +22,11 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import com.emanagement.backend.common.dto.ApiResponse;
 import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.modules.attendance.dto.AttendanceHistoryDto;
+import com.emanagement.backend.modules.attendance.dto.ManualAttendanceRequestDto;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -52,10 +58,33 @@ public class AttendanceController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long shiftId) {
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getAllRecords(page, size, startDate, endDate, status, shiftId);
+            @RequestParam(required = false) Long shiftId,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String keyword) {
+        String effectiveSearch = (search != null && !search.isBlank()) ? search.trim() : ((keyword != null && !keyword.isBlank()) ? keyword.trim() : null);
+        PageResponse<AttendanceHistoryDto> response = attendanceService.getAllRecords(page, size, startDate, endDate, status, shiftId, effectiveSearch);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @PostMapping("/manual")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Thêm mới bản ghi chấm công thủ công", description = "Dành cho Admin bổ sung bản ghi chấm công cho nhân viên")
+    public ResponseEntity<ApiResponse<AttendanceHistoryDto>> createManualRecord(
+            @Valid @RequestBody ManualAttendanceRequestDto dto) {
+        AttendanceHistoryDto response = attendanceService.createManualRecord(dto);
+        return ResponseEntity.ok(ApiResponse.success("Thêm mới bản ghi chấm công thành công", response));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Cập nhật bản ghi chấm công thủ công", description = "Dành cho Admin cập nhật ca làm việc, thời gian vào/ra hoặc giải trình chấm công")
+    public ResponseEntity<ApiResponse<AttendanceHistoryDto>> updateManualRecord(
+            @PathVariable Long id,
+            @Valid @RequestBody ManualAttendanceRequestDto dto) {
+        AttendanceHistoryDto response = attendanceService.updateManualRecord(id, dto);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật bản ghi chấm công thành công", response));
+    }
+
 
     @GetMapping("/export")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
