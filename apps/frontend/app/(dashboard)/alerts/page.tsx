@@ -1,10 +1,12 @@
 "use client";
+import NextImage from "next/image";
 import { getErrorMessage } from "@/lib/errors";
 
 import { RoleGuard } from "@/components/shared/role-guard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Modal } from "@/components/ui/modal";
 import { Pagination } from "@/components/ui/pagination";
 import {
   Table,
@@ -17,6 +19,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLatestRequest } from "@/hooks/use-latest-request";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { alertService } from "@/services/alert.service";
 import { shiftService } from "@/services/shift.service";
 import { AlertFilters, AnomalyAlert } from "@/types/alert.types";
@@ -24,25 +27,20 @@ import { ShiftResponse } from "@/types/shift.types";
 import {
   AlertTriangle,
   CheckCircle2,
+  Eye,
+  ImageIcon,
   Search,
   ShieldCheck,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-function formatDateVi(dateStr?: string | null) {
-  if (!dateStr) return "—";
-  const parts = dateStr.split("-");
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return dateStr;
-}
-
 export default function AlertsPage() {
   const beginRequest = useLatestRequest();
   const { user } = useAuth();
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
+  const [selectedAlert, setSelectedAlert] = useState<AnomalyAlert | null>(null);
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
   const [shifts, setShifts] = useState<ShiftResponse[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -144,17 +142,25 @@ export default function AlertsPage() {
   );
 
   const handleResolve = async (id: number) => {
-    if (!user) return;
+    if (!user) {
+      error("Vui lòng đăng nhập lại để thực hiện thao tác này");
+      return;
+    }
+    if (resolvingId !== null) return;
+    setResolvingId(id);
     try {
       const res = await alertService.resolve(id, { resolvedByUserId: user.id });
       if (res.status === "SUCCESS") {
         success("Đã xử lý và đóng cảnh báo thành công");
+        setSelectedAlert(null);
         fetchAlerts(page, filter, appliedFilters);
       } else {
         error(getErrorMessage(res, "Không thể xử lý cảnh báo"));
       }
     } catch (err: unknown) {
       error(getErrorMessage(err, "Lỗi khi xử lý cảnh báo"));
+    } finally {
+      setResolvingId(null);
     }
   };
 
@@ -324,6 +330,7 @@ export default function AlertsPage() {
                   <TableHead>Nhân viên</TableHead>
                   <TableHead>Loại cảnh báo</TableHead>
                   <TableHead>Mô tả sự cố</TableHead>
+                  <TableHead>Ảnh bằng chứng</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead className="text-right">Hành động</TableHead>
                 </TableRow>
@@ -332,7 +339,7 @@ export default function AlertsPage() {
                 {alerts.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center py-8 text-muted-foreground"
                     >
                       Không có cảnh báo nào
@@ -345,7 +352,7 @@ export default function AlertsPage() {
                       className={!alert.isResolved ? "bg-danger/5" : ""}
                     >
                       <TableCell className="whitespace-nowrap font-medium">
-                        {formatDateVi(alert.alertDate)}
+                        {formatDate(alert.alertDate)}
                       </TableCell>
                       <TableCell>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -373,10 +380,25 @@ export default function AlertsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell
-                        className="text-sm max-w-[200px] lg:max-w-[300px] truncate"
+                        className="text-sm max-w-[200px] lg:max-w-[300px] truncate cursor-pointer hover:text-rose-600 transition-colors"
                         title={alert.description}
+                        onClick={() => setSelectedAlert(alert)}
                       >
                         {alert.description}
+                      </TableCell>
+                      <TableCell>
+                        {alert.snapshotUrl && alert.snapshotUrl.trim() ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedAlert(alert)}
+                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> Xem ảnh
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground pl-3">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {alert.isResolved ? (
@@ -397,17 +419,30 @@ export default function AlertsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {!alert.isResolved && (
+                        <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleResolve(alert.id)}
-                            className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold transition-colors w-full sm:w-auto ml-auto"
+                            onClick={() => setSelectedAlert(alert)}
+                            className="text-slate-600 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold"
                           >
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Xác nhận xử
-                            lý
+                            <Eye className="h-3.5 w-3.5" /> Xem chi tiết
                           </Button>
-                        )}
+                          {!alert.isResolved && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResolve(alert.id)}
+                              disabled={resolvingId === alert.id}
+                              className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold transition-colors"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />{" "}
+                              {resolvingId === alert.id
+                                ? "Đang xử lý..."
+                                : "Xác nhận xử lý"}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -422,6 +457,138 @@ export default function AlertsPage() {
                 onPageChange={setPage}
               />
             )}
+
+            {/* Modal xem chi tiết sự cố và ảnh bằng chứng Snapshot từ Kiosk */}
+            <Modal
+              isOpen={selectedAlert !== null}
+              onClose={() => setSelectedAlert(null)}
+              title="Chi tiết cảnh báo bất thường"
+              className="max-w-2xl"
+            >
+              {selectedAlert && (
+                <div className="space-y-5">
+                  {/* Thông tin sự cố */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-sm">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                        Nhân viên
+                      </span>
+                      <div className="font-bold text-slate-900 dark:text-white">
+                        {selectedAlert.fullName} - {selectedAlert.employeeCode}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                        Ca làm việc
+                      </span>
+                      <div className="font-semibold text-slate-800 dark:text-slate-200">
+                        {selectedAlert.shiftName || "Ca hành chính"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                        Thời gian
+                      </span>
+                      <div className="font-medium text-slate-800 dark:text-slate-200">
+                        Ngày: {formatDate(selectedAlert.alertDate)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Ghi nhận: {formatDateTime(selectedAlert.createdAt)}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                        Phân loại & Trạng thái
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <Badge
+                          variant="outline"
+                          className={
+                            !selectedAlert.isResolved
+                              ? "text-danger border-danger/30 bg-danger/10"
+                              : ""
+                          }
+                        >
+                          {selectedAlert.alertType}
+                        </Badge>
+                        {selectedAlert.isResolved ? (
+                          <Badge variant="success">
+                            Đã xử lý
+                            {selectedAlert.resolvedByName
+                              ? ` (bởi ${selectedAlert.resolvedByName})`
+                              : ""}
+                          </Badge>
+                        ) : (
+                          <Badge variant="danger">Chưa xử lý</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mô tả sự cố */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                      Mô tả sự cố đầy đủ
+                    </span>
+                    <div className="p-3.5 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 rounded-xl text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed">
+                      {selectedAlert.description}
+                    </div>
+                  </div>
+
+                  {/* Ảnh Snapshot từ Kiosk */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                      Hình ảnh bằng chứng Snapshot từ Kiosk
+                    </span>
+                    {selectedAlert.snapshotUrl &&
+                    selectedAlert.snapshotUrl.trim() ? (
+                      <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 dark:bg-black/30 flex items-center justify-center">
+                        <NextImage
+                          unoptimized
+                          width={640}
+                          height={480}
+                          src={selectedAlert.snapshotUrl}
+                          alt="Ảnh bằng chứng cảnh báo"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 text-muted-foreground">
+                        <ImageIcon className="h-10 w-10 opacity-30 mb-2" />
+                        <span className="text-sm font-medium">
+                          Không có ảnh chụp bằng chứng
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Nút hành động */}
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    {!selectedAlert.isResolved && (
+                      <Button
+                        onClick={() => handleResolve(selectedAlert.id)}
+                        disabled={resolvingId === selectedAlert.id}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />{" "}
+                        {resolvingId === selectedAlert.id
+                          ? "Đang xử lý..."
+                          : "Xác nhận xử lý"}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedAlert(null)}
+                    >
+                      Đóng
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Modal>
           </>
         )}
       </div>
