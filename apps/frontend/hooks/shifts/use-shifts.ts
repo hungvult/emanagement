@@ -31,9 +31,43 @@ export function useShifts() {
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const { error, success } = useToast();
 
+  // Phân trang & tìm kiếm cho Lịch phân ca tuần
+  const [schedulePage, setSchedulePage] = useState(0);
+  const schedulePageSize = 20;
+  const [serverScheduleTotalPages, setServerScheduleTotalPages] = useState(0);
+  const [serverScheduleTotalElements, setServerScheduleTotalElements] =
+    useState(0);
+  const [scheduleKeyword, setScheduleKeyword] = useState("");
+  const [debouncedScheduleKeyword, setDebouncedScheduleKeyword] = useState("");
+  const [pagedEmployees, setPagedEmployees] = useState<EmployeeResponse[]>([]);
+
+  const handleScheduleKeywordChange = useCallback((val: string) => {
+    setScheduleKeyword(val);
+    if (!val) {
+      setDebouncedScheduleKeyword("");
+      setSchedulePage(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!scheduleKeyword) return;
+    const timer = setTimeout(() => {
+      setDebouncedScheduleKeyword(scheduleKeyword);
+      setSchedulePage(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [scheduleKeyword]);
+
   // Tuần hiện tại
   const [weekStart, setWeekStart] = useState<Date>(() =>
     getMondayOfWeek(new Date()),
+  );
+  const handleSetWeekStart = useCallback(
+    (updaterOrDate: Date | ((prev: Date) => Date)) => {
+      setWeekStart(updaterOrDate);
+      setSchedulePage(0);
+    },
+    [],
   );
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -84,20 +118,55 @@ export function useShifts() {
     try {
       const start = toISODate(weekStart);
       const end = toISODate(addDays(weekStart, 6));
-      const res = await shiftService.getSchedule(start, end);
-      if (!isCurrent()) return;
-      if (res.status === "SUCCESS" && res.data) {
-        setSchedule(res.data);
+      if (typeof shiftService.getSchedulePaged === "function") {
+        const res = await shiftService.getSchedulePaged(
+          start,
+          end,
+          schedulePage,
+          schedulePageSize,
+          debouncedScheduleKeyword,
+        );
+        if (!isCurrent()) return;
+        if (res.status === "SUCCESS" && res.data) {
+          const empPage = res.data.employees;
+          setPagedEmployees(empPage?.content || []);
+          setSchedule(res.data.assignments || []);
+          setServerScheduleTotalPages(empPage?.totalPages || 0);
+          setServerScheduleTotalElements(
+            empPage?.totalElement ?? empPage?.totalElements ?? 0,
+          );
+          if (
+            schedulePage > 0 &&
+            empPage &&
+            schedulePage >= empPage.totalPages
+          ) {
+            setSchedulePage(0);
+          }
+        } else {
+          setPagedEmployees([]);
+          setSchedule([]);
+          setServerScheduleTotalPages(0);
+          setServerScheduleTotalElements(0);
+        }
       } else {
-        setSchedule([]);
+        const res = await shiftService.getSchedule(start, end);
+        if (!isCurrent()) return;
+        if (res.status === "SUCCESS" && res.data) {
+          setSchedule(res.data);
+        } else {
+          setSchedule([]);
+        }
       }
     } catch {
       if (!isCurrent()) return;
+      setPagedEmployees([]);
       setSchedule([]);
+      setServerScheduleTotalPages(0);
+      setServerScheduleTotalElements(0);
     } finally {
       if (isCurrent()) setIsLoadingSchedule(false);
     }
-  }, [weekStart, beginScheduleRequest]);
+  }, [weekStart, schedulePage, debouncedScheduleKeyword, beginScheduleRequest]);
 
   const {
     isCreateOpen,
@@ -254,23 +323,65 @@ export function useShifts() {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
-  const activeEmployees = useMemo(
-    () => employees.filter((e) => e.status === "ACTIVE"),
-    [employees],
-  );
+  const activeEmployees = useMemo(() => {
+    const map = new Map<number, EmployeeResponse>();
+    for (const emp of employees) {
+      if (emp.status === "ACTIVE") {
+        map.set(emp.id, emp);
+      }
+    }
+    for (const emp of pagedEmployees) {
+      if (emp.status === "ACTIVE") {
+        map.set(emp.id, emp);
+      }
+    }
+    if (assignForm.userId) {
+      const selectedId = Number(assignForm.userId);
+      const selected =
+        pagedEmployees.find((e) => e.id === selectedId) ||
+        employees.find((e) => e.id === selectedId);
+      if (selected && !map.has(selected.id)) {
+        map.set(selected.id, selected);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.fullName.localeCompare(b.fullName),
+    );
+  }, [employees, pagedEmployees, assignForm.userId]);
 
   const displayEmployees = useMemo(() => {
-    // Hiển thị những nhân viên có lịch tuần này trước, sau đó là nhân viên khác
+    if (typeof shiftService.getSchedulePaged === "function") {
+      return pagedEmployees;
+    }
+    // Fallback cho môi trường test mock cũ chỉ có getSchedule
+    let list = employees;
+    if (debouncedScheduleKeyword.trim()) {
+      const kw = debouncedScheduleKeyword.trim().toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.fullName?.toLowerCase().includes(kw) ||
+          e.employeeCode?.toLowerCase().includes(kw),
+      );
+    }
     const assignedUserIds = new Set(schedule.map((s) => s.userId));
-    const sorted = [...employees].sort((a, b) => {
+    const sorted = [...list].sort((a, b) => {
       const hasA = assignedUserIds.has(a.id);
       const hasB = assignedUserIds.has(b.id);
       if (hasA && !hasB) return -1;
       if (!hasA && hasB) return 1;
       return a.fullName.localeCompare(b.fullName);
     });
-    return sorted.slice(0, 25);
-  }, [employees, schedule]);
+    return sorted;
+  }, [pagedEmployees, employees, schedule, debouncedScheduleKeyword]);
+
+  const scheduleTotalElements =
+    typeof shiftService.getSchedulePaged === "function"
+      ? serverScheduleTotalElements
+      : displayEmployees.length;
+  const scheduleTotalPages =
+    typeof shiftService.getSchedulePaged === "function"
+      ? serverScheduleTotalPages
+      : Math.ceil(displayEmployees.length / schedulePageSize) || 0;
 
   const scheduleMap = new Map<string, EmployeeShiftResponse>(
     schedule.map((assignment) => [
@@ -303,11 +414,20 @@ export function useShifts() {
     handleOpenEdit,
     handleOpenDelete,
     weekLabel,
-    setWeekStart,
+    setWeekStart: handleSetWeekStart,
     weekDays,
     today,
     isLoadingSchedule,
     displayEmployees,
+    pagedEmployees,
+    scheduleKeyword,
+    debouncedScheduleKeyword,
+    handleScheduleKeywordChange,
+    schedulePage,
+    setSchedulePage,
+    schedulePageSize,
+    scheduleTotalPages,
+    scheduleTotalElements,
     scheduleMap,
     shiftColorMap,
     handleCellClick,

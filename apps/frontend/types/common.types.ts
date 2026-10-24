@@ -10,6 +10,7 @@ export interface PageResponse<T> {
   pageNumber: number;
   pageSize: number;
   totalElement: number;
+  totalElements?: number;
   totalPages: number;
   last: boolean;
 }

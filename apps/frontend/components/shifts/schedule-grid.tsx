@@ -1,10 +1,12 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pagination } from "@/components/ui/pagination";
 import {
   addDays,
   DAY_NAMES,
   getMondayOfWeek,
+  SHIFT_COLORS,
   toISODate,
 } from "@/lib/shifts-helpers";
 import {
@@ -12,7 +14,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Search,
   UserCheck,
+  X,
 } from "lucide-react";
 
 import type { useShifts } from "@/hooks/shifts/use-shifts";
@@ -29,6 +33,12 @@ type Props = Pick<
   | "shiftColorMap"
   | "handleCellClick"
   | "setConfirmRemove"
+  | "scheduleKeyword"
+  | "handleScheduleKeywordChange"
+  | "schedulePage"
+  | "scheduleTotalPages"
+  | "scheduleTotalElements"
+  | "setSchedulePage"
 >;
 
 export function ScheduleGrid({
@@ -42,12 +52,18 @@ export function ScheduleGrid({
   shiftColorMap,
   handleCellClick,
   setConfirmRemove,
+  scheduleKeyword,
+  handleScheduleKeywordChange,
+  schedulePage,
+  scheduleTotalPages,
+  scheduleTotalElements,
+  setSchedulePage,
 }: Props) {
   return (
     <>
       <Card className="border-slate-100 bg-white shadow-sm rounded-3xl overflow-hidden">
         <CardHeader className="border-b border-slate-100 pb-4 pt-5 px-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-indigo-600" />
               <CardTitle className="text-base font-bold text-slate-800">
@@ -57,31 +73,55 @@ export function ScheduleGrid({
                 ({weekLabel})
               </span>
             </div>
-            <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-100">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setWeekStart((d) => addDays(d, -7))}
-                className="h-8 w-8 p-0 rounded-xl"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setWeekStart(getMondayOfWeek(new Date()))}
-                className="h-8 px-3 text-xs font-bold text-slate-700 rounded-xl hover:bg-white hover:shadow-xs"
-              >
-                Tuần hiện tại
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setWeekStart((d) => addDays(d, 7))}
-                className="h-8 w-8 p-0 rounded-xl"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full sm:w-64 group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                <input
+                  type="text"
+                  placeholder="Tìm tên hoặc mã nhân viên..."
+                  aria-label="Tìm kiếm nhân viên"
+                  value={scheduleKeyword}
+                  onChange={(e) => handleScheduleKeywordChange(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 pl-9 pr-8 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
+                />
+                {Boolean(scheduleKeyword) && (
+                  <button
+                    type="button"
+                    onClick={() => handleScheduleKeywordChange("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    title="Xóa từ khóa"
+                    aria-label="Xóa từ khóa"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-100 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWeekStart((d) => addDays(d, -7))}
+                  className="h-8 w-8 p-0 rounded-xl"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWeekStart(getMondayOfWeek(new Date()))}
+                  className="h-8 px-3 text-xs font-bold text-slate-700 rounded-xl hover:bg-white hover:shadow-xs"
+                >
+                  Tuần hiện tại
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWeekStart((d) => addDays(d, 7))}
+                  className="h-8 w-8 p-0 rounded-xl"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -139,7 +179,11 @@ export function ScheduleGrid({
                       className="py-12 text-center text-muted-foreground"
                     >
                       <UserCheck className="h-10 w-10 mx-auto mb-2 opacity-20" />
-                      <p>Chưa có nhân viên nào.</p>
+                      <p>
+                        {scheduleKeyword?.trim()
+                          ? "Không tìm thấy nhân viên nào phù hợp với từ khóa tìm kiếm."
+                          : "Chưa có nhân viên nào."}
+                      </p>
                     </td>
                   </tr>
                 ) : (
@@ -161,7 +205,7 @@ export function ScheduleGrid({
                         const isToday = dateStr === today;
                         const entry = scheduleMap.get(`${emp.id}_${dateStr}`);
                         const color = entry
-                          ? shiftColorMap.get(entry.shiftId)
+                          ? (shiftColorMap.get(entry.shiftId) ?? SHIFT_COLORS[0])
                           : undefined;
                         return (
                           <td
@@ -231,6 +275,23 @@ export function ScheduleGrid({
             </table>
           </div>
         </CardContent>
+        <div className="border-t border-slate-100 p-4 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs font-semibold text-slate-500">
+            Tổng số:{" "}
+            <span className="text-slate-800 font-bold">
+              {scheduleTotalElements}
+            </span>{" "}
+            nhân viên
+          </div>
+          {scheduleTotalPages > 1 && (
+            <Pagination
+              pageNumber={schedulePage}
+              totalPages={scheduleTotalPages}
+              onPageChange={setSchedulePage}
+              className="w-auto mx-0"
+            />
+          )}
+        </div>
       </Card>
     </>
   );

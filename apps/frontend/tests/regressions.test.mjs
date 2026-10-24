@@ -2116,5 +2116,1345 @@ test("leave requests page for non-admin user loads personal requests, handles em
   assert.equal(getMyRequestsCalled, 2, "Must refetch user requests after creating");
 });
 
+// ============================================================================
+// Subtask 2.2: Phân trang & Tìm kiếm cho Lịch phân ca tuần (ST4-01 + ST4-05)
+// ============================================================================
+
+test("shiftService.getSchedulePaged builds correct query string and handles parameters & encoding (ST4-01 + ST4-05)", async () => {
+  const getRequests = [];
+  const { shiftService } = loadTs(
+    "services/shift.service.ts",
+    { URLSearchParams, URL },
+    {
+      "@/lib/api-client": {
+        apiClient: {
+          get: async (url) => {
+            getRequests.push(url);
+            return { status: "SUCCESS", data: {} };
+          },
+        },
+      },
+    },
+  );
+
+  // 1. Default parameters: page=0, size=20, no keyword
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25");
+  assert.equal(getRequests.length, 1);
+  const url1 = new URL(getRequests[0], "http://localhost");
+  assert.equal(url1.pathname, "/shifts/schedule/paged");
+  assert.equal(url1.searchParams.get("startDate"), "2026-10-19");
+  assert.equal(url1.searchParams.get("endDate"), "2026-10-25");
+  assert.equal(url1.searchParams.get("page"), "0");
+  assert.equal(url1.searchParams.get("size"), "20");
+  assert.equal(url1.searchParams.has("keyword"), false);
+
+  // 2. Custom page and size
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 2, 50);
+  assert.equal(getRequests.length, 2);
+  const url2 = new URL(getRequests[1], "http://localhost");
+  assert.equal(url2.pathname, "/shifts/schedule/paged");
+  assert.equal(url2.searchParams.get("page"), "2");
+  assert.equal(url2.searchParams.get("size"), "50");
+  assert.equal(url2.searchParams.has("keyword"), false);
+
+  // 3. Keyword provided with standard text
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 0, 20, "Nguyễn Văn A");
+  assert.equal(getRequests.length, 3);
+  const url3 = new URL(getRequests[2], "http://localhost");
+  assert.equal(url3.pathname, "/shifts/schedule/paged");
+  assert.equal(url3.searchParams.get("keyword"), "Nguyễn Văn A");
+
+  // 4. Keyword trimmed when containing leading/trailing whitespace
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 1, 10, "   NV007   ");
+  assert.equal(getRequests.length, 4);
+  const url4 = new URL(getRequests[3], "http://localhost");
+  assert.equal(url4.searchParams.get("keyword"), "NV007");
+
+  // 5. Keyword is empty string -> ignored
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 0, 20, "");
+  assert.equal(getRequests.length, 5);
+  const url5 = new URL(getRequests[4], "http://localhost");
+  assert.equal(url5.searchParams.has("keyword"), false);
+
+  // 6. Keyword is only spaces -> ignored
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 0, 20, "     ");
+  assert.equal(getRequests.length, 6);
+  const url6 = new URL(getRequests[5], "http://localhost");
+  assert.equal(url6.searchParams.has("keyword"), false);
+
+  // 7. Keyword is tabs and newlines -> ignored
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 0, 20, "\t  \r\n  ");
+  assert.equal(getRequests.length, 7);
+  const url7 = new URL(getRequests[6], "http://localhost");
+  assert.equal(url7.searchParams.has("keyword"), false);
+
+  // 8. Keyword is undefined -> ignored
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 0, 20, undefined);
+  assert.equal(getRequests.length, 8);
+  const url8 = new URL(getRequests[7], "http://localhost");
+  assert.equal(url8.searchParams.has("keyword"), false);
+
+  // 9. Keyword is null -> ignored
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 0, 20, null);
+  assert.equal(getRequests.length, 9);
+  const url9 = new URL(getRequests[8], "http://localhost");
+  assert.equal(url9.searchParams.has("keyword"), false);
+
+  // 10. Keyword with special characters (&, +, %, #) is properly encoded
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 0, 20, "Lê & Phúc + Dev #2 100%");
+  assert.equal(getRequests.length, 10);
+  const rawReq10 = getRequests[9];
+  assert.ok(rawReq10.includes("%26"), "Special character & must be URL encoded as %26");
+  assert.ok(rawReq10.includes("%2B"), "Special character + must be URL encoded as %2B");
+  const url10 = new URL(rawReq10, "http://localhost");
+  assert.equal(url10.searchParams.get("keyword"), "Lê & Phúc + Dev #2 100%");
+
+  // 11. Large page and size boundaries
+  await shiftService.getSchedulePaged("2026-10-19", "2026-10-25", 99, 100);
+  assert.equal(getRequests.length, 11);
+  const url11 = new URL(getRequests[10], "http://localhost");
+  assert.equal(url11.searchParams.get("page"), "99");
+  assert.equal(url11.searchParams.get("size"), "100");
+});
+
+test("shift schedule source code regression check: no hardcoded .slice(0, 25) and prop forwarding (ST4-01 + ST4-05)", () => {
+  const useShiftsSource = readFileSync(
+    new URL("../hooks/shifts/use-shifts.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    !useShiftsSource.includes(".slice(0, 25)"),
+    "use-shifts.ts must NOT contain hardcoded .slice(0, 25)",
+  );
+
+  const scheduleGridSource = readFileSync(
+    new URL("../components/shifts/schedule-grid.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    !scheduleGridSource.includes(".slice(0, 25)"),
+    "schedule-grid.tsx must NOT contain hardcoded .slice(0, 25)",
+  );
+
+  const commonTypesSource = readFileSync(
+    new URL("../types/common.types.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    commonTypesSource.includes("totalElement: number"),
+    "common.types.ts PageResponse must include totalElement (matching Backend PageResponse.java)",
+  );
+  assert.ok(
+    commonTypesSource.includes("totalElements?: number"),
+    "common.types.ts PageResponse must support optional totalElements",
+  );
+
+  const shiftTypesSource = readFileSync(
+    new URL("../types/shift.types.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    shiftTypesSource.includes("WeeklyScheduleResponse"),
+    "shift.types.ts must define WeeklyScheduleResponse",
+  );
+
+  const pageSource = readFileSync(
+    new URL("../app/(dashboard)/shifts/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    pageSource.includes("scheduleKeyword={model.scheduleKeyword}"),
+    "shifts/page.tsx must pass scheduleKeyword to ScheduleGrid",
+  );
+  assert.ok(
+    pageSource.includes("handleScheduleKeywordChange={model.handleScheduleKeywordChange}"),
+    "shifts/page.tsx must pass handleScheduleKeywordChange to ScheduleGrid",
+  );
+  assert.ok(
+    pageSource.includes("schedulePage={model.schedulePage}"),
+    "shifts/page.tsx must pass schedulePage to ScheduleGrid",
+  );
+  assert.ok(
+    pageSource.includes("scheduleTotalPages={model.scheduleTotalPages}"),
+    "shifts/page.tsx must pass scheduleTotalPages to ScheduleGrid",
+  );
+  assert.ok(
+    pageSource.includes("scheduleTotalElements={model.scheduleTotalElements}"),
+    "shifts/page.tsx must pass scheduleTotalElements to ScheduleGrid",
+  );
+  assert.ok(
+    pageSource.includes("setSchedulePage={model.setSchedulePage}"),
+    "shifts/page.tsx must pass setSchedulePage to ScheduleGrid",
+  );
+});
+
+function createShiftReactHarness() {
+  let states = [];
+  let stateCursor = 0;
+  let effects = [];
+  let effectCursor = 0;
+  let callbacks = [];
+  let callbackCursor = 0;
+  let memos = [];
+  let memoCursor = 0;
+  let refs = [];
+  let refCursor = 0;
+  let isRendering = false;
+  let isBatching = false;
+  let pendingRender = false;
+  let renderFn = null;
+  let latestResult = null;
+
+  function shallowEqual(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  function batch(fn) {
+    const prev = isBatching;
+    isBatching = true;
+    try {
+      return fn();
+    } finally {
+      isBatching = prev;
+      if (!isBatching && pendingRender) {
+        pendingRender = false;
+        doRender();
+      }
+    }
+  }
+
+  const mockReact = {
+    useState(initial) {
+      const idx = stateCursor++;
+      if (states.length <= idx) {
+        states.push(typeof initial === "function" ? initial() : initial);
+      }
+      const setState = (next) => {
+        const nextVal = typeof next === "function" ? next(states[idx]) : next;
+        if (states[idx] !== nextVal) {
+          states[idx] = nextVal;
+          scheduleRender();
+        }
+      };
+      return [states[idx], setState];
+    },
+    useCallback(fn, deps) {
+      const idx = callbackCursor++;
+      const wrapped = (...args) => batch(() => fn(...args));
+      if (callbacks.length <= idx) {
+        callbacks.push({ fn, wrapped, deps });
+        return wrapped;
+      }
+      const slot = callbacks[idx];
+      if (deps && shallowEqual(slot.deps, deps)) {
+        return slot.wrapped;
+      }
+      callbacks[idx] = { fn, wrapped, deps };
+      return wrapped;
+    },
+    useMemo(fn, deps) {
+      const idx = memoCursor++;
+      if (memos.length <= idx) {
+        const val = fn();
+        memos.push({ val, deps });
+        return val;
+      }
+      const slot = memos[idx];
+      if (deps && shallowEqual(slot.deps, deps)) {
+        return slot.val;
+      }
+      const val = fn();
+      memos[idx] = { val, deps };
+      return val;
+    },
+    useRef(val) {
+      const idx = refCursor++;
+      if (refs.length <= idx) {
+        refs.push({ current: val });
+      }
+      return refs[idx];
+    },
+    useEffect(fn, deps) {
+      const idx = effectCursor++;
+      if (effects.length <= idx) {
+        effects.push({ fn, deps, cleanup: null, run: true });
+        return;
+      }
+      const slot = effects[idx];
+      if (!deps || !shallowEqual(slot.deps, deps)) {
+        slot.fn = fn;
+        slot.deps = deps;
+        slot.run = true;
+      }
+    },
+  };
+
+  function doRender() {
+    if (isRendering) {
+      pendingRender = true;
+      return;
+    }
+    isRendering = true;
+    try {
+      do {
+        pendingRender = false;
+        stateCursor = 0;
+        effectCursor = 0;
+        callbackCursor = 0;
+        memoCursor = 0;
+        refCursor = 0;
+        latestResult = renderFn();
+        for (const slot of effects) {
+          if (slot.run) {
+            slot.run = false;
+            if (typeof slot.cleanup === "function") {
+              slot.cleanup();
+            }
+            slot.cleanup = slot.fn();
+          }
+        }
+      } while (pendingRender);
+    } finally {
+      isRendering = false;
+    }
+  }
+
+  function scheduleRender() {
+    if (isRendering || isBatching) {
+      pendingRender = true;
+      return;
+    }
+    if (renderFn) doRender();
+  }
+
+  const wrappedSetTimeout = (fn, ms) => {
+    return setTimeout(() => batch(fn), ms);
+  };
+
+  return {
+    mockReact,
+    batch,
+    setTimeout: wrappedSetTimeout,
+    render(hook) {
+      renderFn = hook;
+      doRender();
+      return latestResult;
+    },
+    getResult: () => latestResult,
+    flush: async (ms = 20) => {
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      doRender();
+    },
+    unmount() {
+      for (const slot of effects) {
+        if (typeof slot.cleanup === "function") {
+          slot.cleanup();
+          slot.cleanup = null;
+        }
+      }
+    },
+  };
+}
+
+test("useShifts hook: no slice(0, 25), totalElement/totalElements compatibility, keyword debounce, call recording, and page resets (ST4-01 + ST4-05)", async () => {
+  const harness = createShiftReactHarness();
+  const helpers = loadTs("lib/shifts-helpers.ts");
+  const errors = loadTs("lib/errors.ts");
+  const { useLatestRequest } = loadTs(
+    "hooks/use-latest-request.ts",
+    {},
+    { react: harness.mockReact },
+  );
+
+  let pagedCalls = [];
+  const mockEmployees30 = Array.from({ length: 30 }, (_, i) => ({
+    id: i + 1,
+    fullName: `Nhân viên ${i + 1}`,
+    employeeCode: `NV${String(i + 1).padStart(3, "0")}`,
+    status: i === 24 ? "INACTIVE" : "ACTIVE", // Employee 25 is inactive
+  }));
+
+  let currentPagedData = {
+    employees: {
+      content: mockEmployees30,
+      pageNumber: 0,
+      pageSize: 20,
+      totalElement: 45,
+      totalPages: 3,
+      last: false,
+    },
+    assignments: [
+      {
+        id: 101,
+        userId: 1,
+        employeeCode: "NV001",
+        fullName: "Nhân viên 1",
+        shiftId: 1,
+        shiftName: "Ca Sáng",
+        shiftCode: "MORNING",
+        startTime: "08:00:00",
+        endTime: "16:00:00",
+        assignedDate: "2026-10-19",
+      },
+    ],
+  };
+
+  const shiftServiceMock = {
+    getAll: async () => ({ status: "SUCCESS", data: [] }),
+    getSchedulePaged: async (...args) => {
+      pagedCalls.push(args);
+      return { status: "SUCCESS", data: currentPagedData };
+    },
+  };
+
+  const stableToast = { error: () => {}, success: () => {} };
+
+  const { useShifts } = loadTs(
+    "hooks/shifts/use-shifts.ts",
+    { setTimeout: harness.setTimeout, clearTimeout },
+    {
+      react: harness.mockReact,
+      "@/components/ui/toast": { useToast: () => stableToast },
+      "@/hooks/shifts/use-bulk-assignment": { useBulkAssignment: () => ({}) },
+      "@/hooks/shifts/use-copy-week": { useCopyWeek: () => ({}) },
+      "@/hooks/shifts/use-shift-catalog": { useShiftCatalog: () => ({}) },
+      "@/hooks/use-latest-request": { useLatestRequest },
+      "@/lib/errors": errors,
+      "@/lib/shifts-helpers": helpers,
+      "@/services/employee.service": {
+        employeeService: {
+          getAll: async () => ({ status: "SUCCESS", data: { content: [] } }),
+        },
+      },
+      "@/services/shift.service": { shiftService: shiftServiceMock },
+    },
+  );
+
+  harness.render(() => useShifts());
+  await harness.flush(50);
+  let res = harness.getResult();
+
+  const startWeekDate = helpers.toISODate(res.weekDays[0]);
+  const endWeekDate = helpers.toISODate(res.weekDays[6]);
+
+  // 1. Initial call recorded properly
+  assert.equal(pagedCalls.length, 1, "Initial render must invoke getSchedulePaged once");
+  assert.deepEqual(
+    pagedCalls[0],
+    [startWeekDate, endWeekDate, 0, 20, ""],
+    "Initial call must use default page 0, size 20, and empty keyword",
+  );
+
+  // 2. Verify no .slice(0, 25): all 30 employees from server page are present in displayEmployees
+  assert.equal(
+    res.displayEmployees.length,
+    30,
+    "displayEmployees must contain all 30 employees without hardcoded .slice(0, 25)",
+  );
+
+  // 3. Verify totalElement (Backend PageResponse.java) compatibility
+  assert.equal(
+    res.scheduleTotalElements,
+    45,
+    "scheduleTotalElements must take totalElement from backend PageResponse",
+  );
+  assert.equal(res.scheduleTotalPages, 3, "scheduleTotalPages must match totalPages");
+
+  // 4. Verify totalElements fallback when totalElement is undefined
+  currentPagedData = {
+    employees: {
+      content: mockEmployees30.slice(0, 20),
+      pageNumber: 1,
+      pageSize: 20,
+      totalElement: undefined,
+      totalElements: 60,
+      totalPages: 3,
+      last: false,
+    },
+    assignments: [],
+  };
+  // Trigger refetch by changing page
+  res.setSchedulePage(1);
+  await harness.flush(50);
+  res = harness.getResult();
+  assert.equal(
+    res.scheduleTotalElements,
+    60,
+    "scheduleTotalElements must fallback to totalElements when totalElement is undefined",
+  );
+  assert.equal(pagedCalls.length, 2, "Changing page must trigger second getSchedulePaged call");
+  assert.deepEqual(
+    pagedCalls[1],
+    [startWeekDate, endWeekDate, 1, 20, ""],
+    "Second call must request page 1",
+  );
+
+  // 5. Verify 300ms debounce for scheduleKeyword
+  res.handleScheduleKeywordChange("Nguyễn");
+  res = harness.getResult();
+  assert.equal(res.scheduleKeyword, "Nguyễn", "scheduleKeyword updates immediately");
+  assert.equal(
+    res.debouncedScheduleKeyword,
+    "",
+    "debouncedScheduleKeyword must NOT update immediately before 300ms",
+  );
+  assert.equal(pagedCalls.length, 2, "No fetch before debounce completes");
+
+  await harness.flush(100);
+  res = harness.getResult();
+  assert.equal(
+    res.debouncedScheduleKeyword,
+    "",
+    "debouncedScheduleKeyword must still be empty after 100ms",
+  );
+  assert.equal(pagedCalls.length, 2);
+
+  await harness.flush(250);
+  res = harness.getResult();
+  assert.equal(
+    res.debouncedScheduleKeyword,
+    "Nguyễn",
+    "debouncedScheduleKeyword must update after 300ms debounce window",
+  );
+  assert.equal(pagedCalls.length, 3, "getSchedulePaged must be called after debounce");
+  assert.deepEqual(
+    pagedCalls[2],
+    [startWeekDate, endWeekDate, 0, 20, "Nguyễn"],
+    "Call with debounced keyword must reset page to 0",
+  );
+
+  // 6. Verify rapid keystrokes cancellation
+  res.handleScheduleKeywordChange("H");
+  await harness.flush(100);
+  res.handleScheduleKeywordChange("Ho");
+  await harness.flush(100);
+  res.handleScheduleKeywordChange("Hoàng");
+  await harness.flush(200); // 200ms since last keystroke (less than 300ms)
+  res = harness.getResult();
+  assert.equal(
+    res.debouncedScheduleKeyword,
+    "Nguyễn",
+    "debouncedScheduleKeyword must not update to intermediate rapid keystrokes before 300ms from last stroke",
+  );
+  await harness.flush(150); // Now 350ms since 'Hoàng'
+  res = harness.getResult();
+  assert.equal(
+    res.debouncedScheduleKeyword,
+    "Hoàng",
+    "debouncedScheduleKeyword must update to final keystroke after 300ms inactivity",
+  );
+
+  // 7. Verify keyword change resets schedulePage = 0 when on page > 0
+  res.setSchedulePage(2);
+  res = harness.getResult();
+  assert.equal(res.schedulePage, 2);
+  res.handleScheduleKeywordChange("Trần");
+  res = harness.getResult();
+  assert.equal(res.schedulePage, 2, "schedulePage remains 2 before debounce triggers");
+  await harness.flush(350);
+  res = harness.getResult();
+  assert.equal(
+    res.schedulePage,
+    0,
+    "Changing keyword must reset schedulePage to 0 after debounce",
+  );
+  assert.equal(res.debouncedScheduleKeyword, "Trần");
+
+  // 8. Verify week change (handleSetWeekStart) resets schedulePage = 0
+  res.setSchedulePage(2);
+  res = harness.getResult();
+  assert.equal(res.schedulePage, 2);
+  const nextMonday = helpers.addDays(res.weekDays[0], 7);
+  res.setWeekStart(nextMonday);
+  res = harness.getResult();
+  assert.equal(
+    res.schedulePage,
+    0,
+    "handleSetWeekStart must reset schedulePage to 0",
+  );
+  await harness.flush(50);
+  const newStart = helpers.toISODate(nextMonday);
+  const newEnd = helpers.toISODate(helpers.addDays(nextMonday, 6));
+  assert.equal(
+    pagedCalls.at(-1)[0],
+    newStart,
+    "fetchSchedule after week change must use new week start",
+  );
+  assert.equal(
+    pagedCalls.at(-1)[1],
+    newEnd,
+    "fetchSchedule after week change must use new week end",
+  );
+  assert.equal(
+    pagedCalls.at(-1)[2],
+    0,
+    "fetchSchedule after week change must use page 0",
+  );
+
+  // 9. Verify keyword clear immediately resets schedulePage = 0 and debouncedScheduleKeyword
+  res.setSchedulePage(2);
+  res = harness.getResult();
+  assert.equal(res.schedulePage, 2);
+  res.handleScheduleKeywordChange("");
+  res = harness.getResult();
+  assert.equal(
+    res.schedulePage,
+    0,
+    "Clearing keyword must immediately reset schedulePage to 0 without waiting for debounce",
+  );
+  assert.equal(
+    res.debouncedScheduleKeyword,
+    "",
+    "Clearing keyword must immediately reset debouncedScheduleKeyword to empty string",
+  );
+  await harness.flush(50);
+  assert.equal(pagedCalls.at(-1)[4], "", "Latest fetch must have empty keyword");
+
+  // 10. Verify out-of-range schedulePage reset
+  currentPagedData = {
+    employees: {
+      content: [mockEmployees30[0]],
+      pageNumber: 0,
+      pageSize: 20,
+      totalElement: 1,
+      totalPages: 1,
+      last: true,
+    },
+    assignments: [],
+  };
+  res.setSchedulePage(2);
+  await harness.flush(50);
+  res = harness.getResult();
+  assert.equal(
+    res.schedulePage,
+    0,
+    "When schedulePage exceeds totalPages, hook must reset schedulePage to 0",
+  );
+
+  // 11. Verify AssignShiftDialog integration: clicking cell on employee 25 ensures employee is in activeEmployees
+  currentPagedData = {
+    employees: {
+      content: mockEmployees30,
+      pageNumber: 0,
+      pageSize: 20,
+      totalElement: 45,
+      totalPages: 3,
+      last: false,
+    },
+    assignments: [],
+  };
+  res.setWeekStart(new Date());
+  await harness.flush(50);
+  res = harness.getResult();
+
+  const emp25 = mockEmployees30[24]; // status: "INACTIVE", id: 25
+  res.handleCellClick(emp25, new Date("2026-10-20"));
+  res = harness.getResult();
+  assert.equal(res.isAssignOpen, true, "handleCellClick must open assign shift dialog");
+  assert.equal(res.assignForm.userId, "25", "assignForm.userId must be set to employee id");
+  assert.equal(res.assignForm.assignedDate, "2026-10-20", "assignForm.assignedDate must match clicked date");
+  assert.ok(
+    res.activeEmployees.some((e) => e.id === 25),
+    "activeEmployees must include clicked employee from paged list so AssignShiftDialog dropdown has selected option",
+  );
+});
+
+test("useShifts hook: error handling, race condition defense, and legacy fallback (ST4-01 + ST4-05)", async () => {
+  const helpers = loadTs("lib/shifts-helpers.ts");
+  const errors = loadTs("lib/errors.ts");
+  const stableToast = { error: () => {}, success: () => {} };
+
+  // --- Part A: Error Handling (Network failure and HTTP Error response) ---
+  const harnessError = createShiftReactHarness();
+  const { useLatestRequest: useLatestRequestError } = loadTs(
+    "hooks/use-latest-request.ts",
+    {},
+    { react: harnessError.mockReact },
+  );
+
+  let shouldThrow = true;
+  const shiftServiceErrorMock = {
+    getAll: async () => ({ status: "SUCCESS", data: [] }),
+    getSchedulePaged: async () => {
+      if (shouldThrow) {
+        throw new Error("Mất kết nối máy chủ");
+      }
+      return { status: "ERROR", message: "Internal server error" };
+    },
+  };
+
+  const { useShifts: useShiftsError } = loadTs(
+    "hooks/shifts/use-shifts.ts",
+    { setTimeout: harnessError.setTimeout, clearTimeout },
+    {
+      react: harnessError.mockReact,
+      "@/components/ui/toast": { useToast: () => stableToast },
+      "@/hooks/shifts/use-bulk-assignment": { useBulkAssignment: () => ({}) },
+      "@/hooks/shifts/use-copy-week": { useCopyWeek: () => ({}) },
+      "@/hooks/shifts/use-shift-catalog": { useShiftCatalog: () => ({}) },
+      "@/hooks/use-latest-request": { useLatestRequest: useLatestRequestError },
+      "@/lib/errors": errors,
+      "@/lib/shifts-helpers": helpers,
+      "@/services/employee.service": {
+        employeeService: {
+          getAll: async () => ({ status: "SUCCESS", data: { content: [] } }),
+        },
+      },
+      "@/services/shift.service": { shiftService: shiftServiceErrorMock },
+    },
+  );
+
+  harnessError.render(() => useShiftsError());
+  await harnessError.flush(50);
+  let resErr = harnessError.getResult();
+  assert.equal(resErr.isLoadingSchedule, false, "isLoadingSchedule must be false on network throw");
+  assert.equal(resErr.displayEmployees.length, 0, "displayEmployees must be empty on network throw");
+  assert.equal(resErr.scheduleTotalPages, 0);
+  assert.equal(resErr.scheduleTotalElements, 0);
+
+  // Test error status response (without throw)
+  shouldThrow = false;
+  resErr.setSchedulePage(1);
+  await harnessError.flush(50);
+  resErr = harnessError.getResult();
+  assert.equal(resErr.isLoadingSchedule, false, "isLoadingSchedule must be false on error status");
+  assert.equal(resErr.displayEmployees.length, 0);
+  assert.equal(resErr.scheduleTotalPages, 0);
+  assert.equal(resErr.scheduleTotalElements, 0);
+
+  // --- Part B: Race condition defense with real useLatestRequest ---
+  const harnessRace = createShiftReactHarness();
+  const { useLatestRequest: useLatestRequestRace } = loadTs(
+    "hooks/use-latest-request.ts",
+    {},
+    { react: harnessRace.mockReact },
+  );
+
+  let resolvers = [];
+  const shiftServiceRaceMock = {
+    getAll: async () => ({ status: "SUCCESS", data: [] }),
+    getSchedulePaged: async (...args) => {
+      return new Promise((resolve) => {
+        resolvers.push({ args, resolve });
+      });
+    },
+  };
+
+  const { useShifts: useShiftsRace } = loadTs(
+    "hooks/shifts/use-shifts.ts",
+    { setTimeout: harnessRace.setTimeout, clearTimeout },
+    {
+      react: harnessRace.mockReact,
+      "@/components/ui/toast": { useToast: () => stableToast },
+      "@/hooks/shifts/use-bulk-assignment": { useBulkAssignment: () => ({}) },
+      "@/hooks/shifts/use-copy-week": { useCopyWeek: () => ({}) },
+      "@/hooks/shifts/use-shift-catalog": { useShiftCatalog: () => ({}) },
+      "@/hooks/use-latest-request": { useLatestRequest: useLatestRequestRace },
+      "@/lib/errors": errors,
+      "@/lib/shifts-helpers": helpers,
+      "@/services/employee.service": {
+        employeeService: {
+          getAll: async () => ({ status: "SUCCESS", data: { content: [] } }),
+        },
+      },
+      "@/services/shift.service": { shiftService: shiftServiceRaceMock },
+    },
+  );
+
+  harnessRace.render(() => useShiftsRace());
+  await harnessRace.flush(20);
+  assert.equal(resolvers.length, 1, "Initial request (req 0 for page 0) is pending");
+
+  // User quickly switches to page 1 while req 0 is still in flight
+  let resRace = harnessRace.getResult();
+  resRace.setSchedulePage(1);
+  await harnessRace.flush(20);
+  assert.equal(resolvers.length, 2, "Second request (req 1 for page 1) is now pending");
+
+  // Req 1 (page 1) completes FAST
+  resolvers[1].resolve({
+    status: "SUCCESS",
+    data: {
+      employees: {
+        content: [{ id: 99, fullName: "Page 1 Fast Employee", employeeCode: "NV099", status: "ACTIVE" }],
+        pageNumber: 1,
+        pageSize: 20,
+        totalElement: 100,
+        totalPages: 5,
+        last: false,
+      },
+      assignments: [],
+    },
+  });
+  await harnessRace.flush(20);
+  resRace = harnessRace.getResult();
+  assert.equal(resRace.displayEmployees[0].fullName, "Page 1 Fast Employee");
+
+  // Req 0 (page 0) completes SLOWLY after req 1
+  resolvers[0].resolve({
+    status: "SUCCESS",
+    data: {
+      employees: {
+        content: [{ id: 1, fullName: "Stale Page 0 Employee", employeeCode: "NV001", status: "ACTIVE" }],
+        pageNumber: 0,
+        pageSize: 20,
+        totalElement: 100,
+        totalPages: 5,
+        last: false,
+      },
+      assignments: [],
+    },
+  });
+  await harnessRace.flush(20);
+  resRace = harnessRace.getResult();
+  assert.equal(
+    resRace.displayEmployees[0].fullName,
+    "Page 1 Fast Employee",
+    "Stale page 0 response must be discarded by useLatestRequest and not overwrite page 1 data",
+  );
+
+  // --- Part C: Legacy fallback mode (when getSchedulePaged is undefined) ---
+  const harnessFallback = createShiftReactHarness();
+  const { useLatestRequest: useLatestRequestFallback } = loadTs(
+    "hooks/use-latest-request.ts",
+    {},
+    { react: harnessFallback.mockReact },
+  );
+
+  const fallbackEmployees = [
+    { id: 10, fullName: "Cường", employeeCode: "NV010", status: "ACTIVE" },
+    { id: 20, fullName: "An", employeeCode: "NV020", status: "ACTIVE" },
+    { id: 30, fullName: "Bình", employeeCode: "NV030", status: "ACTIVE" },
+  ];
+
+  const shiftServiceFallbackMock = {
+    getAll: async () => ({ status: "SUCCESS", data: [] }),
+    getSchedule: async () => ({
+      status: "SUCCESS",
+      data: [
+        {
+          id: 501,
+          userId: 30, // Bình has assignment this week
+          employeeCode: "NV030",
+          fullName: "Bình",
+          shiftId: 1,
+          shiftName: "Ca Chiều",
+          assignedDate: "2026-10-19",
+        },
+      ],
+    }),
+  };
+
+  const { useShifts: useShiftsFallback } = loadTs(
+    "hooks/shifts/use-shifts.ts",
+    { setTimeout: harnessFallback.setTimeout, clearTimeout },
+    {
+      react: harnessFallback.mockReact,
+      "@/components/ui/toast": { useToast: () => stableToast },
+      "@/hooks/shifts/use-bulk-assignment": { useBulkAssignment: () => ({}) },
+      "@/hooks/shifts/use-copy-week": { useCopyWeek: () => ({}) },
+      "@/hooks/shifts/use-shift-catalog": { useShiftCatalog: () => ({}) },
+      "@/hooks/use-latest-request": { useLatestRequest: useLatestRequestFallback },
+      "@/lib/errors": errors,
+      "@/lib/shifts-helpers": helpers,
+      "@/services/employee.service": {
+        employeeService: {
+          getAll: async () => ({ status: "SUCCESS", data: { content: fallbackEmployees } }),
+        },
+      },
+      "@/services/shift.service": { shiftService: shiftServiceFallbackMock },
+    },
+  );
+
+  harnessFallback.render(() => useShiftsFallback());
+  await harnessFallback.flush(50);
+  let resFb = harnessFallback.getResult();
+
+  // In fallback: employee with shift (Bình) must be sorted first, then alphabetical (An, Cường)
+  assert.equal(resFb.displayEmployees.length, 3);
+  assert.equal(resFb.displayEmployees[0].fullName, "Bình", "Employee with assignment must be first");
+  assert.equal(resFb.displayEmployees[1].fullName, "An");
+  assert.equal(resFb.displayEmployees[2].fullName, "Cường");
+  assert.equal(resFb.scheduleTotalElements, 3);
+  assert.equal(resFb.scheduleTotalPages, 1);
+
+  // Test keyword search in fallback
+  resFb.handleScheduleKeywordChange("An");
+  await harnessFallback.flush(350);
+  resFb = harnessFallback.getResult();
+  assert.equal(resFb.displayEmployees.length, 1);
+  assert.equal(resFb.displayEmployees[0].fullName, "An");
+});
+
+test("ScheduleGrid renders staff search input, total staff count, pagination bar, loading skeleton, and handles interactions (ST4-01 + ST4-05)", () => {
+  const helpers = loadTs("lib/shifts-helpers.ts");
+  const { ScheduleGrid } = loadTs(
+    "components/shifts/schedule-grid.tsx",
+    {},
+    {
+      "react/jsx-runtime": sharedJsxRuntime,
+      "@/components/ui/button": {
+        Button: (props) => ({ type: "button", props }),
+      },
+      "@/components/ui/card": {
+        Card: (props) => ({ type: "card", props }),
+        CardHeader: (props) => ({ type: "card-header", props }),
+        CardTitle: (props) => ({ type: "card-title", props }),
+        CardContent: (props) => ({ type: "card-content", props }),
+      },
+      "@/components/ui/pagination": {
+        Pagination: (props) => ({ type: "pagination", props }),
+      },
+      "@/lib/shifts-helpers": helpers,
+      "lucide-react": new Proxy({}, { get: () => dummyIcon }),
+    },
+  );
+
+  const mockEmployees = Array.from({ length: 30 }, (_, i) => ({
+    id: i + 1,
+    fullName: `Nhân viên ${i + 1}`,
+    employeeCode: `NV${String(i + 1).padStart(3, "0")}`,
+    status: "ACTIVE",
+  }));
+
+  const weekDays = Array.from({ length: 7 }, (_, i) =>
+    helpers.addDays(helpers.getMondayOfWeek(new Date("2026-10-19")), i),
+  );
+
+  let keywordUpdated = null;
+  let pageUpdated = null;
+  let cellClickedData = null;
+  let removeConfirmedData = null;
+
+  const mockScheduleMap = new Map();
+  // Assign shift for employee 1 on first day (2026-10-19)
+  const mondayStr = helpers.toISODate(weekDays[0]);
+  mockScheduleMap.set(`1_${mondayStr}`, {
+    id: 901,
+    userId: 1,
+    employeeCode: "NV001",
+    fullName: "Nhân viên 1",
+    shiftId: 5,
+    shiftName: "Ca Sáng",
+    shiftCode: "MORNING",
+    startTime: "08:00:00",
+    endTime: "16:00:00",
+    assignedDate: mondayStr,
+  });
+
+  const mockShiftColorMap = new Map([
+    [
+      5,
+      {
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        badge: "bg-amber-100 text-amber-800",
+        text: "text-amber-800",
+      },
+    ],
+  ]);
+
+  const defaultProps = {
+    weekLabel: "19/10 – 25/10/2026",
+    setWeekStart: () => {},
+    weekDays,
+    today: "2026-10-20",
+    isLoadingSchedule: false,
+    displayEmployees: mockEmployees,
+    scheduleMap: mockScheduleMap,
+    shiftColorMap: mockShiftColorMap,
+    handleCellClick: (emp, day, entry) => {
+      cellClickedData = { emp, day, entry };
+    },
+    setConfirmRemove: (data) => {
+      removeConfirmedData = data;
+    },
+    scheduleKeyword: "NV001",
+    handleScheduleKeywordChange: (val) => {
+      keywordUpdated = val;
+    },
+    schedulePage: 1,
+    scheduleTotalPages: 3,
+    scheduleTotalElements: 55,
+    setSchedulePage: (p) => {
+      pageUpdated = p;
+    },
+  };
+
+  const vdom = ScheduleGrid(defaultProps);
+
+  // 1. Search input rendered with correct attributes
+  const searchInputs = findNodes(
+    vdom,
+    (n) => n.type === "input" && n.props?.["aria-label"] === "Tìm kiếm nhân viên",
+  );
+  assert.equal(searchInputs.length, 1, "Must render exactly 1 staff search input");
+  assert.equal(
+    searchInputs[0].props.placeholder,
+    "Tìm tên hoặc mã nhân viên...",
+  );
+  assert.equal(searchInputs[0].props.value, "NV001");
+
+  // Simulate typing in search input
+  searchInputs[0].props.onChange({ target: { value: "NV002" } });
+  assert.equal(
+    keywordUpdated,
+    "NV002",
+    "Typing in search input must call handleScheduleKeywordChange",
+  );
+
+  // 2. Clear button (X) visible when keyword is non-empty
+  const clearButtons = findNodes(
+    vdom,
+    (n) => n.type === "button" && n.props?.title === "Xóa từ khóa",
+  );
+  assert.equal(clearButtons.length, 1, "Must render clear button when keyword is present");
+  clearButtons[0].props.onClick();
+  assert.equal(
+    keywordUpdated,
+    "",
+    "Clicking clear button must call handleScheduleKeywordChange with empty string",
+  );
+
+  // 3. Clear button NOT rendered when keyword is empty
+  const vdomEmptyKeyword = ScheduleGrid({
+    ...defaultProps,
+    scheduleKeyword: "",
+  });
+  const clearButtonsEmpty = findNodes(
+    vdomEmptyKeyword,
+    (n) => n.type === "button" && n.props?.title === "Xóa từ khóa",
+  );
+  assert.equal(
+    clearButtonsEmpty.length,
+    0,
+    "Must NOT render clear button when keyword is empty",
+  );
+
+  // 4. Total employees count display ("Tổng số: ... nhân viên")
+  const totalSpans = findNodes(
+    vdom,
+    (n) => n.type === "span" && n.props?.children === 55,
+  );
+  assert.equal(totalSpans.length, 1, "Must render span with 55");
+  const totalDivs = findNodes(
+    vdom,
+    (n) => n.type === "div" && n.props?.className?.includes("text-xs") && n.props?.children?.[0] === "Tổng số:",
+  );
+  assert.equal(totalDivs.length, 1, "Must render container with 'Tổng số:'");
+  assert.equal(totalDivs[0].props.children[0], "Tổng số:");
+  assert.equal(totalDivs[0].props.children[2].props.children, 55);
+  assert.equal(totalDivs[0].props.children[4], "nhân viên");
+
+  // Test zero elements total display
+  const vdomZeroTotal = ScheduleGrid({
+    ...defaultProps,
+    scheduleTotalElements: 0,
+  });
+  const zeroSpans = findNodes(
+    vdomZeroTotal,
+    (n) => n.type === "span" && n.props?.children === 0,
+  );
+  assert.equal(zeroSpans.length, 1, "Must render span with 0");
+  const zeroTotalDivs = findNodes(
+    vdomZeroTotal,
+    (n) => n.type === "div" && n.props?.className?.includes("text-xs") && n.props?.children?.[0] === "Tổng số:",
+  );
+  assert.equal(zeroTotalDivs.length, 1);
+  assert.equal(zeroTotalDivs[0].props.children[0], "Tổng số:");
+  assert.equal(zeroTotalDivs[0].props.children[2].props.children, 0);
+  assert.equal(zeroTotalDivs[0].props.children[4], "nhân viên");
+
+  // 5. Pagination component rendered when totalPages > 1
+  const paginations = findNodes(vdom, (n) => n.type === "pagination");
+  assert.equal(
+    paginations.length,
+    1,
+    "Must render <Pagination /> when scheduleTotalPages > 1",
+  );
+  assert.equal(paginations[0].props.pageNumber, 1);
+  assert.equal(paginations[0].props.totalPages, 3);
+
+  paginations[0].props.onPageChange(2);
+  assert.equal(
+    pageUpdated,
+    2,
+    "Changing page in <Pagination /> must call setSchedulePage",
+  );
+
+  // 6. Pagination NOT rendered when totalPages <= 1
+  const vdomSinglePage = ScheduleGrid({
+    ...defaultProps,
+    scheduleTotalPages: 1,
+  });
+  assert.equal(
+    findNodes(vdomSinglePage, (n) => n.type === "pagination").length,
+    0,
+    "Must NOT render <Pagination /> when scheduleTotalPages is 1",
+  );
+
+  const vdomZeroPage = ScheduleGrid({
+    ...defaultProps,
+    scheduleTotalPages: 0,
+  });
+  assert.equal(
+    findNodes(vdomZeroPage, (n) => n.type === "pagination").length,
+    0,
+    "Must NOT render <Pagination /> when scheduleTotalPages is 0",
+  );
+
+  // 7. No .slice(0, 25): all 30 employee rows are rendered
+  const employeeRows = findNodes(
+    vdom,
+    (n) => n.type === "tr" && n.props?.className?.includes("hover:bg-slate-50/80"),
+  );
+  assert.equal(
+    employeeRows.length,
+    30,
+    "Must render all 30 employee rows without 25 cap",
+  );
+
+  // 8. Empty search results message
+  const vdomEmptySearch = ScheduleGrid({
+    ...defaultProps,
+    displayEmployees: [],
+    scheduleKeyword: "Không tồn tại",
+  });
+  const emptySearchP = findNodes(
+    vdomEmptySearch,
+    (n) =>
+      n.type === "p" &&
+      n.props?.children === "Không tìm thấy nhân viên nào phù hợp với từ khóa tìm kiếm.",
+  );
+  assert.equal(
+    emptySearchP.length,
+    1,
+    "Must display search-specific empty state message when keyword is present",
+  );
+
+  // 9. Empty schedule message (no keyword)
+  const vdomEmptyNoSearch = ScheduleGrid({
+    ...defaultProps,
+    displayEmployees: [],
+    scheduleKeyword: "",
+  });
+  const emptyNoSearchP = findNodes(
+    vdomEmptyNoSearch,
+    (n) => n.type === "p" && n.props?.children === "Chưa có nhân viên nào.",
+  );
+  assert.equal(
+    emptyNoSearchP.length,
+    1,
+    "Must display generic empty state message when keyword is empty",
+  );
+
+  // 10. Loading skeleton state (isLoadingSchedule = true)
+  const vdomLoading = ScheduleGrid({
+    ...defaultProps,
+    isLoadingSchedule: true,
+  });
+  const skeletonRows = findNodes(
+    vdomLoading,
+    (n) => n.type === "tr" && n.props?.className?.includes("border-border"),
+  );
+  assert.equal(skeletonRows.length, 4, "Must render 4 skeleton rows when isLoadingSchedule is true");
+  const skeletonCells = findNodes(
+    vdomLoading,
+    (n) => typeof n?.props?.className === "string" && n.props.className.includes("animate-pulse"),
+  );
+  assert.ok(skeletonCells.length > 0, "Skeleton rows must contain animate-pulse elements");
+  assert.equal(
+    findNodes(vdomLoading, (n) => n.type === "tr" && n.props?.className?.includes("hover:bg-slate-50/80")).length,
+    0,
+    "Must not render employee rows while loading",
+  );
+
+  // 11. Interactive cells: empty cell click and assigned cell buttons
+  // Find empty cell for employee 1 on Tuesday (index 1)
+  const emp1Cells = findNodes(employeeRows[0], (n) => n.type === "td");
+  // Index 0 is employee name, index 1 is Monday (assigned), index 2 is Tuesday (empty)
+  const emptyCell = emp1Cells[2];
+  assert.ok(emptyCell, "Empty cell on Tuesday must exist");
+  emptyCell.props.onClick();
+  assert.ok(cellClickedData, "Clicking empty cell must trigger handleCellClick");
+  assert.equal(cellClickedData.emp.id, 1);
+  assert.equal(helpers.toISODate(cellClickedData.day), helpers.toISODate(weekDays[1]));
+
+  // Assigned cell (Monday, index 1)
+  const assignedCell = emp1Cells[1];
+  const assignedText = findNodes(assignedCell, (c) => typeof c === "string").join(" ");
+  assert.ok(
+    assignedText.includes("08:00") && assignedText.includes("16:00"),
+    "Assigned cell must show shift hours",
+  );
+
+  // "Đổi" button in assigned cell
+  const editShiftBtn = findNodes(assignedCell, (n) => n.type === "button" && n.props?.title === "Đổi ca")[0];
+  assert.ok(editShiftBtn, "Edit shift button must be present in assigned cell");
+  let stopPropagated = false;
+  cellClickedData = null;
+  editShiftBtn.props.onClick({ stopPropagation: () => { stopPropagated = true; } });
+  assert.ok(stopPropagated, "Clicking edit shift button must stop propagation");
+  assert.equal(cellClickedData.emp.id, 1);
+  assert.equal(helpers.toISODate(cellClickedData.day), mondayStr);
+
+  // "Hủy" button in assigned cell
+  const removeShiftBtn = findNodes(assignedCell, (n) => n.type === "button" && n.props?.title === "Hủy ca")[0];
+  assert.ok(removeShiftBtn, "Remove shift button must be present in assigned cell");
+  removeShiftBtn.props.onClick({ stopPropagation: () => {} });
+  assert.ok(removeConfirmedData, "Clicking remove button must call setConfirmRemove");
+  assert.equal(removeConfirmedData.userId, 1);
+  assert.equal(removeConfirmedData.shiftName, "Ca Sáng");
+  assert.equal(removeConfirmedData.date, mondayStr);
+});
+
+test("ShiftsPage integrates useShifts with RoleGuard and wires all pagination & search props to ScheduleGrid (ST4-01 + ST4-05)", () => {
+  let capturedScheduleGridProps = null;
+  let keywordChangedTo = null;
+  let pageChangedTo = null;
+
+  const mockModel = {
+    shifts: [],
+    includeInactive: false,
+    setIncludeInactive: () => {},
+    handleOpenEdit: () => {},
+    handleOpenDelete: () => {},
+    weekLabel: "19/10 – 25/10/2026",
+    setWeekStart: () => {},
+    weekDays: [],
+    today: "2026-10-20",
+    isLoadingSchedule: false,
+    displayEmployees: [{ id: 1, fullName: "Nhân viên 1", employeeCode: "NV001", status: "ACTIVE" }],
+    scheduleMap: new Map(),
+    shiftColorMap: new Map(),
+    handleCellClick: () => {},
+    setConfirmRemove: () => {},
+    scheduleKeyword: "NV005",
+    handleScheduleKeywordChange: (val) => { keywordChangedTo = val; },
+    schedulePage: 2,
+    scheduleTotalPages: 4,
+    scheduleTotalElements: 75,
+    setSchedulePage: (p) => { pageChangedTo = p; },
+    // Dialog props
+    handleOpenCopyWeek: () => {},
+    handleOpenBulk: () => {},
+    setIsAssignOpen: () => {},
+    setIsCreateOpen: () => {},
+    isCreateOpen: false,
+    handleCreateSubmit: () => {},
+    createForm: {},
+    setCreateForm: () => {},
+    isCreating: false,
+    isEditOpen: false,
+    setIsEditOpen: () => {},
+    handleEditSubmit: () => {},
+    editForm: {},
+    setEditForm: () => {},
+    isUpdating: false,
+    isDeleteShiftOpen: false,
+    setIsDeleteShiftOpen: () => {},
+    deletingShift: null,
+    handleDeleteShiftSubmit: () => {},
+    replaceShiftId: "",
+    setReplaceShiftId: () => {},
+    isDeletingShift: false,
+    isAssignOpen: false,
+    setOverwriteWarning: () => {},
+    handleAssignSubmit: () => {},
+    assignForm: {},
+    setAssignForm: () => {},
+    activeEmployees: [],
+    activeShiftsForAssign: [],
+    overwriteWarning: null,
+    isAssigning: false,
+    isBulkOpen: false,
+    bulkForm: {},
+    setBulkForm: () => {},
+    setBulkResult: () => {},
+    toggleBulkDay: () => {},
+    toggleBulkUser: () => {},
+    bulkResult: null,
+    isBulkPreviewing: false,
+    executeBulkAssign: () => {},
+    isBulkSubmitting: false,
+    isCopyWeekOpen: false,
+    copyWeekForm: {},
+    setCopyWeekForm: () => {},
+    setCopyResult: () => {},
+    copyResult: null,
+    isCopyPreviewing: false,
+    executeCopyWeek: () => {},
+    isCopySubmitting: false,
+    confirmRemove: null,
+    isRemoving: false,
+    handleRemoveShift: () => {},
+  };
+
+  const pageModule = loadTs(
+    "app/(dashboard)/shifts/page.tsx",
+    {},
+    {
+      "react/jsx-runtime": sharedJsxRuntime,
+      "@/components/shared/role-guard": {
+        RoleGuard: ({ allowedRoles, fallback, children }) => ({
+          type: "role-guard",
+          props: { allowedRoles, fallback, children },
+        }),
+      },
+      "@/components/shifts/schedule-grid": {
+        ScheduleGrid: (props) => {
+          capturedScheduleGridProps = props;
+          return { type: "schedule-grid", props };
+        },
+      },
+      "@/hooks/shifts/use-shifts": {
+        useShifts: () => mockModel,
+      },
+      "@/components/shifts/shift-toolbar": { ShiftToolbar: () => null },
+      "@/components/shifts/shift-catalog": { ShiftCatalog: () => null },
+      "@/components/shifts/shift-create-dialog": { ShiftCreateDialog: () => null },
+      "@/components/shifts/shift-edit-dialog": { ShiftEditDialog: () => null },
+      "@/components/shifts/shift-delete-dialog": { ShiftDeleteDialog: () => null },
+      "@/components/shifts/assign-shift-dialog": { AssignShiftDialog: () => null },
+      "@/components/shifts/bulk-assign-dialog": { BulkAssignDialog: () => null },
+      "@/components/shifts/copy-week-dialog": { CopyWeekDialog: () => null },
+      "@/components/shifts/remove-assignment-dialog": { RemoveAssignmentDialog: () => null },
+    },
+  );
+
+  const ShiftsPage = pageModule.default;
+  const vdom = ShiftsPage();
+
+  // 1. RoleGuard wraps the page with ROLE_ADMIN
+  assert.equal(vdom.type, "role-guard");
+  assert.equal(vdom.props.allowedRoles.length, 1);
+  assert.equal(vdom.props.allowedRoles[0], "ROLE_ADMIN");
+  const fallbackText = findNodes(vdom.props.fallback, (c) => typeof c === "string").join("");
+  assert.ok(fallbackText.includes("Không có quyền truy cập"), "RoleGuard fallback must deny non-admin access");
+
+  // 2. Rendering authorized children mounts ScheduleGrid with all 6 pagination/search props wired
+  const managementNode = vdom.props.children;
+  // Trigger children evaluation
+  findNodes(managementNode, (n) => n.type === "schedule-grid");
+
+  assert.ok(capturedScheduleGridProps, "ScheduleGrid must be rendered inside ShiftsPage");
+  assert.equal(capturedScheduleGridProps.scheduleKeyword, "NV005", "scheduleKeyword must be forwarded from useShifts");
+  assert.equal(capturedScheduleGridProps.schedulePage, 2, "schedulePage must be forwarded from useShifts");
+  assert.equal(capturedScheduleGridProps.scheduleTotalPages, 4, "scheduleTotalPages must be forwarded from useShifts");
+  assert.equal(capturedScheduleGridProps.scheduleTotalElements, 75, "scheduleTotalElements must be forwarded from useShifts");
+
+  // 3. Handlers forwarded from model
+  capturedScheduleGridProps.handleScheduleKeywordChange("NV999");
+  assert.equal(keywordChangedTo, "NV999", "Invoking handleScheduleKeywordChange from ScheduleGrid calls useShifts handler");
+
+  capturedScheduleGridProps.setSchedulePage(3);
+  assert.equal(pageChangedTo, 3, "Invoking setSchedulePage from ScheduleGrid calls useShifts handler");
+});
+
+
 
 

@@ -1,3 +1,6 @@
+import { PageResponse } from "@/types/common.types";
+import { EmployeeResponse } from "@/types/employee.types";
+
 export interface ShiftResponse {
   id: number;
   shiftCode: string;
@@ -79,4 +82,10 @@ export interface EmployeeShiftResponse {
   gracePeriodMinutes?: number;
   assignedDate: string; // YYYY-MM-DD
 }
+
+export interface WeeklyScheduleResponse {
+  employees: PageResponse<EmployeeResponse>;
+  assignments: EmployeeShiftResponse[];
+}
+
 
