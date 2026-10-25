@@ -35,7 +35,7 @@ public class EmailServiceImpl implements EmailService {
                 SimpleMailMessage message = new SimpleMailMessage();
                 message.setFrom(fromEmail);
                 message.setTo(toEmail);
-                message.setSubject("Mã OTP Xác Thực E-Management: " + otpCode);
+                message.setSubject("Mã OTP Xác Thực E-Management");
                 message.setText("Xin chào,\n\nMã OTP xác thực của bạn trên hệ thống eManagement là: " + otpCode + 
                         "\n\nMã này có hiệu lực trong vòng 5 phút. Vui lòng tuyệt đối không chia sẻ mã này cho bất kỳ ai.\n\nTrân trọng,\nBan Quản Trị eManagement");
                 mailSender.send(message);

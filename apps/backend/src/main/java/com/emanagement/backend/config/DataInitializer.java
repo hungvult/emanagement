@@ -44,7 +44,7 @@ public class DataInitializer implements CommandLineRunner {
                     .employeeCode("EMP260001")
                     .fullName("Ngô Văn Dũng Quản Lý")
                     .email("admin@emanagement.com")
-                    .phone("0123456789")
+                    .phone("0912345678")
                     .passwordHash(passwordEncoder.encode("admin123"))
                     .status("ACTIVE")
                     .roles(Set.of(adminRole))

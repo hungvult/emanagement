@@ -166,4 +166,73 @@ class AuthServiceProfileAndOtpTest {
         verify(otpCodeRepository).save(any(OtpCode.class));
         verify(emailService).sendOtpEmail(eq("nva@example.com"), anyString(), eq("RESET_PASSWORD"));
     }
+
+    @Test
+    @DisplayName("Cập nhật cả Email và Số điện thoại cùng lúc ném BusinessException")
+    void updateProfile_BothEmailAndPhoneChanged_ThrowsBusinessException() {
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setFullName("Nguyen Van A Moi");
+        request.setEmail("newemail@example.com");
+        request.setPhone("0987654321");
+        request.setOtpCode("123456");
+
+        when(userRepository.findByIdentifier("EMP001")).thenReturn(Optional.of(user));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> authService.updateProfile("EMP001", request));
+        assertEquals("Vui lòng cập nhật lần lượt Email hoặc Số điện thoại để đảm bảo xác thực OTP chính xác cho từng kênh liên lạc.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Cập nhật khi chỉ gửi fullName (email và phone là null) thành công không cần OTP")
+    void updateProfile_OnlyFullNameProvided_EmailAndPhoneNull_Succeeds() {
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setFullName("Nguyen Van A Cap Nhat");
+        request.setEmail(null);
+        request.setPhone(null);
+        request.setOtpCode("");
+
+        when(userRepository.findByIdentifier("EMP001")).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserProfileDto result = authService.updateProfile("EMP001", request);
+
+        assertNotNull(result);
+        assertEquals("Nguyen Van A Cap Nhat", result.getFullName());
+        assertEquals("nva@example.com", result.getEmail());
+        assertEquals("0912345678", result.getPhone());
+        verify(otpCodeRepository, never()).findTopByIdentifierAndTypeAndIsUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Cập nhật Số điện thoại với OTP hợp lệ thành công")
+    void updateProfile_PhoneChangeWithValidOtp_Succeeds() {
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setFullName("Nguyen Van A");
+        request.setPhone("0987654321");
+        request.setOtpCode("654321");
+
+        OtpCode validOtp = OtpCode.builder()
+                .id(2L)
+                .identifier("0987654321")
+                .otpCode("654321")
+                .type("UPDATE_PROFILE")
+                .expiresAt(LocalDateTime.now().plusMinutes(5))
+                .isUsed(false)
+                .build();
+
+        when(userRepository.findByIdentifier("EMP001")).thenReturn(Optional.of(user));
+        when(otpCodeRepository.findTopByIdentifierAndTypeAndIsUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(
+                eq("0987654321"), eq("UPDATE_PROFILE"), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(validOtp));
+        when(userRepository.findByPhone("0987654321")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserProfileDto result = authService.updateProfile("EMP001", request);
+
+        assertNotNull(result);
+        assertEquals("0987654321", result.getPhone());
+        assertEquals("nva@example.com", result.getEmail());
+        assertTrue(validOtp.getIsUsed());
+    }
 }

@@ -245,6 +245,10 @@ public class AuthServiceImpl implements AuthService {
         boolean phoneChanged = request.getPhone() != null && !request.getPhone().isBlank()
                 && !request.getPhone().equals(user.getPhone());
 
+        if (emailChanged && phoneChanged) {
+            throw new BusinessException("Vui lòng cập nhật lần lượt Email hoặc Số điện thoại để đảm bảo xác thực OTP chính xác cho từng kênh liên lạc.");
+        }
+
         // Chỉ xác thực OTP khi người dùng thay đổi Email hoặc Số điện thoại
         if (emailChanged || phoneChanged) {
             if (request.getOtpCode() == null || request.getOtpCode().isBlank()) {
