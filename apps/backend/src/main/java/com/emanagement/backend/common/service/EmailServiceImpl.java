@@ -28,7 +28,7 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendOtpEmail(String toEmail, String otpCode, String type) {
-        log.info("[OTP EMAIL]: Email = {}, OTP = {}, Loai = {}", toEmail, otpCode, type);
+        log.info("[OTP EMAIL]: Đã gửi OTP tới Email = {}, Loại = {}", toEmail, type);
 
         if (mailSender != null) {
             try {

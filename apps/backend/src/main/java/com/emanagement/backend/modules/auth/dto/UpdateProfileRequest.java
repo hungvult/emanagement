@@ -32,8 +32,7 @@ public class UpdateProfileRequest {
     @Schema(description = "Số điện thoại mới của nhân viên", example = "0912345678")
     private String phone;
 
-    @NotBlank(message = "Mã OTP xác thực không được để trống")
-    @Pattern(regexp = ValidationPatterns.OTP_CODE_REGEX, message = "Mã OTP phải gồm đúng 6 chữ số")
+    @Pattern(regexp = "^$|[0-9]{6}", message = "Mã OTP phải gồm đúng 6 chữ số nếu được cung cấp")
     @Schema(description = "Mã OTP 6 số đã gửi về Email hoặc Phone mới để xác thực", example = "123456")
     @JsonProperty("otpCode")
     private String otpCode;

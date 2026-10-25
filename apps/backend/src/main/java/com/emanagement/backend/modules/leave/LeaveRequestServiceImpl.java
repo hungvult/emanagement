@@ -40,6 +40,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
 
         leaveRequest.setStatus(dto.getStatus());
         leaveRequest.setApprovedBy(user);
+        leaveRequest.setReviewNote(dto.getReviewNote() != null ? dto.getReviewNote().trim() : null);
         leaveRequest.setUpdatedAt(LocalDateTime.now());
         LeaveRequest updated = leaveRequestRepository.save(leaveRequest);
 
@@ -108,6 +109,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .status(leaveRequest.getStatus())
                 .approvedByName(
                         leaveRequest.getApprovedBy() != null ? leaveRequest.getApprovedBy().getFullName() : null)
+                .reviewNote(leaveRequest.getReviewNote())
                 .createdAt(leaveRequest.getCreatedAt())
                 .build();
     }

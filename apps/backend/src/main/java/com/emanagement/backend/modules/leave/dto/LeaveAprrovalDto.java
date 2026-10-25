@@ -5,6 +5,7 @@ import com.emanagement.backend.common.validation.ValidationPatterns;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,4 +23,7 @@ public class LeaveAprrovalDto {
     @NotBlank(message = "Trạng thái duyệt không được để trống (APPROVED hoặc REJECTED)")
     @Pattern(regexp = ValidationPatterns.LEAVE_STATUS_REGEX, message = "Trạng thái phê duyệt chỉ chấp nhận APPROVED hoặc REJECTED")
     private String status;
+
+    @Size(max = 500, message = "Ghi chú phê duyệt không vượt quá 500 ký tự")
+    private String reviewNote;
 }

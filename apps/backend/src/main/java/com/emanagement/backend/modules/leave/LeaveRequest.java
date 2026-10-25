@@ -53,6 +53,9 @@ public class LeaveRequest {
     @JoinColumn(name = "approved_by")
     private User approvedBy;
 
+    @Column(name = "review_note", length = 500)
+    private String reviewNote;
+
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
