@@ -17,7 +17,9 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLatestRequest } from "@/hooks/use-latest-request";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { employeeService } from "@/services/employee.service";
 import { leaveService } from "@/services/leave.service";
+import { Employee } from "@/types/employee.types";
 import { LeaveRequestCreate, LeaveRequestResponse } from "@/types/leave.types";
 import { CalendarRange, Check, Plus, X } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
@@ -46,6 +48,10 @@ export default function LeaveRequestsPage() {
     reason: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ST5-06: Admin tạo đơn phép cho bản thân hoặc nộp đơn hộ NV
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<number | "">("");
 
   // Review / Approval Modal State (ST5-01)
   const [reviewModalState, setReviewModalState] = useState<{
@@ -101,6 +107,25 @@ export default function LeaveRequestsPage() {
     if (user) fetchRequests(page);
   }, [page, user, fetchRequests]);
 
+  useEffect(() => {
+    if (isCreateOpen && isAdmin && employees.length === 0) {
+      employeeService
+        .getAll(0, 200)
+        .then((res) => {
+          if (res.status === "SUCCESS" && res.data?.content) {
+            setEmployees(res.data.content);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isCreateOpen, isAdmin, employees.length]);
+
+  const handleOpenCreateModal = () => {
+    setSelectedUserId(user?.id ?? "");
+    setCreateForm({ startDate: "", endDate: "", reason: "" });
+    setIsCreateOpen(true);
+  };
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -119,8 +144,10 @@ export default function LeaveRequestsPage() {
 
     setIsSubmitting(true);
     try {
+      const targetUserId =
+        isAdmin && selectedUserId !== "" ? Number(selectedUserId) : user.id;
       const payload: LeaveRequestCreate = {
-        userId: user.id,
+        userId: targetUserId,
         startDate: createForm.startDate,
         endDate: createForm.endDate,
         reason: createForm.reason,
@@ -131,6 +158,7 @@ export default function LeaveRequestsPage() {
         success("Đã gửi đơn xin nghỉ phép thành công!");
         setIsCreateOpen(false);
         setCreateForm({ startDate: "", endDate: "", reason: "" });
+        setSelectedUserId(user?.id ?? "");
         fetchRequests(0);
       } else {
         error(getErrorMessage(res, "Không thể gửi đơn nghỉ phép"));
@@ -227,14 +255,12 @@ export default function LeaveRequestsPage() {
               <option value="REJECTED">Từ chối</option>
             </select>
           )}
-          {!isAdmin && (
-            <Button
-              onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2 h-11 px-5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20"
-            >
-              <Plus className="h-4 w-4" /> Tạo đơn mới
-            </Button>
-          )}
+          <Button
+            onClick={handleOpenCreateModal}
+            className="flex items-center gap-2 h-11 px-5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20"
+          >
+            <Plus className="h-4 w-4" /> Tạo đơn mới
+          </Button>
         </div>
       </div>
 
@@ -375,6 +401,34 @@ export default function LeaveRequestsPage() {
         className="max-w-md"
       >
         <form onSubmit={handleCreateSubmit} className="space-y-5">
+          {isAdmin && user && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+                Nhân viên xin nghỉ <span className="text-rose-500">*</span>
+              </label>
+              <select
+                className="w-full h-11 rounded-xl border border-transparent bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
+                value={selectedUserId}
+                onChange={(e) =>
+                  setSelectedUserId(
+                    e.target.value ? Number(e.target.value) : "",
+                  )
+                }
+                required
+              >
+                <option value={user.id}>
+                  {`Bản thân (${user.fullName} - ${user.employeeCode || "Admin"})`}
+                </option>
+                {employees
+                  .filter((emp) => emp.id !== user.id)
+                  .map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {`${emp.fullName} (${emp.employeeCode || "—"})`}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">

@@ -11,6 +11,8 @@ export interface EmployeeResponse {
   createdAt: string;
 }
 
+export type Employee = EmployeeResponse;
+
 export interface EmployeeCreate {
   fullName: string;
   email?: string;
