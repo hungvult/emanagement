@@ -598,8 +598,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             for (AttendanceHistoryDto dto : unattended) {
                 writeDtoCsvRow(writer, stt++, dto);
             }
-            writer.flush();
         }
+        writer.flush();
+        outputStream.flush();
     }
 
     private void writeRecordCsvRow(BufferedWriter writer, long stt, AttendanceRecord record, Shift fallbackShift) throws IOException {
