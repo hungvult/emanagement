@@ -345,9 +345,59 @@ test("profile page submits directly without OTP when contact info is unchanged",
 
   await run({ preventDefault() {} });
   assert.equal(profilePayload.fullName, "New Name");
+  assert.equal(profilePayload.email, undefined);
+  assert.equal(profilePayload.phone, undefined);
   assert.equal(profilePayload.otpCode, "");
   assert.equal(otpSent, false);
   assert.equal(refreshCalled, true);
+});
+
+test("profile page rejects simultaneous email and phone changes and does not send OTP", async () => {
+  let errorMessage = null;
+  let otpSent = false;
+
+  const run = callback(
+    "app/(dashboard)/profile/page.tsx",
+    "handleSendOtp",
+    {
+      user: {
+        id: 10,
+        fullName: "Old Name",
+        email: "old@example.com",
+        phone: "0912345678",
+      },
+      formData: {
+        fullName: "New Name",
+        email: "new@example.com",
+        phone: "0987654321",
+      },
+      isContactInfoChanged: true,
+      error: (msg) => {
+        errorMessage = msg;
+      },
+      success: noop,
+      setIsLoading: noop,
+      setIsEditing: noop,
+      setStep: noop,
+      setOtpCode: noop,
+      refreshUser: async () => {},
+      getErrorMessage: (err, fallback) => fallback,
+      authService: {
+        updateProfile: async () => ({ status: "SUCCESS" }),
+        sendOtp: async () => {
+          otpSent = true;
+          return { status: "SUCCESS" };
+        },
+      },
+    },
+  );
+
+  await run({ preventDefault() {} });
+  assert.equal(otpSent, false);
+  assert.equal(
+    errorMessage,
+    "Vui lòng cập nhật lần lượt Email hoặc Số điện thoại để đảm bảo xác thực OTP chính xác cho từng kênh liên lạc."
+  );
 });
 
 test("profile page sends OTP and transitions to step 2 when contact info is changed", async () => {
@@ -401,6 +451,103 @@ test("profile page sends OTP and transitions to step 2 when contact info is chan
   assert.equal(otpTarget.identifier, "new@example.com");
   assert.equal(otpTarget.type, "UPDATE_PROFILE");
   assert.equal(nextStep, 2);
+});
+
+test("profile page sends OTP to phone when only phone is changed", async () => {
+  let otpTarget = null;
+  let nextStep = null;
+
+  const run = callback(
+    "app/(dashboard)/profile/page.tsx",
+    "handleSendOtp",
+    {
+      user: {
+        id: 10,
+        fullName: "Old Name",
+        email: "old@example.com",
+        phone: "0912345678",
+      },
+      formData: {
+        fullName: "New Name",
+        email: "old@example.com",
+        phone: "0987654321",
+      },
+      isContactInfoChanged: true,
+      error: (msg) => {
+        throw new Error(msg);
+      },
+      success: noop,
+      setIsLoading: noop,
+      setIsEditing: noop,
+      setStep: (s) => {
+        nextStep = s;
+      },
+      setOtpCode: noop,
+      refreshUser: async () => {},
+      getErrorMessage: (err, fallback) => fallback,
+      authService: {
+        updateProfile: async () => ({ status: "SUCCESS" }),
+        sendOtp: async (data) => {
+          otpTarget = data;
+          return { status: "SUCCESS" };
+        },
+      },
+    },
+  );
+
+  await run({ preventDefault() {} });
+  assert.equal(otpTarget.identifier, "0987654321");
+  assert.equal(otpTarget.type, "UPDATE_PROFILE");
+  assert.equal(nextStep, 2);
+});
+
+test("profile page handleUpdate sends only changed email and leaves phone undefined", async () => {
+  let profilePayload = null;
+  let refreshCalled = false;
+
+  const run = callback(
+    "app/(dashboard)/profile/page.tsx",
+    "handleUpdate",
+    {
+      otpCode: "123456",
+      user: {
+        id: 10,
+        fullName: "Admin User",
+        email: "admin@emanagement.com",
+        phone: "0123456789",
+      },
+      formData: {
+        fullName: "Admin User New",
+        email: "newadmin@emanagement.com",
+        phone: "0123456789",
+      },
+      error: (msg) => {
+        throw new Error(msg);
+      },
+      success: noop,
+      setIsLoading: noop,
+      setIsEditing: noop,
+      setStep: noop,
+      setOtpCode: noop,
+      refreshUser: async () => {
+        refreshCalled = true;
+      },
+      getErrorMessage: (err, fallback) => fallback,
+      authService: {
+        updateProfile: async (payload) => {
+          profilePayload = payload;
+          return { status: "SUCCESS" };
+        },
+      },
+    },
+  );
+
+  await run({ preventDefault() {} });
+  assert.equal(profilePayload.fullName, "Admin User New");
+  assert.equal(profilePayload.email, "newadmin@emanagement.com");
+  assert.equal(profilePayload.phone, undefined);
+  assert.equal(profilePayload.otpCode, "123456");
+  assert.equal(refreshCalled, true);
 });
 
 test("login password placeholder prompts user clearly instead of dots", () => {

@@ -68,8 +68,6 @@ export default function ProfilePage() {
       try {
         const res = await authService.updateProfile({
           fullName: formData.fullName.trim(),
-          email: formData.email.trim() || undefined,
-          phone: formData.phone.trim() || undefined,
           otpCode: "",
         });
 
@@ -90,7 +88,22 @@ export default function ProfilePage() {
       return;
     }
 
-    const targetIdentifier = formData.email.trim() || formData.phone.trim();
+    const emailChanged = formData.email.trim() !== (user?.email || "").trim();
+    const phoneChanged = formData.phone.trim() !== (user?.phone || "").trim();
+
+    if (emailChanged && phoneChanged) {
+      error(
+        "Vui lòng cập nhật lần lượt Email hoặc Số điện thoại để đảm bảo xác thực OTP chính xác cho từng kênh liên lạc."
+      );
+      return;
+    }
+
+    const targetIdentifier = emailChanged
+      ? formData.email.trim()
+      : phoneChanged
+      ? formData.phone.trim()
+      : formData.email.trim() || formData.phone.trim();
+
     if (!targetIdentifier) {
       error("Vui lòng nhập Email hoặc Số điện thoại để nhận mã OTP xác thực");
       return;
@@ -126,12 +139,15 @@ export default function ProfilePage() {
       return;
     }
 
+    const emailChanged = formData.email.trim() !== (user?.email || "").trim();
+    const phoneChanged = formData.phone.trim() !== (user?.phone || "").trim();
+
     setIsLoading(true);
     try {
       const res = await authService.updateProfile({
-        fullName: formData.fullName,
-        email: formData.email.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
+        fullName: formData.fullName.trim(),
+        email: emailChanged ? formData.email.trim() : undefined,
+        phone: phoneChanged ? formData.phone.trim() : undefined,
         otpCode: otpCode.trim(),
       });
 
@@ -371,7 +387,9 @@ export default function ProfilePage() {
                       <p className="text-sm font-medium text-indigo-900">
                         Mã OTP 6 số đã được gửi đến{" "}
                         <strong className="font-extrabold">
-                          {formData.email || formData.phone}
+                          {formData.email.trim() !== currentEmail
+                            ? formData.email.trim()
+                            : formData.phone.trim() || formData.email.trim()}
                         </strong>
                         . Vui lòng nhập mã để hoàn tất cập nhật.
                       </p>
