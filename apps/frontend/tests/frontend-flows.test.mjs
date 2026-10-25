@@ -249,3 +249,177 @@ test("repeated notification clicks decrement unread count once", async () => {
   assert.equal(unread, 1);
   assert.equal(notifications.filter((n) => !n.read).length, 1);
 });
+
+test("handleConfirmReview submits reviewNote when approving or rejecting leave request", async () => {
+  let approvedId = null;
+  let approvePayload = null;
+  let modalClosed = false;
+
+  const run = callback(
+    "app/(dashboard)/leave-requests/page.tsx",
+    "handleConfirmReview",
+    {
+      user: { id: 99, fullName: "Manager User" },
+      reviewModalState: {
+        isOpen: true,
+        request: { id: 123, fullName: "Employee A" },
+        status: "REJECTED",
+      },
+      reviewNote: "Lý do từ chối: Bận dự án",
+      isReviewSubmitting: false,
+      setIsReviewSubmitting: noop,
+      setReviewModalState: () => {
+        modalClosed = true;
+      },
+      setReviewNote: noop,
+      fetchRequests: noop,
+      page: 0,
+      error: (msg) => {
+        throw new Error(msg);
+      },
+      success: noop,
+      getErrorMessage: (err, fallback) => fallback,
+      leaveService: {
+        approve: async (id, data) => {
+          approvedId = id;
+          approvePayload = data;
+          return { status: "SUCCESS" };
+        },
+      },
+    },
+  );
+
+  await run();
+  assert.equal(approvedId, 123);
+  assert.equal(approvePayload.approvedByUserId, 99);
+  assert.equal(approvePayload.status, "REJECTED");
+  assert.equal(approvePayload.reviewNote, "Lý do từ chối: Bận dự án");
+  assert.equal(modalClosed, true);
+});
+
+test("profile page submits directly without OTP when contact info is unchanged", async () => {
+  let profilePayload = null;
+  let otpSent = false;
+  let refreshCalled = false;
+
+  const run = callback(
+    "app/(dashboard)/profile/page.tsx",
+    "handleSendOtp",
+    {
+      user: {
+        id: 10,
+        fullName: "Old Name",
+        email: "user@example.com",
+        phone: "0912345678",
+      },
+      formData: {
+        fullName: "New Name",
+        email: "user@example.com",
+        phone: "0912345678",
+      },
+      isContactInfoChanged: false,
+      error: (msg) => {
+        throw new Error(msg);
+      },
+      success: noop,
+      setIsLoading: noop,
+      setIsEditing: noop,
+      setStep: noop,
+      setOtpCode: noop,
+      refreshUser: async () => {
+        refreshCalled = true;
+      },
+      getErrorMessage: (err, fallback) => fallback,
+      authService: {
+        updateProfile: async (payload) => {
+          profilePayload = payload;
+          return { status: "SUCCESS" };
+        },
+        sendOtp: async () => {
+          otpSent = true;
+          return { status: "SUCCESS" };
+        },
+      },
+    },
+  );
+
+  await run({ preventDefault() {} });
+  assert.equal(profilePayload.fullName, "New Name");
+  assert.equal(profilePayload.otpCode, "");
+  assert.equal(otpSent, false);
+  assert.equal(refreshCalled, true);
+});
+
+test("profile page sends OTP and transitions to step 2 when contact info is changed", async () => {
+  let profilePayload = null;
+  let otpTarget = null;
+  let nextStep = null;
+
+  const run = callback(
+    "app/(dashboard)/profile/page.tsx",
+    "handleSendOtp",
+    {
+      user: {
+        id: 10,
+        fullName: "Old Name",
+        email: "old@example.com",
+        phone: "0912345678",
+      },
+      formData: {
+        fullName: "New Name",
+        email: "new@example.com",
+        phone: "0912345678",
+      },
+      isContactInfoChanged: true,
+      error: (msg) => {
+        throw new Error(msg);
+      },
+      success: noop,
+      setIsLoading: noop,
+      setIsEditing: noop,
+      setStep: (s) => {
+        nextStep = s;
+      },
+      setOtpCode: noop,
+      refreshUser: async () => {},
+      getErrorMessage: (err, fallback) => fallback,
+      authService: {
+        updateProfile: async (payload) => {
+          profilePayload = payload;
+          return { status: "SUCCESS" };
+        },
+        sendOtp: async (data) => {
+          otpTarget = data;
+          return { status: "SUCCESS" };
+        },
+      },
+    },
+  );
+
+  await run({ preventDefault() {} });
+  assert.equal(profilePayload, null);
+  assert.equal(otpTarget.identifier, "new@example.com");
+  assert.equal(otpTarget.type, "UPDATE_PROFILE");
+  assert.equal(nextStep, 2);
+});
+
+test("login password placeholder prompts user clearly instead of dots", () => {
+  const content = readFileSync(
+    new URL("../app/login/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(content, /placeholder="Nhập mật khẩu của bạn"/);
+  assert.ok(!content.includes('placeholder="••••••••"'));
+});
+
+test("dashboard live feed only renders Xem ảnh button when snapshots are present", () => {
+  const content = readFileSync(
+    new URL("../app/(dashboard)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    content,
+    /record\.snapshotUrl \|\| record\.checkoutSnapshotUrl \?/,
+  );
+  assert.match(content, /Không có ảnh/);
+});

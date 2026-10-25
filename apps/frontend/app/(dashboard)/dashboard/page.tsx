@@ -969,15 +969,21 @@ export default function DashboardPage() {
                               </Badge>
                             </TableCell>
                             <TableCell className="py-3 px-6 text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSelectedRecord(record)}
-                                className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 inline-flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 rounded-lg"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                                Xem ảnh
-                              </Button>
+                              {record.snapshotUrl || record.checkoutSnapshotUrl ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setSelectedRecord(record)}
+                                  className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 inline-flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 rounded-lg"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  Xem ảnh
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-slate-400 italic">
+                                  Không có ảnh
+                                </span>
+                              )}
                             </TableCell>
                           </TableRow>
                         );

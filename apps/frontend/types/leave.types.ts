@@ -8,6 +8,7 @@ export interface LeaveRequestResponse {
   reason: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   approvedByName: string | null;
+  reviewNote?: string | null;
   createdAt: string;
 }
 
@@ -21,4 +22,5 @@ export interface LeaveRequestCreate {
 export interface LeaveApproval {
   approvedByUserId: number;
   status: "APPROVED" | "REJECTED";
+  reviewNote?: string;
 }

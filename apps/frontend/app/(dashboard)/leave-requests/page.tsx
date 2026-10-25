@@ -21,7 +21,7 @@ import { employeeService } from "@/services/employee.service";
 import { leaveService } from "@/services/leave.service";
 import { Employee } from "@/types/employee.types";
 import { LeaveRequestCreate, LeaveRequestResponse } from "@/types/leave.types";
-import { CalendarRange, Check, Plus, X } from "lucide-react";
+import { CalendarRange, Check, Eye, Plus, X } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 
 export default function LeaveRequestsPage() {
@@ -36,6 +36,9 @@ export default function LeaveRequestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { error, success } = useToast();
 
+  // Detail Modal State (ST5-01 / Issue 2)
+  const [detailRequest, setDetailRequest] = useState<LeaveRequestResponse | null>(null);
+
   // Create Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<{
@@ -49,9 +52,12 @@ export default function LeaveRequestsPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ST5-06: Admin tạo đơn phép cho bản thân hoặc nộp đơn hộ NV
+  // ST5-06 / Issue 3: Admin tạo đơn phép với async debounce search nhân viên
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number | "">("");
+  const [empSearchKeyword, setEmpSearchKeyword] = useState("");
+  const [isSearchingEmp, setIsSearchingEmp] = useState(false);
+  const [selectedEmployeeObj, setSelectedEmployeeObj] = useState<Employee | null>(null);
 
   // Review / Approval Modal State (ST5-01)
   const [reviewModalState, setReviewModalState] = useState<{
@@ -108,20 +114,30 @@ export default function LeaveRequestsPage() {
   }, [page, user, fetchRequests]);
 
   useEffect(() => {
-    if (isCreateOpen && isAdmin && employees.length === 0) {
-      employeeService
-        .getAll(0, 200)
-        .then((res) => {
-          if (res.status === "SUCCESS" && res.data?.content) {
-            setEmployees(res.data.content);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [isCreateOpen, isAdmin, employees.length]);
+    if (!isCreateOpen || !isAdmin) return;
+    const timer = setTimeout(async () => {
+      setIsSearchingEmp(true);
+      try {
+        const res = await employeeService.getAll(0, 50, {
+          keyword: empSearchKeyword.trim() || undefined,
+        });
+        if (res.status === "SUCCESS" && res.data?.content) {
+          setEmployees(res.data.content);
+        }
+      } catch {
+        // ignore error
+      } finally {
+        setIsSearchingEmp(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [isCreateOpen, isAdmin, empSearchKeyword]);
 
   const handleOpenCreateModal = () => {
     setSelectedUserId(user?.id ?? "");
+    setSelectedEmployeeObj(null);
+    setEmpSearchKeyword("");
     setCreateForm({ startDate: "", endDate: "", reason: "" });
     setIsCreateOpen(true);
   };
@@ -205,6 +221,7 @@ export default function LeaveRequestsPage() {
       const res = await leaveService.approve(reviewModalState.request.id, {
         approvedByUserId: user.id,
         status: reviewModalState.status,
+        reviewNote: reviewNote.trim() || undefined,
       });
       if (res.status === "SUCCESS") {
         success(
@@ -284,16 +301,14 @@ export default function LeaveRequestsPage() {
                 <TableHead>Trạng thái</TableHead>
                 <TableHead>Người duyệt</TableHead>
                 <TableHead>Thời gian gửi</TableHead>
-                {isAdmin && (
-                  <TableHead className="text-right">Hành động</TableHead>
-                )}
+                <TableHead className="text-right">Hành động</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {requests.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={isAdmin ? 8 : 6}
+                    colSpan={isAdmin ? 8 : 7}
                     className="text-center py-8 text-muted-foreground"
                   >
                     Không có dữ liệu đơn phép
@@ -347,36 +362,48 @@ export default function LeaveRequestsPage() {
                     <TableCell className="text-muted-foreground text-xs">
                       {formatDateTime(req.createdAt)}
                     </TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-right">
-                        {req.status === "PENDING" ? (
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-success hover:bg-success/10 hover:text-success"
-                              onClick={() => openReviewModal(req, "APPROVED")}
-                              title="Duyệt"
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-danger hover:bg-danger/10 hover:text-danger"
-                              onClick={() => openReviewModal(req, "REJECTED")}
-                              title="Từ chối"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Đã xử lý
-                          </span>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 inline-flex items-center gap-1 text-xs font-semibold rounded-lg"
+                          onClick={() => setDetailRequest(req)}
+                          title="Xem chi tiết đơn"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Chi tiết
+                        </Button>
+                        {isAdmin && (
+                          req.status === "PENDING" ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-success hover:bg-success/10 hover:text-success"
+                                onClick={() => openReviewModal(req, "APPROVED")}
+                                title="Duyệt"
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-danger hover:bg-danger/10 hover:text-danger"
+                                onClick={() => openReviewModal(req, "REJECTED")}
+                                title="Từ chối"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              Đã xử lý
+                            </span>
+                          )
                         )}
-                      </TableCell>
-                    )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -402,31 +429,57 @@ export default function LeaveRequestsPage() {
       >
         <form onSubmit={handleCreateSubmit} className="space-y-5">
           {isAdmin && user && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
                 Nhân viên xin nghỉ <span className="text-rose-500">*</span>
               </label>
-              <select
-                className="w-full h-11 rounded-xl border border-transparent bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
-                value={selectedUserId}
-                onChange={(e) =>
-                  setSelectedUserId(
-                    e.target.value ? Number(e.target.value) : "",
-                  )
-                }
-                required
-              >
-                <option value={user.id}>
-                  {`Bản thân (${user.fullName} - ${user.employeeCode || "Admin"})`}
-                </option>
-                {employees
-                  .filter((emp) => emp.id !== user.id)
-                  .map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {`${emp.fullName} (${emp.employeeCode || "—"})`}
-                    </option>
-                  ))}
-              </select>
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  placeholder="Tìm nhân viên theo tên hoặc mã NV..."
+                  value={empSearchKeyword}
+                  onChange={(e) => setEmpSearchKeyword(e.target.value)}
+                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+                <select
+                  className="w-full h-11 rounded-xl border border-transparent bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
+                  value={selectedUserId}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : "";
+                    setSelectedUserId(val);
+                    const found = employees.find((emp) => emp.id === val);
+                    if (found) setSelectedEmployeeObj(found);
+                  }}
+                  required
+                >
+                  <option value={user.id}>
+                    {`Bản thân (${user.fullName} - ${user.employeeCode || "Admin"})`}
+                  </option>
+                  {selectedEmployeeObj &&
+                    selectedEmployeeObj.id !== user.id &&
+                    !employees.some((e) => e.id === selectedEmployeeObj.id) && (
+                      <option value={selectedEmployeeObj.id}>
+                        {`${selectedEmployeeObj.fullName} (${selectedEmployeeObj.employeeCode || "—"})`}
+                      </option>
+                    )}
+                  {employees
+                    .filter(
+                      (emp) =>
+                        emp.id !== user.id &&
+                        (!selectedEmployeeObj || emp.id !== selectedEmployeeObj.id),
+                    )
+                    .map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {`${emp.fullName} (${emp.employeeCode || "—"})`}
+                      </option>
+                    ))}
+                </select>
+                {isSearchingEmp && (
+                  <p className="text-[11px] text-slate-400 italic ml-1">
+                    Đang tìm kiếm nhân viên...
+                  </p>
+                )}
+              </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">
@@ -585,6 +638,93 @@ export default function LeaveRequestsPage() {
               </Button>
             </div>
           </form>
+        )}
+      </Modal>
+
+      {/* Modal chi tiết đơn xin nghỉ phép */}
+      <Modal
+        isOpen={Boolean(detailRequest)}
+        onClose={() => setDetailRequest(null)}
+        title="Chi tiết đơn xin nghỉ phép"
+        className="max-w-md"
+      >
+        {detailRequest && (
+          <div className="space-y-4">
+            <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 space-y-2.5 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Nhân viên:</span>
+                <span className="font-semibold text-slate-900">
+                  {detailRequest.fullName || "—"} ({detailRequest.employeeCode || "—"})
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Thời gian nghỉ:</span>
+                <span className="font-semibold text-slate-900">
+                  {formatDate(detailRequest.startDate)} – {formatDate(detailRequest.endDate)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Trạng thái:</span>
+                <Badge
+                  variant={
+                    detailRequest.status === "APPROVED"
+                      ? "success"
+                      : detailRequest.status === "REJECTED"
+                        ? "danger"
+                        : "warning"
+                  }
+                >
+                  {detailRequest.status === "APPROVED"
+                    ? "Đã duyệt"
+                    : detailRequest.status === "REJECTED"
+                      ? "Từ chối"
+                      : "Chờ duyệt"}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Người duyệt:</span>
+                <span className="font-semibold text-slate-900">
+                  {detailRequest.approvedByName || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Thời điểm gửi:</span>
+                <span className="text-xs text-slate-600 font-mono">
+                  {formatDateTime(detailRequest.createdAt)}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                Lý do xin nghỉ:
+              </span>
+              <p className="text-slate-700 bg-white p-3 rounded-xl border border-slate-200 text-sm whitespace-pre-wrap">
+                {detailRequest.reason || "—"}
+              </p>
+            </div>
+
+            {detailRequest.reviewNote && (
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-200">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Ghi chú / Lý do phản hồi:
+                </div>
+                <div className="text-sm text-slate-800 whitespace-pre-wrap">
+                  {detailRequest.reviewNote}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <Button
+                variant="outline"
+                onClick={() => setDetailRequest(null)}
+                className="rounded-xl font-semibold"
+              >
+                Đóng
+              </Button>
+            </div>
+          </div>
         )}
       </Modal>
     </div>

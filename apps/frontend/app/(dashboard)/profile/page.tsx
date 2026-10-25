@@ -47,12 +47,46 @@ export default function ProfilePage() {
 
   const [otpCode, setOtpCode] = useState("");
 
+  const currentEmail = (user?.email || "").trim();
+  const currentPhone = (user?.phone || "").trim();
+  const isContactInfoChanged =
+    formData.email.trim() !== currentEmail ||
+    formData.phone.trim() !== currentPhone;
+
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
     if (!formData.fullName.trim()) {
       error("Họ và tên không được để trống");
+      return;
+    }
+
+    // Nếu chỉ đổi họ tên mà không đổi Email/Số điện thoại -> lưu trực tiếp không cần OTP
+    if (!isContactInfoChanged) {
+      setIsLoading(true);
+      try {
+        const res = await authService.updateProfile({
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim() || undefined,
+          phone: formData.phone.trim() || undefined,
+          otpCode: "",
+        });
+
+        if (res.status === "SUCCESS") {
+          success("Cập nhật thông tin hồ sơ thành công!");
+          setIsEditing(false);
+          setStep(1);
+          setOtpCode("");
+          await refreshUser();
+        } else {
+          error(getErrorMessage(res, "Không thể cập nhật thông tin"));
+        }
+      } catch (err: unknown) {
+        error(getErrorMessage(err, "Lỗi khi cập nhật hồ sơ"));
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -303,10 +337,16 @@ export default function ProfilePage() {
                       disabled={isLoading}
                       className="bg-slate-50 border-transparent focus:bg-white rounded-xl"
                     />
-                    <p className="text-xs font-semibold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      Khi nhấn lưu, hệ thống sẽ gửi mã OTP 6 số đến Email/SĐT
-                      mới để xác thực chính chủ.
-                    </p>
+                    {isContactInfoChanged ? (
+                      <p className="text-xs font-semibold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        Khi nhấn lưu, hệ thống sẽ gửi mã OTP 6 số đến Email/SĐT
+                        mới để xác thực chính chủ.
+                      </p>
+                    ) : (
+                      <p className="text-xs font-semibold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        Thay đổi họ và tên không yêu cầu mã xác thực OTP.
+                      </p>
+                    )}
                     <div className="flex justify-end gap-3 pt-2">
                       <Button
                         type="button"
@@ -321,7 +361,7 @@ export default function ProfilePage() {
                         isLoading={isLoading}
                         className="rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
                       >
-                        Gửi mã OTP xác nhận
+                        {isContactInfoChanged ? "Gửi mã OTP xác nhận" : "Lưu thay đổi"}
                       </Button>
                     </div>
                   </form>
