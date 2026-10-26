@@ -1,7 +1,9 @@
 package com.emanagement.backend.modules.leave;
 
+import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,12 +50,16 @@ public class LeaveRequestController {
     }
 
     @GetMapping
-    @Operation(summary = "Danh sách đơn nghỉ phép toàn hệ thống", description = "Dành cho Admin xem và lọc danh sách đơn nghỉ phép theo trạng thái")
+    @Operation(summary = "Danh sách đơn nghỉ phép toàn hệ thống", description = "Dành cho Admin xem, tìm kiếm và lọc danh sách đơn nghỉ phép")
     public ResponseEntity<ApiResponse<PageResponse<LeaveRequestResponseDto>>> getAllLeaveRequests(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String status) {
-        PageResponse<LeaveRequestResponseDto> response = leaveRequestService.getAllLeaveRequests(page, size, status);
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String keyword) {
+        PageResponse<LeaveRequestResponseDto> response = leaveRequestService.getAllLeaveRequests(
+                page, size, status, startDate, endDate, keyword);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

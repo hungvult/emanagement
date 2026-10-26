@@ -21,8 +21,34 @@ import { employeeService } from "@/services/employee.service";
 import { leaveService } from "@/services/leave.service";
 import { Employee } from "@/types/employee.types";
 import { LeaveRequestCreate, LeaveRequestResponse } from "@/types/leave.types";
-import { CalendarRange, Check, Eye, Plus, X } from "lucide-react";
+import { CalendarRange, Check, Eye, Plus, RotateCcw, Search, X } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
+
+const getTodayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const getTomorrowISO = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const getInDaysISO = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
 
 export default function LeaveRequestsPage() {
   const beginRequest = useLatestRequest();
@@ -33,8 +59,19 @@ export default function LeaveRequestsPage() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [searchKeyword, setSearchKeyword] = useState<string>("");
+  const [debouncedKeyword, setDebouncedKeyword] = useState<string>("");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const { error, success } = useToast();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedKeyword(searchKeyword);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchKeyword]);
 
   // Detail Modal State (ST5-01 / Issue 2)
   const [detailRequest, setDetailRequest] = useState<LeaveRequestResponse | null>(null);
@@ -78,11 +115,12 @@ export default function LeaveRequestsPage() {
       setIsLoading(true);
       try {
         if (isAdmin) {
-          const res = await leaveService.getAll(
-            pageNumber,
-            15,
-            statusFilter || undefined,
-          );
+          const res = await leaveService.getAll(pageNumber, 15, {
+            status: statusFilter || undefined,
+            keyword: debouncedKeyword.trim() || undefined,
+            startDate: fromDate || undefined,
+            endDate: toDate || undefined,
+          });
           if (!isCurrent()) return;
           if (res.status === "SUCCESS" && res.data) {
             setRequests(res.data.content || []);
@@ -93,7 +131,26 @@ export default function LeaveRequestsPage() {
           const res = await leaveService.getMyRequests(user.id);
           if (!isCurrent()) return;
           if (res.status === "SUCCESS" && res.data) {
-            setRequests(res.data || []);
+            let list = res.data || [];
+            if (statusFilter) {
+              list = list.filter((r) => r.status === statusFilter);
+            }
+            if (fromDate) {
+              list = list.filter((r) => r.endDate >= fromDate);
+            }
+            if (toDate) {
+              list = list.filter((r) => r.startDate <= toDate);
+            }
+            if (debouncedKeyword.trim()) {
+              const kw = debouncedKeyword.trim().toLowerCase();
+              list = list.filter(
+                (r) =>
+                  r.reason?.toLowerCase().includes(kw) ||
+                  r.fullName?.toLowerCase().includes(kw) ||
+                  r.employeeCode?.toLowerCase().includes(kw),
+              );
+            }
+            setRequests(list);
             setTotalPages(1);
           }
         }
@@ -104,7 +161,7 @@ export default function LeaveRequestsPage() {
         if (isCurrent()) setIsLoading(false);
       }
     },
-    [beginRequest, error, isAdmin, user, statusFilter],
+    [beginRequest, error, isAdmin, user, statusFilter, debouncedKeyword, fromDate, toDate],
   );
 
   useEffect(() => {
@@ -135,10 +192,11 @@ export default function LeaveRequestsPage() {
   }, [isCreateOpen, isAdmin, empSearchKeyword]);
 
   const handleOpenCreateModal = () => {
+    const todayStr = getTodayISO();
     setSelectedUserId(user?.id ?? "");
     setSelectedEmployeeObj(null);
     setEmpSearchKeyword("");
-    setCreateForm({ startDate: "", endDate: "", reason: "" });
+    setCreateForm({ startDate: todayStr, endDate: todayStr, reason: "" });
     setIsCreateOpen(true);
   };
 
@@ -149,7 +207,7 @@ export default function LeaveRequestsPage() {
       error("Vui lòng chọn ngày bắt đầu và kết thúc");
       return;
     }
-    if (new Date(createForm.startDate) > new Date(createForm.endDate)) {
+    if (createForm.startDate > createForm.endDate) {
       error("Ngày bắt đầu không được lớn hơn ngày kết thúc");
       return;
     }
@@ -166,14 +224,15 @@ export default function LeaveRequestsPage() {
         userId: targetUserId,
         startDate: createForm.startDate,
         endDate: createForm.endDate,
-        reason: createForm.reason,
+        reason: createForm.reason.trim(),
       };
 
       const res = await leaveService.create(payload);
       if (res.status === "SUCCESS") {
         success("Đã gửi đơn xin nghỉ phép thành công!");
         setIsCreateOpen(false);
-        setCreateForm({ startDate: "", endDate: "", reason: "" });
+        const todayStr = getTodayISO();
+        setCreateForm({ startDate: todayStr, endDate: todayStr, reason: "" });
         setSelectedUserId(user?.id ?? "");
         fetchRequests(0);
       } else {
@@ -257,9 +316,41 @@ export default function LeaveRequestsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {isAdmin && (
+          <Button
+            onClick={handleOpenCreateModal}
+            className="flex items-center gap-2 h-11 px-5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20"
+          >
+            <Plus className="h-4 w-4" /> Tạo đơn mới
+          </Button>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          {/* Search keyword input */}
+          <div className="relative md:col-span-5">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder={
+                isAdmin
+                  ? "Tìm kiếm tên nhân viên, mã NV, lý do..."
+                  : "Tìm kiếm theo lý do nghỉ..."
+              }
+              value={searchKeyword}
+              onChange={(e) => {
+                setSearchKeyword(e.target.value);
+                setPage(0);
+              }}
+              className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
+            />
+          </div>
+
+          {/* Status select */}
+          <div className="md:col-span-3">
             <select
-              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all w-[200px]"
+              className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
@@ -271,13 +362,57 @@ export default function LeaveRequestsPage() {
               <option value="APPROVED">Đã duyệt</option>
               <option value="REJECTED">Từ chối</option>
             </select>
-          )}
-          <Button
-            onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 h-11 px-5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20"
-          >
-            <Plus className="h-4 w-4" /> Tạo đơn mới
-          </Button>
+          </div>
+
+          {/* Date range */}
+          <div className="md:col-span-4 flex items-center gap-2">
+            <div className="flex-1">
+              <input
+                type="date"
+                title="Từ ngày"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(e) => {
+                  setFromDate(e.target.value);
+                  setPage(0);
+                }}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
+              />
+            </div>
+            <span className="text-slate-400 text-xs font-bold">–</span>
+            <div className="flex-1">
+              <input
+                type="date"
+                title="Đến ngày"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(e) => {
+                  setToDate(e.target.value);
+                  setPage(0);
+                }}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
+              />
+            </div>
+
+            {(searchKeyword || statusFilter || fromDate || toDate) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchKeyword("");
+                  setStatusFilter("");
+                  setFromDate("");
+                  setToDate("");
+                  setPage(0);
+                }}
+                className="h-10 px-3 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 shrink-0"
+                title="Xóa bộ lọc"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Đặt lại</span>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -309,9 +444,14 @@ export default function LeaveRequestsPage() {
                 <TableRow>
                   <TableCell
                     colSpan={isAdmin ? 8 : 7}
-                    className="text-center py-8 text-muted-foreground"
+                    className="text-center py-10 text-muted-foreground"
                   >
-                    Không có dữ liệu đơn phép
+                    <CalendarRange className="h-10 w-10 mx-auto mb-2 opacity-20 text-indigo-600" />
+                    <p className="font-semibold text-slate-600">
+                      {searchKeyword || statusFilter || fromDate || toDate
+                        ? "Không tìm thấy đơn nghỉ phép nào phù hợp với bộ lọc."
+                        : "Không có dữ liệu đơn phép."}
+                    </p>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -482,6 +622,76 @@ export default function LeaveRequestsPage() {
               </div>
             </div>
           )}
+          {/* Quick Date Presets */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
+              Chọn nhanh ngày nghỉ
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const todayStr = getTodayISO();
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    startDate: todayStr,
+                    endDate: todayStr,
+                  }));
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                  createForm.startDate === getTodayISO() &&
+                  createForm.endDate === getTodayISO()
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                ⚡ Hôm nay (Nghỉ ốm / đột xuất)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const tomorrowStr = getTomorrowISO();
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    startDate: tomorrowStr,
+                    endDate: tomorrowStr,
+                  }));
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                  createForm.startDate === getTomorrowISO() &&
+                  createForm.endDate === getTomorrowISO()
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                Ngày mai
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const todayStr = getTodayISO();
+                  const endStr = getInDaysISO(2);
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    startDate: todayStr,
+                    endDate: endStr,
+                  }));
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                  createForm.startDate === getTodayISO() &&
+                  createForm.endDate === getInDaysISO(2)
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                3 ngày tới
+              </button>
+            </div>
+            <p className="text-[11px] text-indigo-600 font-medium ml-1">
+              💡 Hỗ trợ nộp đơn nghỉ phép ngay trong hôm nay (dành cho trường hợp ốm đau hoặc việc đột xuất).
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">
@@ -490,9 +700,14 @@ export default function LeaveRequestsPage() {
               <input
                 type="date"
                 value={createForm.startDate}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, startDate: e.target.value })
-                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    startDate: val,
+                    endDate: !prev.endDate || prev.endDate < val ? val : prev.endDate,
+                  }));
+                }}
                 className="w-full h-11 rounded-xl border border-transparent bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
                 required
               />
@@ -504,8 +719,9 @@ export default function LeaveRequestsPage() {
               <input
                 type="date"
                 value={createForm.endDate}
+                min={createForm.startDate || undefined}
                 onChange={(e) =>
-                  setCreateForm({ ...createForm, endDate: e.target.value })
+                  setCreateForm((prev) => ({ ...prev, endDate: e.target.value }))
                 }
                 className="w-full h-11 rounded-xl border border-transparent bg-slate-50 px-4 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all"
                 required

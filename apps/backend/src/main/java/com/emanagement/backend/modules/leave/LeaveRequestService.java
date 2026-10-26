@@ -1,5 +1,6 @@
 package com.emanagement.backend.modules.leave;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.emanagement.backend.common.dto.PageResponse;
@@ -13,6 +14,9 @@ public interface LeaveRequestService {
     List<LeaveRequestResponseDto> getMyLeaveRequests(Long userId);
 
     PageResponse<LeaveRequestResponseDto> getAllLeaveRequests(int page, int size, String status);
+
+    PageResponse<LeaveRequestResponseDto> getAllLeaveRequests(
+            int page, int size, String status, LocalDate startDate, LocalDate endDate, String keyword);
 
     LeaveRequestResponseDto approveLeaveRequest(Long id, LeaveAprrovalDto dto);
 }

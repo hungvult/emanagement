@@ -331,6 +331,53 @@ test("handleConfirmReview submits reviewNote when approving or rejecting leave r
   assert.equal(modalClosed, true);
 });
 
+test("handleCreateSubmit sends leave request for same-day emergency leave", async () => {
+  let createdPayload = null;
+  let modalClosed = false;
+
+  const todayStr = "2026-10-26";
+  const run = callback(
+    "app/(dashboard)/leave-requests/page.tsx",
+    "handleCreateSubmit",
+    {
+      user: { id: 45, fullName: "Test Staff" },
+      isAdmin: false,
+      selectedUserId: "",
+      getTodayISO: () => todayStr,
+      createForm: {
+        startDate: todayStr,
+        endDate: todayStr,
+        reason: "Bị sốt đột xuất sáng nay",
+      },
+      setIsSubmitting: noop,
+      setIsCreateOpen: () => {
+        modalClosed = true;
+      },
+      setCreateForm: noop,
+      setSelectedUserId: noop,
+      fetchRequests: noop,
+      error: (msg) => {
+        throw new Error(msg);
+      },
+      success: noop,
+      getErrorMessage: (err, fallback) => fallback,
+      leaveService: {
+        create: async (payload) => {
+          createdPayload = payload;
+          return { status: "SUCCESS" };
+        },
+      },
+    },
+  );
+
+  await run({ preventDefault: noop });
+  assert.equal(createdPayload.userId, 45);
+  assert.equal(createdPayload.startDate, todayStr);
+  assert.equal(createdPayload.endDate, todayStr);
+  assert.equal(createdPayload.reason, "Bị sốt đột xuất sáng nay");
+  assert.equal(modalClosed, true);
+});
+
 test("profile page submits directly without OTP when contact info is unchanged", async () => {
   let profilePayload = null;
   let otpSent = false;

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+
+import com.emanagement.backend.common.dto.PageResponse;
 
 import com.emanagement.backend.common.exception.BusinessException;
 import com.emanagement.backend.common.exception.ResourceNotFoundException;
@@ -155,5 +161,84 @@ class LeaveRequestServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(employee));
 
         assertThrows(BusinessException.class, () -> leaveRequestService.createLeaveRequest(createDto));
+    }
+
+    @Test
+    @DisplayName("Tạo đơn nghỉ phép trong ngày (startDate == endDate, đơn nghỉ đột xuất)")
+    void createLeaveRequest_SameDay_ShouldSucceed() {
+        LocalDate today = LocalDate.now();
+        LeaveRequestCreateDto createDto = new LeaveRequestCreateDto();
+        createDto.setUserId(1L);
+        createDto.setStartDate(today);
+        createDto.setEndDate(today);
+        createDto.setReason("Nghỉ ốm đột xuất");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(invocation -> {
+            LeaveRequest req = invocation.getArgument(0);
+            req.setId(101L);
+            return req;
+        });
+
+        LeaveRequestResponseDto result = leaveRequestService.createLeaveRequest(createDto);
+
+        assertNotNull(result);
+        assertEquals("PENDING", result.getStatus());
+        assertEquals(today, result.getStartDate());
+        assertEquals(today, result.getEndDate());
+        assertEquals("Nghỉ ốm đột xuất", result.getReason());
+    }
+
+    @Test
+    @DisplayName("getAllLeaveRequests có đầy đủ bộ lọc tìm kiếm và ngày tháng")
+    void getAllLeaveRequests_WithFilters_CallsFindWithFilters() {
+        LocalDate start = LocalDate.of(2026, 10, 1);
+        LocalDate end = LocalDate.of(2026, 10, 31);
+        Page<LeaveRequest> page = new PageImpl<>(List.of(leaveRequest), PageRequest.of(0, 10), 1);
+
+        when(leaveRequestRepository.findWithFilters(
+                true, "APPROVED",
+                true, start,
+                true, end,
+                true, "Nguyen",
+                PageRequest.of(0, 10))).thenReturn(page);
+
+        PageResponse<LeaveRequestResponseDto> response = leaveRequestService.getAllLeaveRequests(
+                0, 10, "APPROVED", start, end, "Nguyen");
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        assertEquals("EMP001", response.getContent().get(0).getEmployeeCode());
+        verify(leaveRequestRepository).findWithFilters(
+                true, "APPROVED",
+                true, start,
+                true, end,
+                true, "Nguyen",
+                PageRequest.of(0, 10));
+    }
+
+    @Test
+    @DisplayName("getAllLeaveRequests không có bộ lọc thì truyền flags false")
+    void getAllLeaveRequests_NoFilters_PassesFalseFlags() {
+        Page<LeaveRequest> page = new PageImpl<>(List.of(leaveRequest), PageRequest.of(0, 10), 1);
+
+        when(leaveRequestRepository.findWithFilters(
+                false, null,
+                false, null,
+                false, null,
+                false, null,
+                PageRequest.of(0, 10))).thenReturn(page);
+
+        PageResponse<LeaveRequestResponseDto> response = leaveRequestService.getAllLeaveRequests(
+                0, 10, null, null, null, "   ");
+
+        assertNotNull(response);
+        assertEquals(1, response.getContent().size());
+        verify(leaveRequestRepository).findWithFilters(
+                false, null,
+                false, null,
+                false, null,
+                false, null,
+                PageRequest.of(0, 10));
     }
 }
