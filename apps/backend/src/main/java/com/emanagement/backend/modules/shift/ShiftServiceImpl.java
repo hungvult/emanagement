@@ -1,6 +1,8 @@
 package com.emanagement.backend.modules.shift;
 
 import java.time.DayOfWeek;
+import com.emanagement.backend.modules.shift.dto.ScheduleLeaveDto;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -543,6 +545,16 @@ public class ShiftServiceImpl implements ShiftService {
         }
         return employeeShiftRepository.findByAssignedDateBetweenOrderByAssignedDateAsc(startDate, endDate)
                 .stream().map(this::mapToEmployeeShiftDto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ScheduleLeaveDto> getScheduleLeaves(
+            LocalDate startDate, LocalDate endDate) {
+        if (endDate.isBefore(startDate) || ChronoUnit.DAYS.between(startDate, endDate) > 92) {
+            throw new BusinessException("Khoảng ngày không hợp lệ, chỉ được xem tối đa 93 ngày mỗi lần");
+        }
+        return leaveRequestRepository.findApprovedScheduleLeaves(startDate, endDate);
     }
 
     @Override

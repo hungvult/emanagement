@@ -24,8 +24,10 @@ type Props = Pick<
   | "weekDays"
   | "today"
   | "isLoadingSchedule"
+  | "scheduleError"
   | "displayEmployees"
   | "scheduleMap"
+  | "isApprovedLeave"
   | "shiftColorMap"
   | "handleCellClick"
   | "setConfirmRemove"
@@ -37,8 +39,10 @@ export function ScheduleGrid({
   weekDays,
   today,
   isLoadingSchedule,
+  scheduleError,
   displayEmployees,
   scheduleMap,
+  isApprovedLeave,
   shiftColorMap,
   handleCellClick,
   setConfirmRemove,
@@ -132,6 +136,12 @@ export function ScheduleGrid({
                       ))}
                     </tr>
                   ))
+                ) : scheduleError ? (
+                  <tr>
+                    <td colSpan={8} className="px-5 py-12 text-center text-rose-600" role="alert">
+                      Không thể tải lịch phân ca và nghỉ phép. Vui lòng tải lại trang.
+                    </td>
+                  </tr>
                 ) : displayEmployees.length === 0 ? (
                   <tr>
                     <td
@@ -160,6 +170,7 @@ export function ScheduleGrid({
                         const dateStr = toISODate(day);
                         const isToday = dateStr === today;
                         const entry = scheduleMap.get(`${emp.id}_${dateStr}`);
+                        const onLeave = isApprovedLeave(emp.id, dateStr);
                         const color = entry
                           ? shiftColorMap.get(entry.shiftId)
                           : undefined;
@@ -167,9 +178,13 @@ export function ScheduleGrid({
                           <td
                             key={ci}
                             className={`py-3 px-2 text-center border-l border-slate-100 ${isToday ? "bg-indigo-50/30" : ""}`}
-                            onClick={() => !entry && handleCellClick(emp, day)}
+                            onClick={() => !onLeave && !entry && handleCellClick(emp, day)}
                           >
-                            {entry && color ? (
+                            {onLeave ? (
+                              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-3 text-xs font-bold text-emerald-700" title="Đơn nghỉ phép đã được duyệt. Không thể phân ca vào ngày này.">
+                                Nghỉ có phép
+                              </div>
+                            ) : entry && color ? (
                               <div
                                 className={`group/cell relative rounded-xl border-2 ${color.bg} ${color.border} overflow-hidden shadow-sm`}
                               >

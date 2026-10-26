@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -58,6 +59,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/v1/kiosks/**").permitAll()
                         .requestMatchers("/api/v1/shifts/my-schedule").authenticated()
+                        // Employees need the shift catalog to filter their attendance history.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/shifts").authenticated()
                         .requestMatchers("/api/v1/employees/**", "/api/v1/shifts/**", "/api/v1/alerts/**")
                         .hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated())

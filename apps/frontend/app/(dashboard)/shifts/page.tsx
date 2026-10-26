@@ -46,8 +46,10 @@ function ShiftManagement() {
         weekDays={model.weekDays}
         today={model.today}
         isLoadingSchedule={model.isLoadingSchedule}
+        scheduleError={model.scheduleError}
         displayEmployees={model.displayEmployees}
         scheduleMap={model.scheduleMap}
+        isApprovedLeave={model.isApprovedLeave}
         shiftColorMap={model.shiftColorMap}
         handleCellClick={model.handleCellClick}
         setConfirmRemove={model.setConfirmRemove}
@@ -89,6 +91,7 @@ function ShiftManagement() {
         activeShiftsForAssign={model.activeShiftsForAssign}
         overwriteWarning={model.overwriteWarning}
         isAssigning={model.isAssigning}
+        isApprovedLeave={model.isApprovedLeave}
       />
       <BulkAssignDialog
         isBulkOpen={model.isBulkOpen}

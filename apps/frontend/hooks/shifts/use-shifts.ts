@@ -18,6 +18,7 @@ import {
   AssignShift,
   EmployeeShiftResponse,
   ShiftResponse,
+  ScheduleLeave,
 } from "@/types/shift.types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -28,7 +29,12 @@ export function useShifts() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [schedule, setSchedule] = useState<EmployeeShiftResponse[]>([]);
+  const [scheduleLeaves, setScheduleLeaves] = useState<ScheduleLeave[]>([]);
+  const isApprovedLeave = (userId: number, date: string) => scheduleLeaves.some(
+    (leave) => leave.userId === userId && leave.startDate <= date && leave.endDate >= date,
+  );
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
+  const [scheduleError, setScheduleError] = useState(false);
   const { error, success } = useToast();
 
   // Tuần hiện tại
@@ -81,11 +87,19 @@ export function useShifts() {
   const fetchSchedule = useCallback(async () => {
     const isCurrent = beginScheduleRequest();
     setIsLoadingSchedule(true);
+    setScheduleError(false);
     try {
       const start = toISODate(weekStart);
       const end = toISODate(addDays(weekStart, 6));
-      const res = await shiftService.getSchedule(start, end);
+      const [res, leavesRes] = await Promise.all([
+        shiftService.getSchedule(start, end),
+        shiftService.getScheduleLeaves(start, end),
+      ]);
       if (!isCurrent()) return;
+      if (leavesRes.status !== "SUCCESS" || !leavesRes.data) {
+        throw new Error("Không thể tải lịch nghỉ phép");
+      }
+      setScheduleLeaves(leavesRes.data);
       if (res.status === "SUCCESS" && res.data) {
         setSchedule(res.data);
       } else {
@@ -94,10 +108,13 @@ export function useShifts() {
     } catch {
       if (!isCurrent()) return;
       setSchedule([]);
+      setScheduleLeaves([]);
+      setScheduleError(true);
+      error("Không thể tải lịch phân ca và nghỉ phép. Vui lòng tải lại trang.");
     } finally {
       if (isCurrent()) setIsLoadingSchedule(false);
     }
-  }, [weekStart, beginScheduleRequest]);
+  }, [weekStart, beginScheduleRequest, error]);
 
   const {
     isCreateOpen,
@@ -179,6 +196,10 @@ export function useShifts() {
 
   const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isApprovedLeave(Number(assignForm.userId), assignForm.assignedDate)) {
+      error("Nhân viên nghỉ có phép vào ngày này, không thể phân ca");
+      return;
+    }
     if (!assignForm.userId || !assignForm.shiftId || !assignForm.assignedDate) {
       error("Vui lòng chọn đầy đủ nhân viên, ca và ngày");
       return;
@@ -196,6 +217,10 @@ export function useShifts() {
   };
 
   const doAssign = async () => {
+    if (isApprovedLeave(Number(assignForm.userId), assignForm.assignedDate)) {
+      error("Nhân viên nghỉ có phép vào ngày này, không thể phân ca");
+      return;
+    }
     setOverwriteWarning(null);
     setIsAssigning(true);
     try {
@@ -244,6 +269,7 @@ export function useShifts() {
   };
 
   const handleCellClick = (emp: EmployeeResponse, date: Date) => {
+    if (isApprovedLeave(emp.id, toISODate(date))) return;
     setAssignForm({
       userId: String(emp.id),
       shiftId: "",
@@ -307,8 +333,10 @@ export function useShifts() {
     weekDays,
     today,
     isLoadingSchedule,
+    scheduleError,
     displayEmployees,
     scheduleMap,
+    isApprovedLeave,
     shiftColorMap,
     handleCellClick,
     setConfirmRemove,
