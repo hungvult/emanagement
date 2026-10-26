@@ -17,6 +17,7 @@ type Props = Pick<
   | "activeShiftsForAssign"
   | "overwriteWarning"
   | "isAssigning"
+  | "isApprovedLeave"
 >;
 
 export function AssignShiftDialog({
@@ -30,7 +31,9 @@ export function AssignShiftDialog({
   activeShiftsForAssign,
   overwriteWarning,
   isAssigning,
+  isApprovedLeave,
 }: Props) {
+  const onLeave = isApprovedLeave(Number(assignForm.userId), assignForm.assignedDate);
   return (
     <>
       <Modal
@@ -98,7 +101,12 @@ export function AssignShiftDialog({
           />
 
           {/* Cảnh báo ghi đè */}
-          {overwriteWarning && (
+          {onLeave && (
+            <p role="alert" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              Nhân viên nghỉ có phép vào ngày này. Không thể phân ca.
+            </p>
+          )}
+          {!onLeave && overwriteWarning && (
             <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-start gap-3">
               <span className="text-amber-500 text-lg leading-none mt-0.5">
                 ⚠
@@ -131,12 +139,13 @@ export function AssignShiftDialog({
               <Button
                 type="submit"
                 isLoading={isAssigning}
+                disabled={onLeave}
                 className="bg-amber-500 hover:bg-amber-600"
               >
                 Xác nhận thay thế ca
               </Button>
             ) : (
-              <Button type="submit" isLoading={isAssigning}>
+              <Button type="submit" isLoading={isAssigning} disabled={onLeave}>
                 Xác nhận phân ca
               </Button>
             )}

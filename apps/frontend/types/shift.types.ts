@@ -33,6 +33,12 @@ export interface AssignShift {
   assignedDate: string;
 }
 
+export interface ScheduleLeave {
+  userId: number;
+  startDate: string;
+  endDate: string;
+}
+
 export interface BulkAssignRequest {
   userIds?: number[];
   shiftId: number;

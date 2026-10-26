@@ -1,5 +1,7 @@
 package com.emanagement.backend.modules.shift;
 
+import com.emanagement.backend.modules.shift.dto.ScheduleLeaveDto;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -40,6 +42,13 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Ca Làm Việc & Phân Ca", description = "Các API quản lý danh mục ca làm việc và phân ca cho nhân viên")
 public class ShiftController {
     private final ShiftService shiftService;
+
+    @GetMapping("/schedule/leaves")
+    public ResponseEntity<ApiResponse<List<ScheduleLeaveDto>>> getScheduleLeaves(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ResponseEntity.ok(ApiResponse.success(shiftService.getScheduleLeaves(startDate, endDate)));
+    }
 
     @PostMapping
     @Operation(summary = "Tạo ca làm việc mới", description = "Tạo mới một ca làm việc với khung giờ bắt đầu, kết thúc và số phút gia hạn")

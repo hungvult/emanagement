@@ -41,6 +41,40 @@ function callback(path, name, globals) {
 }
 const noop = () => {};
 
+test("approved leave blocks opening and submitting a single assignment", async () => {
+  let opened = 0;
+  const globals = {
+    isApprovedLeave: () => true,
+    toISODate: () => "2026-11-02",
+    setAssignForm: () => { opened++; },
+    setIsAssignOpen: () => { opened++; },
+  };
+  callback("hooks/shifts/use-shifts.ts", "handleCellClick", globals)({ id: 42 }, new Date());
+  assert.equal(opened, 0);
+  let errors = 0;
+  let requests = 0;
+  await callback("hooks/shifts/use-shifts.ts", "handleAssignSubmit", {
+    ...globals,
+    assignForm: { userId: "42", assignedDate: "2026-11-02", shiftId: "7" },
+    error: () => { errors++; },
+    doAssign: () => { requests++; },
+  })({ preventDefault() {} });
+  assert.equal(errors, 1);
+  assert.equal(requests, 0);
+});
+
+test("leave ranges include both boundaries and do not block other employees", () => {
+  const isApprovedLeave = callback("hooks/shifts/use-shifts.ts", "isApprovedLeave", {
+    scheduleLeaves: [{ userId: 42, startDate: "2026-11-01", endDate: "2026-11-03" }],
+  });
+  assert.equal(isApprovedLeave(42, "2026-11-01"), true);
+  assert.equal(isApprovedLeave(42, "2026-11-02"), true);
+  assert.equal(isApprovedLeave(42, "2026-11-03"), true);
+  assert.equal(isApprovedLeave(42, "2026-10-31"), false);
+  assert.equal(isApprovedLeave(42, "2026-11-04"), false);
+  assert.equal(isApprovedLeave(43, "2026-11-02"), false);
+});
+
 for (const dryRun of [true, false]) {
   test(`bulk assignment ${dryRun ? "preview" : "commit"} keeps its save behavior after extraction`, async () => {
     let reloads = 0;

@@ -1,5 +1,7 @@
 package com.emanagement.backend.modules.leave;
 
+import com.emanagement.backend.modules.shift.dto.ScheduleLeaveDto;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -10,6 +12,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
+    @Query("""
+        select new com.emanagement.backend.modules.shift.dto.ScheduleLeaveDto(l.user.id, l.startDate, l.endDate)
+        from LeaveRequest l
+        where l.status = 'APPROVED' and l.startDate <= :end and l.endDate >= :start
+    """)
+    List<ScheduleLeaveDto> findApprovedScheduleLeaves(
+            @Param("start") LocalDate start, @Param("end") LocalDate end);
+
     List<LeaveRequest> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     Page<LeaveRequest> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);

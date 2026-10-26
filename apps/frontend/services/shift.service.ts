@@ -10,9 +10,12 @@ import {
   ShiftResponse,
   ShiftUpdate,
   WeeklyScheduleResponse,
+  ScheduleLeave,
 } from "@/types/shift.types";
 
 export const shiftService = {
+  getScheduleLeaves: (startDate: string, endDate: string): Promise<ApiResponse<ScheduleLeave[]>> =>
+    apiClient.get<ScheduleLeave[]>(`/shifts/schedule/leaves?startDate=${startDate}&endDate=${endDate}`),
   getAll: (includeInactive = false): Promise<ApiResponse<ShiftResponse[]>> => {
     return apiClient.get<ShiftResponse[]>(
       `/shifts?includeInactive=${includeInactive}`,

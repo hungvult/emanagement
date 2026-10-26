@@ -1,5 +1,7 @@
 package com.emanagement.backend.modules.shift;
 
+import com.emanagement.backend.modules.shift.dto.ScheduleLeaveDto;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -35,6 +37,8 @@ public interface ShiftService {
 
     WeeklyScheduleResponseDto getWeeklySchedulePaged(
             LocalDate startDate, LocalDate endDate, int page, int size, String keyword);
+
+    List<ScheduleLeaveDto> getScheduleLeaves(LocalDate startDate, LocalDate endDate);
 
     List<EmployeeShiftResponseDto> getMySchedule(Long userId, LocalDate startDate, LocalDate endDate);
 
