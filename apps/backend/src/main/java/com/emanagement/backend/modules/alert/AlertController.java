@@ -42,6 +42,12 @@ public class AlertController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @GetMapping("/unresolved-count")
+    @Operation(summary = "Đếm số cảnh báo an ninh chưa xử lý", description = "Lấy tổng số lượng cảnh báo an ninh AI chưa được xác nhận xử lý")
+    public ResponseEntity<ApiResponse<Long>> getUnresolvedAlertCount() {
+        return ResponseEntity.ok(ApiResponse.success(alertService.getUnresolvedAlertCount()));
+    }
+
     @PutMapping("/{id}/resolve")
     @Operation(summary = "Xử lý cảnh báo sự cố", description = "Đánh dấu một cảnh báo bất thường đã được người quản lý kiểm tra và giải quyết")
     public ResponseEntity<ApiResponse<AnomalyAlertResponseDto>> resolveAlert(
@@ -51,3 +57,4 @@ public class AlertController {
         return ResponseEntity.ok(ApiResponse.success("Đã xử lý cảnh báo thành công", response));
     }
 }
+

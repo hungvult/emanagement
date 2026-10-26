@@ -24,5 +24,6 @@ public class AnomalyAlertResponseDto {
     private String description;
     private Boolean isResolved;
     private String resolvedByName;
+    private String snapshotUrl;
     private LocalDateTime createdAt;
 }

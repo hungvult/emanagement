@@ -61,6 +61,40 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("shiftId") Long shiftId,
             Pageable pageable);
 
+    // Lọc chấm công phục vụ xuất báo cáo CSV streaming (kèm tìm kiếm theo Tên hoặc Mã NV)
+    @Query(value = """
+        select a from AttendanceRecord a
+        left join fetch a.user u
+        left join fetch a.shift s
+        left join fetch a.kiosk k
+        where (:hasStartDate = false or coalesce(a.checkInTime, a.createdAt) >= :startDate)
+          and (:hasEndDate = false or coalesce(a.checkInTime, a.createdAt) < :endDate)
+          and (:hasStatus = false or upper(a.status) = upper(:status))
+          and (:hasShiftId = false or (a.shift is not null and a.shift.id = :shiftId))
+          and (:hasSearch = false or lower(u.fullName) like lower(concat('%', :search, '%')) or lower(u.employeeCode) like lower(concat('%', :search, '%')))
+        order by coalesce(a.checkInTime, a.createdAt) desc, a.id desc
+    """, countQuery = """
+        select count(a) from AttendanceRecord a
+        left join a.user u
+        where (:hasStartDate = false or coalesce(a.checkInTime, a.createdAt) >= :startDate)
+          and (:hasEndDate = false or coalesce(a.checkInTime, a.createdAt) < :endDate)
+          and (:hasStatus = false or upper(a.status) = upper(:status))
+          and (:hasShiftId = false or (a.shift is not null and a.shift.id = :shiftId))
+          and (:hasSearch = false or lower(u.fullName) like lower(concat('%', :search, '%')) or lower(u.employeeCode) like lower(concat('%', :search, '%')))
+    """)
+    Page<AttendanceRecord> findAllWithExportFilters(
+            @Param("hasStartDate") boolean hasStartDate,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("hasEndDate") boolean hasEndDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("hasStatus") boolean hasStatus,
+            @Param("status") String status,
+            @Param("hasShiftId") boolean hasShiftId,
+            @Param("shiftId") Long shiftId,
+            @Param("hasSearch") boolean hasSearch,
+            @Param("search") String search,
+            Pageable pageable);
+
     // Số nhân viên đã check-in trong khoảng [start, end)
     @Query("""
         select count(distinct a.user.id)

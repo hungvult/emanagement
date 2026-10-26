@@ -53,6 +53,9 @@ public class AnomalyAlert {
     @JoinColumn(name = "resolve_by")
     private User resolvedBy;
 
+    @Column(name = "snapshot_url", length = 255)
+    private String snapshotUrl;
+
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

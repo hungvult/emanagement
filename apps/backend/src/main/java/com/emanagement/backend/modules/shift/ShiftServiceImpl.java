@@ -1,13 +1,15 @@
 package com.emanagement.backend.modules.shift;
 
 import java.time.DayOfWeek;
-import com.emanagement.backend.modules.shift.dto.ScheduleLeaveDto;
-
+import java.time.Duration;
 import java.time.LocalDate;
+import com.emanagement.backend.modules.shift.dto.ScheduleLeaveDto;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,16 +20,23 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.emanagement.backend.common.dto.PageResponse;
 import com.emanagement.backend.common.exception.BusinessException;
 import com.emanagement.backend.common.exception.ResourceNotFoundException;
+import com.emanagement.backend.common.service.StorageService;
 import com.emanagement.backend.common.util.CodeGeneratorUtils;
 import com.emanagement.backend.modules.attendance.AttendanceRecord;
 import com.emanagement.backend.modules.attendance.AttendanceRecordRepository;
+import com.emanagement.backend.modules.auth.Role;
 import com.emanagement.backend.modules.employee.User;
 import com.emanagement.backend.modules.employee.UserRepository;
+import com.emanagement.backend.modules.employee.dto.EmployeeResponseDto;
 import com.emanagement.backend.modules.leave.LeaveRequest;
 import com.emanagement.backend.modules.leave.LeaveRequestRepository;
 import com.emanagement.backend.modules.notification.NotificationService;
@@ -40,6 +49,7 @@ import com.emanagement.backend.modules.shift.dto.EmployeeShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftCreateDto;
 import com.emanagement.backend.modules.shift.dto.ShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftUpdateDto;
+import com.emanagement.backend.modules.shift.dto.WeeklyScheduleResponseDto;
 
 import lombok.RequiredArgsConstructor;
 
@@ -52,6 +62,7 @@ public class ShiftServiceImpl implements ShiftService {
     private final NotificationService notificationService;
     private final LeaveRequestRepository leaveRequestRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
+    private final StorageService storageService;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
@@ -549,6 +560,49 @@ public class ShiftServiceImpl implements ShiftService {
 
     @Override
     @Transactional(readOnly = true)
+    public WeeklyScheduleResponseDto getWeeklySchedulePaged(
+            LocalDate startDate, LocalDate endDate, int page, int size, String keyword) {
+        if (startDate == null || endDate == null) {
+            throw new BusinessException("Ngày bắt đầu và ngày kết thúc không được để trống");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new BusinessException("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu");
+        }
+        if (ChronoUnit.DAYS.between(startDate, endDate) > 92) {
+            throw new BusinessException("Chỉ được xem lịch tối đa 93 ngày mỗi lần");
+        }
+
+        int normalizedPage = Math.max(0, page);
+        int normalizedSize = Math.min(Math.max(1, size), 100);
+        Pageable pageable = PageRequest.of(normalizedPage, normalizedSize);
+
+        String searchKeyword = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        Page<User> usersPage = userRepository.findEmployeesForWeeklySchedule(
+                searchKeyword, startDate, endDate, pageable);
+
+        PageResponse<EmployeeResponseDto> employeesPageResponse = PageResponse.from(
+                usersPage.map(this::mapToEmployeeBasicDto));
+
+        List<Long> userIds = usersPage.getContent().stream()
+                .map(User::getId)
+                .collect(Collectors.toList());
+
+        List<EmployeeShiftResponseDto> assignments = userIds.isEmpty()
+                ? Collections.emptyList()
+                : employeeShiftRepository.findByUserIdInAndAssignedDateBetween(userIds, startDate, endDate)
+                        .stream()
+                        .sorted(Comparator.comparing(EmployeeShift::getAssignedDate).thenComparing(EmployeeShift::getId))
+                        .map(this::mapToEmployeeShiftDto)
+                        .collect(Collectors.toList());
+
+        return WeeklyScheduleResponseDto.builder()
+                .employees(employeesPageResponse)
+                .assignments(assignments)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ScheduleLeaveDto> getScheduleLeaves(
             LocalDate startDate, LocalDate endDate) {
         if (endDate.isBefore(startDate) || ChronoUnit.DAYS.between(startDate, endDate) > 92) {
@@ -598,9 +652,19 @@ public class ShiftServiceImpl implements ShiftService {
     }
 
     private void validateTimeRange(LocalTime start, LocalTime end) {
+        if (start == null || end == null) {
+            throw new BusinessException("Giờ bắt đầu và giờ kết thúc ca không được để trống");
+        }
         if (!start.isBefore(end)) {
             throw new BusinessException(
                     "Giờ kết thúc phải sau giờ bắt đầu (hiện chưa hỗ trợ ca qua đêm)");
+        }
+        long durationMinutes = Duration.between(start, end).toMinutes();
+        if (durationMinutes < 30) {
+            throw new BusinessException("Thời lượng ca làm việc tối thiểu phải từ 30 phút trở lên");
+        }
+        if (durationMinutes > 16 * 60) {
+            throw new BusinessException("Thời lượng ca làm việc tối đa không được vượt quá 16 giờ");
         }
     }
 
@@ -638,6 +702,25 @@ public class ShiftServiceImpl implements ShiftService {
                 .endTime(es.getEndTime())
                 .gracePeriodMinutes(es.getGracePeriodMinutes())
                 .assignedDate(es.getAssignedDate())
+                .build();
+    }
+
+    private EmployeeResponseDto mapToEmployeeBasicDto(User user) {
+        Set<String> roles = user.getRoles() != null
+                ? user.getRoles().stream().map(Role::getName).collect(Collectors.toSet())
+                : Collections.emptySet();
+
+        return EmployeeResponseDto.builder()
+                .id(user.getId())
+                .employeeCode(user.getEmployeeCode())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .avatarUrl(storageService != null ? storageService.getPresignedUrl(user.getAvatarUrl(), 60) : user.getAvatarUrl())
+                .status(user.getStatus())
+                .roles(roles)
+                .hasRegisteredFace(false)
+                .createdAt(user.getCreatedAt())
                 .build();
     }
 }

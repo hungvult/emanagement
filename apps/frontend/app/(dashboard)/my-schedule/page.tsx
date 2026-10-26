@@ -9,7 +9,7 @@ import { useLatestRequest } from "@/hooks/use-latest-request";
 import { shiftService } from "@/services/shift.service";
 import { EmployeeShiftResponse } from "@/types/shift.types";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 // --- Helpers ---
 function getMondayOfWeek(d: Date): Date {
@@ -25,6 +25,10 @@ function addDays(date: Date, n: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + n);
   return d;
+}
+
+function addMonths(date: Date, n: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + n, 1);
 }
 
 function toISODate(d: Date): string {
@@ -79,17 +83,51 @@ export default function MySchedulePage() {
   const [isLoading, setIsLoading] = useState(true);
   const { error } = useToast();
 
+  const [viewMode, setViewMode] = useState<"WEEK" | "MONTH">("WEEK");
   const [weekStart, setWeekStart] = useState<Date>(() =>
     getMondayOfWeek(new Date()),
   );
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const [monthCursor, setMonthCursor] = useState<Date>(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
+
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart],
+  );
+
+  const monthGridDays = useMemo(() => {
+    const firstOfMonth = new Date(
+      monthCursor.getFullYear(),
+      monthCursor.getMonth(),
+      1,
+    );
+    const monthGridStart = getMondayOfWeek(firstOfMonth);
+    return Array.from({ length: 42 }, (_, i) => addDays(monthGridStart, i));
+  }, [monthCursor]);
 
   const fetchMySchedule = useCallback(async () => {
     const isCurrent = beginRequest();
     setIsLoading(true);
     try {
-      const start = toISODate(weekStart);
-      const end = toISODate(addDays(weekStart, 6));
+      let start: string;
+      let end: string;
+      if (viewMode === "WEEK") {
+        start = toISODate(weekStart);
+        end = toISODate(addDays(weekStart, 6));
+      } else {
+        const first = new Date(
+          monthCursor.getFullYear(),
+          monthCursor.getMonth(),
+          1,
+        );
+        const gridStart = getMondayOfWeek(first);
+        const gridDays = Array.from({ length: 42 }, (_, i) =>
+          addDays(gridStart, i),
+        );
+        start = toISODate(gridDays[0]);
+        end = toISODate(gridDays[41]);
+      }
       const res = await shiftService.getMySchedule(start, end);
       if (!isCurrent()) return;
       if (res.status === "SUCCESS" && res.data) {
@@ -104,7 +142,7 @@ export default function MySchedulePage() {
     } finally {
       if (isCurrent()) setIsLoading(false);
     }
-  }, [weekStart, beginRequest, error]);
+  }, [viewMode, weekStart, monthCursor, beginRequest, error]);
 
   useEffect(() => {
     // Synchronize this screen with an external request or camera session.
@@ -119,6 +157,7 @@ export default function MySchedulePage() {
 
   const today = toISODate(new Date());
   const weekLabel = `${weekDays[0].toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })} – ${weekDays[6].toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
+  const monthLabel = `Tháng ${String(monthCursor.getMonth() + 1).padStart(2, "0")}/${monthCursor.getFullYear()}`;
 
   return (
     <RoleGuard
@@ -127,7 +166,7 @@ export default function MySchedulePage() {
     >
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-indigo-50/80 via-white to-white p-6 rounded-[32px] border border-indigo-100/50 shadow-sm">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-gradient-to-r from-indigo-50/80 via-white to-white p-6 rounded-[32px] border border-indigo-100/50 shadow-sm">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
               <Calendar className="h-8 w-8 text-indigo-600" />
@@ -137,134 +176,318 @@ export default function MySchedulePage() {
               Xem chi tiết các ca làm việc đã được phân công.
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-slate-50/50 p-1.5 rounded-[20px] w-fit border border-slate-100 shadow-sm">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setWeekStart((d) => addDays(d, -7))}
-              className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <div className="px-4 flex items-center gap-2 text-sm font-extrabold text-slate-700 bg-white h-10 rounded-[14px] shadow-sm border border-slate-100">
-              <Calendar className="h-4 w-4 text-indigo-500" />
-              {weekLabel}
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* View Mode Switcher */}
+            <div className="inline-flex rounded-[20px] bg-slate-100/80 p-1 border border-slate-200/60 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setViewMode("WEEK")}
+                className={`px-4 py-2 text-xs font-bold rounded-[14px] transition-all ${
+                  viewMode === "WEEK"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Theo tuần
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("MONTH")}
+                className={`px-4 py-2 text-xs font-bold rounded-[14px] transition-all ${
+                  viewMode === "MONTH"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Theo tháng
+              </button>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setWeekStart((d) => addDays(d, 7))}
-              className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setWeekStart(getMondayOfWeek(new Date()))}
-              className="h-10 ml-2 px-5 text-[13px] font-bold rounded-[14px] text-indigo-600 border-indigo-100 hover:bg-indigo-50"
-            >
-              Hôm nay
-            </Button>
+
+            {/* Navigation Controls */}
+            {viewMode === "WEEK" ? (
+              <div className="flex items-center gap-2 bg-slate-50/50 p-1.5 rounded-[20px] w-fit border border-slate-100 shadow-sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWeekStart((d) => addDays(d, -7))}
+                  className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm"
+                  title="Tuần trước"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="px-4 flex items-center gap-2 text-sm font-extrabold text-slate-700 bg-white h-10 rounded-[14px] shadow-sm border border-slate-100">
+                  <Calendar className="h-4 w-4 text-indigo-500" />
+                  {weekLabel}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWeekStart((d) => addDays(d, 7))}
+                  className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm"
+                  title="Tuần sau"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekStart(getMondayOfWeek(new Date()))}
+                  className="h-10 ml-2 px-5 text-[13px] font-bold rounded-[14px] text-indigo-600 border-indigo-100 hover:bg-indigo-50"
+                >
+                  Hôm nay
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-slate-50/50 p-1.5 rounded-[20px] w-fit border border-slate-100 shadow-sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMonthCursor((d) => addMonths(d, -1))}
+                  className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm"
+                  title="Tháng trước"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="px-4 flex items-center gap-2 text-sm font-extrabold text-slate-700 bg-white h-10 rounded-[14px] shadow-sm border border-slate-100">
+                  <Calendar className="h-4 w-4 text-indigo-500" />
+                  {monthLabel}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMonthCursor((d) => addMonths(d, 1))}
+                  className="h-10 w-10 p-0 rounded-[14px] hover:bg-white hover:text-indigo-600 hover:shadow-sm"
+                  title="Tháng sau"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setMonthCursor(
+                      new Date(
+                        new Date().getFullYear(),
+                        new Date().getMonth(),
+                        1,
+                      ),
+                    )
+                  }
+                  className="h-10 ml-2 px-5 text-[13px] font-bold rounded-[14px] text-indigo-600 border-indigo-100 hover:bg-indigo-50"
+                >
+                  Tháng này
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Schedule Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {isLoading
-            ? Array.from({ length: 7 }).map((_, i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardHeader className="pb-2 pt-4">
-                    <div className="h-4 bg-muted rounded w-1/2"></div>
-                  </CardHeader>
-                  <CardContent className="pb-4">
-                    <div className="h-16 bg-muted rounded w-full"></div>
-                  </CardContent>
-                </Card>
-              ))
-            : weekDays.map((day, i) => {
-                const dateStr = toISODate(day);
-                const isToday = dateStr === today;
-                const entry = scheduleMap.get(dateStr);
-
-                // Define color statically or based on shift ID modulo
-                const color = entry
-                  ? SHIFT_COLORS[entry.shiftId % SHIFT_COLORS.length]
-                  : null;
-
-                return (
-                  <Card
-                    key={i}
-                    className={`border-slate-100 transition-all rounded-[24px] ${isToday ? "border-indigo-200 shadow-md ring-2 ring-indigo-50 bg-white" : "hover:border-indigo-100 hover:shadow-sm bg-slate-50/30"}`}
-                  >
-                    <CardHeader
-                      className={`pb-3 pt-5 border-b border-slate-100 px-5 ${isToday ? "bg-indigo-50/50" : "bg-transparent"}`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span
-                          className={`text-[15px] font-extrabold ${isToday ? "text-indigo-600" : "text-slate-700"}`}
-                        >
-                          {DAY_NAMES[i]}
-                        </span>
-                        <span
-                          className={`text-sm font-bold ${isToday ? "text-indigo-600" : "text-slate-500"}`}
-                        >
-                          {day.toLocaleDateString("vi-VN", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })}
-                        </span>
-                      </div>
+        {/* Schedule Display */}
+        {viewMode === "WEEK" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {isLoading
+              ? Array.from({ length: 7 }).map((_, i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardHeader className="pb-2 pt-4">
+                      <div className="h-4 bg-muted rounded w-1/2"></div>
                     </CardHeader>
-                    <CardContent className="p-5">
-                      {entry && color ? (
-                        <div
-                          className={`p-4 rounded-2xl border-2 shadow-sm ${color.bg} ${color.border}`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className={`font-bold text-sm ${color.text}`}>
-                              {entry.shiftName}
-                            </h4>
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] ${color.text}`}
-                            >
-                              {entry.shiftCode}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            <Clock
-                              className={`h-4 w-4 ${color.text} opacity-80`}
-                            />
-                            <span
-                              className={`text-sm font-medium ${color.text}`}
-                            >
-                              {entry.startTime.slice(0, 5)} -{" "}
-                              {entry.endTime.slice(0, 5)}
-                            </span>
-                          </div>
-                          {entry.gracePeriodMinutes !== undefined &&
-                            entry.gracePeriodMinutes !== null && (
-                              <div
-                                className={`text-[11px] font-semibold mt-1 opacity-80 ${color.text}`}
-                              >
-                                Cho phép trễ: {entry.gracePeriodMinutes} phút
-                              </div>
-                            )}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-[88px] rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
-                          <span className="text-sm font-semibold text-slate-400">
-                            Không có ca làm việc
-                          </span>
-                        </div>
-                      )}
+                    <CardContent className="pb-4">
+                      <div className="h-16 bg-muted rounded w-full"></div>
                     </CardContent>
                   </Card>
-                );
-              })}
-        </div>
+                ))
+              : weekDays.map((day, i) => {
+                  const dateStr = toISODate(day);
+                  const isToday = dateStr === today;
+                  const entry = scheduleMap.get(dateStr);
+
+                  // Define color statically or based on shift ID modulo
+                  const color = entry
+                    ? SHIFT_COLORS[entry.shiftId % SHIFT_COLORS.length]
+                    : null;
+
+                  return (
+                    <Card
+                      key={i}
+                      className={`border-slate-100 transition-all rounded-[24px] ${isToday ? "border-indigo-200 shadow-md ring-2 ring-indigo-50 bg-white" : "hover:border-indigo-100 hover:shadow-sm bg-slate-50/30"}`}
+                    >
+                      <CardHeader
+                        className={`pb-3 pt-5 border-b border-slate-100 px-5 ${isToday ? "bg-indigo-50/50" : "bg-transparent"}`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span
+                            className={`text-[15px] font-extrabold ${isToday ? "text-indigo-600" : "text-slate-700"}`}
+                          >
+                            {DAY_NAMES[i]}
+                          </span>
+                          <span
+                            className={`text-sm font-bold ${isToday ? "text-indigo-600" : "text-slate-500"}`}
+                          >
+                            {day.toLocaleDateString("vi-VN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-5">
+                        {entry && color ? (
+                          <div
+                            className={`p-4 rounded-2xl border-2 shadow-sm ${color.bg} ${color.border}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className={`font-bold text-sm ${color.text}`}>
+                                {entry.shiftName}
+                              </h4>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${color.text}`}
+                              >
+                                {entry.shiftCode}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Clock
+                                className={`h-4 w-4 ${color.text} opacity-80`}
+                              />
+                              <span
+                                className={`text-sm font-medium ${color.text}`}
+                              >
+                                {entry.startTime.slice(0, 5)} -{" "}
+                                {entry.endTime.slice(0, 5)}
+                              </span>
+                            </div>
+                            {entry.gracePeriodMinutes !== undefined &&
+                              entry.gracePeriodMinutes !== null && (
+                                <div
+                                  className={`text-[11px] font-semibold mt-1 opacity-80 ${color.text}`}
+                                >
+                                  Cho phép trễ: {entry.gracePeriodMinutes} phút
+                                </div>
+                              )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-[88px] rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
+                            <span className="text-sm font-semibold text-slate-400">
+                              Không có ca làm việc
+                            </span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+          </div>
+        ) : (
+          <div className="rounded-[28px] border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <div className="min-w-[720px]">
+                {/* Header Row: Thứ 2 ... Chủ Nhật */}
+                <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/80 text-center">
+                  {DAY_NAMES.map((name, idx) => (
+                    <div
+                      key={name}
+                      className={`py-3.5 text-xs font-extrabold uppercase tracking-wider ${
+                        idx >= 5 ? "text-rose-500" : "text-slate-600"
+                      }`}
+                    >
+                      {name}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 42-day Grid */}
+                <div className="grid grid-cols-7">
+                  {monthGridDays.map((day, idx) => {
+                    const dateStr = toISODate(day);
+                    const isToday = dateStr === today;
+                    const isCurrentMonth =
+                      day.getFullYear() === monthCursor.getFullYear() &&
+                      day.getMonth() === monthCursor.getMonth();
+                    const entry = scheduleMap.get(dateStr);
+                    const color = entry
+                      ? SHIFT_COLORS[entry.shiftId % SHIFT_COLORS.length]
+                      : null;
+                    const isRightBorder = (idx + 1) % 7 !== 0;
+                    const isBottomBorder = idx < 35;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`min-h-[115px] p-2 sm:p-2.5 flex flex-col justify-between transition-colors ${
+                          isRightBorder ? "border-r border-slate-100" : ""
+                        } ${isBottomBorder ? "border-b border-slate-100" : ""} ${
+                          !isCurrentMonth
+                            ? "opacity-45 bg-slate-50/40"
+                            : isToday
+                              ? "bg-indigo-50/40 ring-1 ring-inset ring-indigo-400"
+                              : "bg-white hover:bg-slate-50/60"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span
+                            className={`inline-flex items-center justify-center text-xs w-6 h-6 rounded-full ${
+                              isToday
+                                ? "bg-indigo-600 text-white font-extrabold shadow-sm"
+                                : isCurrentMonth
+                                  ? "text-slate-800 font-bold"
+                                  : "text-slate-400 font-medium"
+                            }`}
+                          >
+                            {day.getDate()}
+                          </span>
+                          {isToday && (
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/70 px-1.5 py-0.5 rounded-md">
+                              Hôm nay
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 flex flex-col justify-end">
+                          {isLoading ? (
+                            <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
+                          ) : entry && color ? (
+                            <div
+                              className={`p-2 rounded-xl border text-left shadow-xs ${color.bg} ${color.border} transition-transform hover:scale-[1.01]`}
+                              title={`${entry.shiftName} (${entry.shiftCode}): ${(entry.startTime || "").slice(0, 5)} - ${(entry.endTime || "").slice(0, 5)}`}
+                            >
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <span
+                                  className={`text-[11px] font-bold truncate ${color.text}`}
+                                >
+                                  {entry.shiftName}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[9px] px-1 py-0 h-4 shrink-0 ${color.text} border-current/30`}
+                                >
+                                  {entry.shiftCode}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-1 text-[11px] font-medium opacity-90 truncate">
+                                <Clock
+                                  className={`h-3 w-3 shrink-0 ${color.text}`}
+                                />
+                                <span className={color.text}>
+                                  {(entry.startTime || "").slice(0, 5)} -{" "}
+                                  {(entry.endTime || "").slice(0, 5)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-6" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </RoleGuard>
   );

@@ -33,4 +33,8 @@ export const alertService = {
   ): Promise<ApiResponse<AnomalyAlert>> => {
     return apiClient.put<AnomalyAlert>(`/alerts/${id}/resolve`, data);
   },
+
+  getUnresolvedCount: (): Promise<ApiResponse<number>> => {
+    return apiClient.get<number>("/alerts/unresolved-count");
+  },
 };

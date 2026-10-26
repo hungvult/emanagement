@@ -9,7 +9,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface AnomalyAlertRepository extends JpaRepository<AnomalyAlert, Long> {
+    long countByIsResolvedFalse();
+
     Page<AnomalyAlert> findByIsResolvedOrderByCreatedAtDesc(Boolean isResolved, Pageable pageable);
+
 
     @Query("""
         select a from AnomalyAlert a

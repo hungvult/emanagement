@@ -10,6 +10,7 @@ export interface AnomalyAlert {
   description: string;
   isResolved: boolean;
   resolvedByName: string | null;
+  snapshotUrl?: string | null;
   createdAt: string;
 }
 

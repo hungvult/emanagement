@@ -1,12 +1,15 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { alertService } from "@/services/alert.service";
 import { notificationService } from "@/services/notification.service";
 import { NotificationResponse } from "@/types/notification.types";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
-import { Bell, X } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Bell, X } from "lucide-react";
+import Link from "next/link";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 function parseDate(raw: unknown): Date {
   if (Array.isArray(raw)) {
@@ -23,23 +26,32 @@ function parseDate(raw: unknown): Date {
 }
 
 export const NotificationBell = () => {
+  const { hasRole, user } = useAuth();
+  const isAdmin =
+    typeof hasRole === "function"
+      ? hasRole("ROLE_ADMIN")
+      : Boolean(user?.roles?.includes("ROLE_ADMIN"));
   const [notifications, setNotifications] = useState<NotificationResponse[]>(
     [],
   );
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unresolvedAlertCount, setUnresolvedAlertCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
   const mutationPendingRef = useRef(false);
   const requestVersionRef = useRef(0);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (mutationPendingRef.current) return;
     const version = ++requestVersionRef.current;
     try {
-      const [countRes, notifRes] = await Promise.all([
+      const [countRes, notifRes, alertRes] = await Promise.all([
         notificationService.getUnreadCount(),
         notificationService.getMyNotifications(0, 10),
+        isAdmin
+          ? alertService.getUnresolvedCount().catch(() => null)
+          : Promise.resolve(null),
       ]);
       if (version !== requestVersionRef.current) return;
       if (countRes.status === "SUCCESS" && countRes.data !== undefined) {
@@ -48,10 +60,19 @@ export const NotificationBell = () => {
       if (notifRes.status === "SUCCESS" && notifRes.data) {
         setNotifications(notifRes.data.content);
       }
+      if (
+        isAdmin &&
+        alertRes &&
+        (alertRes.status === "SUCCESS" || alertRes.data !== undefined)
+      ) {
+        setUnresolvedAlertCount(Number(alertRes.data) || 0);
+      } else if (!isAdmin) {
+        setUnresolvedAlertCount(0);
+      }
     } catch (err) {
       console.error("Failed to fetch notifications", err);
     }
-  };
+  }, [isAdmin]);
 
   useEffect(() => {
     // Synchronize this screen with an external request or camera session.
@@ -62,7 +83,7 @@ export const NotificationBell = () => {
       clearInterval(interval);
       requestVersionRef.current += 1;
     };
-  }, []);
+  }, [fetchNotifications]);
 
   // Đóng khi click ra ngoài
   useEffect(() => {
@@ -149,6 +170,8 @@ export const NotificationBell = () => {
     }
   };
 
+  const totalBadgeCount = unreadCount + (isAdmin ? unresolvedAlertCount : 0);
+
   return (
     <div className="relative" ref={bellRef}>
       {/* Nút chuông */}
@@ -158,9 +181,9 @@ export const NotificationBell = () => {
         aria-label="Thông báo"
       >
         <Bell className="h-5 w-5" />
-        {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white">
-            {unreadCount > 99 ? "99+" : unreadCount}
+        {totalBadgeCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white">
+            {totalBadgeCount > 99 ? "99+" : totalBadgeCount}
           </span>
         )}
       </button>
@@ -195,6 +218,18 @@ export const NotificationBell = () => {
 
           {/* Danh sách thông báo */}
           <div className="max-h-[380px] overflow-y-auto px-2 py-2 space-y-1">
+            {isAdmin && unresolvedAlertCount > 0 && (
+              <Link
+                href="/alerts"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100/80 transition-all font-bold text-xs mb-1"
+              >
+                <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span className="flex-1">
+                  {`Có ${unresolvedAlertCount} cảnh báo an ninh AI chưa xử lý`}
+                </span>
+              </Link>
+            )}
             {notifications.length === 0 ? (
               <div className="py-12 flex flex-col items-center gap-3 text-slate-400">
                 <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center">

@@ -53,6 +53,12 @@ function ShiftManagement() {
         shiftColorMap={model.shiftColorMap}
         handleCellClick={model.handleCellClick}
         setConfirmRemove={model.setConfirmRemove}
+        scheduleKeyword={model.scheduleKeyword}
+        handleScheduleKeywordChange={model.handleScheduleKeywordChange}
+        schedulePage={model.schedulePage}
+        scheduleTotalPages={model.scheduleTotalPages}
+        scheduleTotalElements={model.scheduleTotalElements}
+        setSchedulePage={model.setSchedulePage}
       />
       <ShiftCreateDialog
         isCreateOpen={model.isCreateOpen}

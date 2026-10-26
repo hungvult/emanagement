@@ -46,4 +46,28 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
     List<LeaveRequest> findApprovedOverlapping(@Param("userIds") java.util.Collection<Long> userIds,
                                                @Param("start") LocalDate start,
                                                @Param("end") LocalDate end);
+
+    // Lọc và tìm kiếm đơn nghỉ phép (dành cho Admin)
+    @Query("""
+        select l from LeaveRequest l
+        where (:hasStatus = false or l.status = :status)
+          and (:hasStartDate = false or l.endDate >= :startDate)
+          and (:hasEndDate = false or l.startDate <= :endDate)
+          and (:hasKeyword = false or (
+                lower(l.user.fullName) like lower(concat('%', :keyword, '%'))
+                or lower(l.user.employeeCode) like lower(concat('%', :keyword, '%'))
+                or lower(l.reason) like lower(concat('%', :keyword, '%'))
+          ))
+        order by l.createdAt desc
+    """)
+    Page<LeaveRequest> findWithFilters(
+            @Param("hasStatus") boolean hasStatus,
+            @Param("status") String status,
+            @Param("hasStartDate") boolean hasStartDate,
+            @Param("startDate") LocalDate startDate,
+            @Param("hasEndDate") boolean hasEndDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("hasKeyword") boolean hasKeyword,
+            @Param("keyword") String keyword,
+            Pageable pageable);
 }

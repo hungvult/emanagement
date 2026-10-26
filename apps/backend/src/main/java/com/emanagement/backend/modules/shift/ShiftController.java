@@ -27,6 +27,7 @@ import com.emanagement.backend.modules.shift.dto.EmployeeShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftCreateDto;
 import com.emanagement.backend.modules.shift.dto.ShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftUpdateDto;
+import com.emanagement.backend.modules.shift.dto.WeeklyScheduleResponseDto;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.emanagement.backend.security.UserPrincipal;
 
@@ -111,6 +112,19 @@ public class ShiftController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         List<EmployeeShiftResponseDto> data = shiftService.getSchedule(startDate, endDate);
+        return ResponseEntity.ok(ApiResponse.success("Lấy lịch phân ca thành công", data));
+    }
+
+    @GetMapping("/schedule/paged")
+    @Operation(summary = "Lịch phân ca theo tuần (phân trang & tìm kiếm)", description = "Lấy danh sách nhân viên phân trang kèm lịch phân ca trong khoảng thời gian")
+    public ResponseEntity<ApiResponse<WeeklyScheduleResponseDto>> getSchedulePaged(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String keyword) {
+        WeeklyScheduleResponseDto data = shiftService.getWeeklySchedulePaged(
+                startDate, endDate, page, size, keyword);
         return ResponseEntity.ok(ApiResponse.success("Lấy lịch phân ca thành công", data));
     }
 

@@ -17,6 +17,7 @@ import com.emanagement.backend.modules.shift.ShiftService;
 
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,6 +41,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
 
         leaveRequest.setStatus(dto.getStatus());
         leaveRequest.setApprovedBy(user);
+        leaveRequest.setReviewNote(dto.getReviewNote() != null ? dto.getReviewNote().trim() : null);
         leaveRequest.setUpdatedAt(LocalDateTime.now());
         LeaveRequest updated = leaveRequestRepository.save(leaveRequest);
 
@@ -76,14 +78,26 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<LeaveRequestResponseDto> getAllLeaveRequests(int page, int size, String status) {
-        PageRequest pageRequest = PageRequest.of(page, size);
-        Page<LeaveRequest> leavePage;
+        return getAllLeaveRequests(page, size, status, null, null, null);
+    }
 
-        if (status != null && !status.isBlank()) {
-            leavePage = leaveRequestRepository.findByStatusOrderByCreatedAtDesc(status, pageRequest);
-        } else {
-            leavePage = leaveRequestRepository.findAll(pageRequest);
-        }
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<LeaveRequestResponseDto> getAllLeaveRequests(
+            int page, int size, String status, LocalDate startDate, LocalDate endDate, String keyword) {
+        PageRequest pageRequest = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100));
+
+        boolean hasStatus = status != null && !status.isBlank();
+        boolean hasStartDate = startDate != null;
+        boolean hasEndDate = endDate != null;
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+
+        Page<LeaveRequest> leavePage = leaveRequestRepository.findWithFilters(
+                hasStatus, hasStatus ? status.trim() : null,
+                hasStartDate, startDate,
+                hasEndDate, endDate,
+                hasKeyword, hasKeyword ? keyword.trim() : null,
+                pageRequest);
 
         return PageResponse.from(leavePage.map(this::mapToDto));
     }
@@ -108,6 +122,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .status(leaveRequest.getStatus())
                 .approvedByName(
                         leaveRequest.getApprovedBy() != null ? leaveRequest.getApprovedBy().getFullName() : null)
+                .reviewNote(leaveRequest.getReviewNote())
                 .createdAt(leaveRequest.getCreatedAt())
                 .build();
     }

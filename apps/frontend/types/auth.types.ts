@@ -57,7 +57,7 @@ export interface UpdateProfileRequest {
   fullName: string;
   email?: string;
   phone?: string;
-  otpCode: string;
+  otpCode?: string;
 }
 
 export interface ChangePasswordRequest {

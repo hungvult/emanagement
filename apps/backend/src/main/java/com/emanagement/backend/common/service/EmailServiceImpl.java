@@ -28,14 +28,14 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendOtpEmail(String toEmail, String otpCode, String type) {
-        log.info("[OTP EMAIL]: Email = {}, OTP = {}, Loai = {}", toEmail, otpCode, type);
+        log.info("[OTP EMAIL]: Đã gửi OTP tới Email = {}, Loại = {}", toEmail, type);
 
         if (mailSender != null) {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
                 message.setFrom(fromEmail);
                 message.setTo(toEmail);
-                message.setSubject("Mã OTP Xác Thực E-Management: " + otpCode);
+                message.setSubject("Mã OTP Xác Thực E-Management");
                 message.setText("Xin chào,\n\nMã OTP xác thực của bạn trên hệ thống eManagement là: " + otpCode + 
                         "\n\nMã này có hiệu lực trong vòng 5 phút. Vui lòng tuyệt đối không chia sẻ mã này cho bất kỳ ai.\n\nTrân trọng,\nBan Quản Trị eManagement");
                 mailSender.send(message);

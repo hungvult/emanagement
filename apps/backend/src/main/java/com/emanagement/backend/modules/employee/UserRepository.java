@@ -1,8 +1,11 @@
 package com.emanagement.backend.modules.employee;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -24,4 +27,68 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE u.status = 'ACTIVE' AND r.name = 'ROLE_USER'")
     List<User> findActiveEmployees();
+
+    @Query(value = """
+        SELECT u FROM User u
+        WHERE (u.status = 'ACTIVE' OR EXISTS (
+            SELECT 1 FROM EmployeeShift es
+            WHERE es.user = u AND es.assignedDate BETWEEN :startDate AND :endDate
+        ))
+        ORDER BY CASE WHEN EXISTS (
+            SELECT 1 FROM EmployeeShift es
+            WHERE es.user = u AND es.assignedDate BETWEEN :startDate AND :endDate
+        ) THEN 0 ELSE 1 END ASC, u.fullName ASC, u.id ASC
+    """, countQuery = """
+        SELECT COUNT(u) FROM User u
+        WHERE (u.status = 'ACTIVE' OR EXISTS (
+            SELECT 1 FROM EmployeeShift es
+            WHERE es.user = u AND es.assignedDate BETWEEN :startDate AND :endDate
+        ))
+    """)
+    Page<User> findEmployeesForWeeklyScheduleWithoutKeyword(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
+
+    @Query(value = """
+        SELECT u FROM User u
+        WHERE (u.status = 'ACTIVE' OR EXISTS (
+            SELECT 1 FROM EmployeeShift es
+            WHERE es.user = u AND es.assignedDate BETWEEN :startDate AND :endDate
+        ))
+        AND (LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
+             LOWER(u.employeeCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
+             LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
+             LOWER(u.phone) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        ORDER BY CASE WHEN EXISTS (
+            SELECT 1 FROM EmployeeShift es
+            WHERE es.user = u AND es.assignedDate BETWEEN :startDate AND :endDate
+        ) THEN 0 ELSE 1 END ASC, u.fullName ASC, u.id ASC
+    """, countQuery = """
+        SELECT COUNT(u) FROM User u
+        WHERE (u.status = 'ACTIVE' OR EXISTS (
+            SELECT 1 FROM EmployeeShift es
+            WHERE es.user = u AND es.assignedDate BETWEEN :startDate AND :endDate
+        ))
+        AND (LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
+             LOWER(u.employeeCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
+             LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
+             LOWER(u.phone) LIKE LOWER(CONCAT('%', :keyword, '%')))
+    """)
+    Page<User> findEmployeesForWeeklyScheduleWithKeyword(
+            @Param("keyword") String keyword,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
+
+    default Page<User> findEmployeesForWeeklySchedule(
+            String keyword,
+            LocalDate startDate,
+            LocalDate endDate,
+            Pageable pageable) {
+        if (keyword == null || keyword.isBlank()) {
+            return findEmployeesForWeeklyScheduleWithoutKeyword(startDate, endDate, pageable);
+        }
+        return findEmployeesForWeeklyScheduleWithKeyword(keyword.trim(), startDate, endDate, pageable);
+    }
 }

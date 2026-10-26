@@ -1,4 +1,5 @@
 "use client";
+import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -15,6 +16,8 @@ type Props = Pick<
   | "isCreating"
 >;
 
+import { getTimeValidationError } from "@/lib/shifts-helpers";
+
 export function ShiftCreateDialog({
   isCreateOpen,
   setIsCreateOpen,
@@ -23,6 +26,19 @@ export function ShiftCreateDialog({
   setCreateForm,
   isCreating,
 }: Props) {
+  const timeError = useMemo(
+    () => getTimeValidationError(createForm.startTime, createForm.endTime),
+    [createForm.startTime, createForm.endTime],
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (timeError) {
+      return;
+    }
+    handleCreateSubmit(e);
+  };
+
   return (
     <>
       <Modal
@@ -30,7 +46,7 @@ export function ShiftCreateDialog({
         onClose={() => setIsCreateOpen(false)}
         title="Tạo ca làm việc mới"
       >
-        <form onSubmit={handleCreateSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Tên ca làm việc *"
             placeholder="VD: Ca Hành Chính, Ca Sáng, Ca Chiều"
@@ -40,27 +56,32 @@ export function ShiftCreateDialog({
             }
             required
           />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Giờ bắt đầu *"
-              type="time"
-              step="1"
-              value={createForm.startTime}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, startTime: e.target.value })
-              }
-              required
-            />
-            <Input
-              label="Giờ kết thúc *"
-              type="time"
-              step="1"
-              value={createForm.endTime}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, endTime: e.target.value })
-              }
-              required
-            />
+          <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Giờ bắt đầu *"
+                type="time"
+                step="1"
+                value={createForm.startTime}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, startTime: e.target.value })
+                }
+                required
+              />
+              <Input
+                label="Giờ kết thúc *"
+                type="time"
+                step="1"
+                value={createForm.endTime}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, endTime: e.target.value })
+                }
+                required
+              />
+            </div>
+            {timeError && (
+              <p className="text-xs text-rose-500 font-medium">{timeError}</p>
+            )}
           </div>
           <Input
             label="Số phút cho phép đi trễ (0 - 120)"
@@ -83,7 +104,7 @@ export function ShiftCreateDialog({
             >
               Hủy
             </Button>
-            <Button type="submit" isLoading={isCreating}>
+            <Button type="submit" isLoading={isCreating} disabled={!!timeError}>
               Tạo ca làm việc
             </Button>
           </div>

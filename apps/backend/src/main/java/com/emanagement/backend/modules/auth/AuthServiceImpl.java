@@ -161,10 +161,22 @@ public class AuthServiceImpl implements AuthService {
         otpCodeRepository.save(otp);
 
         // Send OTP via Email or SMS
-        if (identifier.contains("@")) {
-            emailService.sendOtpEmail(identifier, otpCode, type);
+        String targetEmail = identifier;
+        if (!identifier.contains("@")) {
+            Optional<User> userOpt = userRepository.findByIdentifier(identifier);
+            if (userOpt.isEmpty()) {
+                userOpt = userRepository.findByEmployeeCode(identifier);
+            }
+            if (userOpt.isPresent() && userOpt.get().getEmail() != null && !userOpt.get().getEmail().isBlank()) {
+                targetEmail = userOpt.get().getEmail();
+            }
+        }
+
+        if (targetEmail != null && targetEmail.contains("@")) {
+            emailService.sendOtpEmail(targetEmail, otpCode, type);
+            log.info("📧 [OTP_SENT] Đã gửi mã xác thực tới: {}, Loại: {}", maskIdentifier(targetEmail), type);
         } else {
-            log.info("📱 [MÃ OTP GỬI VỀ SỐ ĐIỆN THOẠI]: Phone = {}, OTP = {}, Loại = {}", identifier, otpCode, type);
+            log.info("📱 [OTP_SENT] Đã gửi mã xác thực tới: {}, Loại: {}", maskIdentifier(targetEmail), type);
         }
     }
 
@@ -228,37 +240,51 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByIdentifier(currentIdentifier)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản người dùng hiện tại"));
 
-        // Xác thực mã OTP gửi về Email mới hoặc Phone mới
-        String targetIdentifier = (request.getEmail() != null && !request.getEmail().isBlank()) ? request.getEmail() : request.getPhone();
-        if (targetIdentifier == null || targetIdentifier.isBlank()) {
-            throw new BusinessException("Vui lòng cung cấp Email hoặc Số điện thoại mới để cập nhật");
+        boolean emailChanged = request.getEmail() != null && !request.getEmail().isBlank()
+                && !request.getEmail().equalsIgnoreCase(user.getEmail());
+        boolean phoneChanged = request.getPhone() != null && !request.getPhone().isBlank()
+                && !request.getPhone().equals(user.getPhone());
+
+        if (emailChanged && phoneChanged) {
+            throw new BusinessException("Vui lòng cập nhật lần lượt Email hoặc Số điện thoại để đảm bảo xác thực OTP chính xác cho từng kênh liên lạc.");
         }
 
-        boolean validOtp = verifyOtpInternal(targetIdentifier, request.getOtpCode(), "UPDATE_PROFILE");
-        if (!validOtp) {
-            throw new BusinessException("Mã OTP xác thực cập nhật thông tin cá nhân không chính xác hoặc đã hết hạn.");
+        // Chỉ xác thực OTP khi người dùng thay đổi Email hoặc Số điện thoại
+        if (emailChanged || phoneChanged) {
+            if (request.getOtpCode() == null || request.getOtpCode().isBlank()) {
+                throw new BusinessException("Vui lòng cung cấp mã OTP để xác nhận thay đổi Email hoặc Số điện thoại.");
+            }
+            String targetIdentifier = emailChanged ? request.getEmail().trim() : request.getPhone().trim();
+            boolean validOtp = verifyOtpInternal(targetIdentifier, request.getOtpCode().trim(), "UPDATE_PROFILE");
+            if (!validOtp) {
+                throw new BusinessException("Mã OTP xác thực cập nhật thông tin cá nhân không chính xác hoặc đã hết hạn.");
+            }
         }
 
-        // Cập nhật thông tin sau khi xác thực OTP thành công
+        // Cập nhật họ và tên
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
-            user.setFullName(request.getFullName());
+            user.setFullName(request.getFullName().trim());
         }
 
-        if (request.getEmail() != null && !request.getEmail().isBlank()) {
-            Optional<User> existing = userRepository.findByEmail(request.getEmail());
+        // Cập nhật Email nếu có thay đổi
+        if (emailChanged) {
+            String newEmail = request.getEmail().trim();
+            Optional<User> existing = userRepository.findByEmail(newEmail);
             if (existing.isPresent() && !existing.get().getId().equals(user.getId())) {
                 throw new BusinessException("Email này đã được sử dụng bởi một tài khoản khác.");
             }
-            user.setEmail(request.getEmail());
+            user.setEmail(newEmail);
             user.setIsEmailVerified(true);
         }
 
-        if (request.getPhone() != null && !request.getPhone().isBlank()) {
-            Optional<User> existing = userRepository.findByPhone(request.getPhone());
+        // Cập nhật Số điện thoại nếu có thay đổi
+        if (phoneChanged) {
+            String newPhone = request.getPhone().trim();
+            Optional<User> existing = userRepository.findByPhone(newPhone);
             if (existing.isPresent() && !existing.get().getId().equals(user.getId())) {
                 throw new BusinessException("Số điện thoại này đã được sử dụng bởi một tài khoản khác.");
             }
-            user.setPhone(request.getPhone());
+            user.setPhone(newPhone);
             user.setIsPhoneVerified(true);
         }
 
@@ -348,5 +374,25 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void logout(String refreshToken) {
         refreshTokenService.revokeToken(refreshToken);
+    }
+
+    private String maskIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            return "***";
+        }
+        if (identifier.contains("@")) {
+            String[] parts = identifier.split("@", 2);
+            String name = parts[0];
+            String domain = parts.length > 1 ? parts[1] : "";
+            if (name.length() <= 2) {
+                return name.charAt(0) + "***@" + domain;
+            }
+            return name.charAt(0) + "***" + name.charAt(name.length() - 1) + "@" + domain;
+        } else {
+            if (identifier.length() <= 4) {
+                return "***";
+            }
+            return identifier.substring(0, 2) + "***" + identifier.substring(identifier.length() - 2);
+        }
     }
 }

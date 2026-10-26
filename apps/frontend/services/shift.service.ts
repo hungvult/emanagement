@@ -9,6 +9,7 @@ import {
   ShiftCreate,
   ShiftResponse,
   ShiftUpdate,
+  WeeklyScheduleResponse,
   ScheduleLeave,
 } from "@/types/shift.types";
 
@@ -62,6 +63,27 @@ export const shiftService = {
   ): Promise<ApiResponse<EmployeeShiftResponse[]>> => {
     return apiClient.get<EmployeeShiftResponse[]>(
       `/shifts/schedule?startDate=${startDate}&endDate=${endDate}`,
+    );
+  },
+
+  getSchedulePaged: (
+    startDate: string,
+    endDate: string,
+    page = 0,
+    size = 20,
+    keyword?: string,
+  ): Promise<ApiResponse<WeeklyScheduleResponse>> => {
+    const params = new URLSearchParams({
+      startDate,
+      endDate,
+      page: String(page),
+      size: String(size),
+    });
+    if (keyword && keyword.trim()) {
+      params.set("keyword", keyword.trim());
+    }
+    return apiClient.get<WeeklyScheduleResponse>(
+      `/shifts/schedule/paged?${params.toString()}`,
     );
   },
 

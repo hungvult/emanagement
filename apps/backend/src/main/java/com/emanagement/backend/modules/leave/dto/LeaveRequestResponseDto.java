@@ -43,6 +43,9 @@ public class LeaveRequestResponseDto {
     @Schema(description = "Họ tên người duyệt", example = "Ngô Văn Dũng Quản Lý")
     private String approvedByName;
 
+    @Schema(description = "Ghi chú / Lý do phê duyệt hoặc từ chối", example = "Đồng ý phê duyệt")
+    private String reviewNote;
+
     @Schema(description = "Thời điểm gửi đơn", example = "2026-08-24T09:00:00")
     private LocalDateTime createdAt;
 }

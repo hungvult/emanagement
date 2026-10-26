@@ -25,6 +25,7 @@ import com.emanagement.backend.security.JwtTokenProvider;
 
 import com.emanagement.backend.common.service.StorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class KioskServiceImpl implements KioskService {
@@ -85,6 +87,20 @@ public class KioskServiceImpl implements KioskService {
                 alert.setAlertDate(LocalDate.now());
                 alert.setDescription("Cảnh báo " + status + " xuất hiện tại trạm " + kiosk.getName());
                 alert.setIsResolved(false);
+
+                if (cleanBase64 != null && !cleanBase64.isBlank()) {
+                    try {
+                        String snapshotKey = storageService.uploadBase64Image(
+                                cleanBase64,
+                                StorageService.FOLDER_SNAPSHOTS,
+                                "alert_" + status.toLowerCase()
+                        );
+                        alert.setSnapshotUrl(snapshotKey);
+                    } catch (Exception e) {
+                        log.warn("Failed to upload snapshot for anomaly alert {}: {}", status, e.getMessage());
+                    }
+                }
+
                 alertService.createAlert(alert);
 
                 String msg = "SPOOF_DETECTED".equals(status) 
@@ -165,7 +181,7 @@ public class KioskServiceImpl implements KioskService {
 
             String snapshotKey = null;
             if (cleanBase64 != null && !cleanBase64.isBlank()) {
-                snapshotKey = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkin_" + user.getEmployeeCode());
+                snapshotKey = storageService.uploadBase64Image(cleanBase64, StorageService.FOLDER_SNAPSHOTS, "checkin_" + user.getEmployeeCode());
             }
             record.setSnapshotUrl(snapshotKey);
         } else {
@@ -186,7 +202,7 @@ public class KioskServiceImpl implements KioskService {
 
             String checkoutSnapshotKey = null;
             if (cleanBase64 != null && !cleanBase64.isBlank()) {
-                checkoutSnapshotKey = storageService.uploadBase64Image(cleanBase64, "snapshots", "checkout_" + user.getEmployeeCode());
+                checkoutSnapshotKey = storageService.uploadBase64Image(cleanBase64, StorageService.FOLDER_SNAPSHOTS, "checkout_" + user.getEmployeeCode());
             }
             record.setCheckoutSnapshotUrl(checkoutSnapshotKey);
         }
