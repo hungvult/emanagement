@@ -47,3 +47,37 @@ def test_find_top2_orders_by_score():
 
 def test_find_top2_with_empty_candidates():
     assert find_top2_matches([1.0, 0.0], []) == (None, 0.0, None, 0.0)
+
+def test_find_top2_single_candidate():
+    query = [1.0, 0.0]
+    candidates = [{"userId": 1, "embedding": [1.0, 0.0]}]
+    top1, top1_score, top2, top2_score = find_top2_matches(query, candidates)
+    assert top1["userId"] == 1
+    assert top1_score == pytest.approx(1.0, abs=1e-5)
+    assert top2 is None
+    assert top2_score == 0.0
+
+
+def test_find_top2_filters_invalid_and_mismatched_embeddings():
+    query = [1.0, 0.0]
+    candidates = [
+        {"userId": 1, "embedding": None},
+        {"userId": 2, "embedding": []},
+        {"userId": 3, "embedding": [1.0, 0.0, 0.0]},  # mismatched length
+        {"userId": 4, "embedding": [0.0, 1.0]},
+    ]
+    top1, top1_score, top2, top2_score = find_top2_matches(query, candidates)
+    assert top1["userId"] == 4
+    assert top2 is None
+
+
+def test_find_top2_vectorized_many_candidates():
+    query = [1.0, 0.0, 0.0, 0.0]
+    candidates = [
+        {"userId": i, "embedding": [float(i) / 1000.0, 1.0, 0.0, 0.0]}
+        for i in range(500)
+    ]
+    top1, top1_score, top2, top2_score = find_top2_matches(query, candidates)
+    assert top1["userId"] == 499
+    assert top1_score > top2_score
+
