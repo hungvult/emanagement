@@ -54,6 +54,7 @@ def download(filename: str, url: str) -> bool:
     print(f"[..] Đang tải {filename} ...")
     tmp = target.with_suffix(target.suffix + ".part")
     try:
+        # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         with urllib.request.urlopen(url, timeout=120) as response, tmp.open("wb") as out:
             while True:
                 chunk = response.read(1024 * 256)
