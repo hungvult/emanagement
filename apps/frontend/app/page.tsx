@@ -72,7 +72,7 @@ export default function HomePage() {
                 <span className="text-sm font-bold text-slate-800 font-mono leading-none">
                   {currentTime}
                 </span>
-                <span className="text-[10px] text-slate-500 capitalize leading-none mt-1">
+                <span className="text-[10px] text-slate-700 capitalize leading-none mt-1">
                   {currentDate}
                 </span>
               </div>
@@ -138,7 +138,7 @@ export default function HomePage() {
                   <h3 className="text-2xl font-bold text-slate-900 mb-2">
                     Chấm công FaceID
                   </h3>
-                  <p className="text-slate-500 text-sm leading-relaxed font-medium">
+                  <p className="text-slate-700 text-sm leading-relaxed font-medium">
                     Khởi động camera AI để nhận diện điểm danh vào/ra ca lập tức
                     không cần chạm.
                   </p>
@@ -159,7 +159,7 @@ export default function HomePage() {
                   <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
                     Bảng điều khiển
                   </h3>
-                  <p className="text-slate-500 text-sm font-medium">
+                  <p className="text-slate-700 text-sm font-medium">
                     Quản lý nhân sự & báo cáo
                   </p>
                 </div>
@@ -177,7 +177,7 @@ export default function HomePage() {
                   <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
                     Cổng đăng nhập
                   </h3>
-                  <p className="text-slate-500 text-sm font-medium">
+                  <p className="text-slate-700 text-sm font-medium">
                     Dành cho Cán bộ & Quản lý
                   </p>
                 </div>
