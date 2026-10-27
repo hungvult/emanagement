@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.emanagement.backend.common.dto.ApiResponse;
@@ -35,6 +36,7 @@ public class KioskController {
     }
 
     @PostMapping("/register")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @Operation(summary = "Đăng ký trạm Kiosk mới", description = "Tạo mới thông tin trạm Kiosk và sinh Device Token")
     public ResponseEntity<ApiResponse<Kiosk>> registerKiosk(@Valid @RequestBody KioskRegisterDto dto) {
         Kiosk kiosk = kioskService.registerKiosk(dto);

@@ -9,6 +9,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.emanagement.backend.security.UserPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,18 +41,28 @@ public class AttendanceController {
     @GetMapping("/my-history")
     @Operation(summary = "Lịch sử chấm công cá nhân", description = "Tra cứu danh sách các lượt chấm công của nhân viên theo userId")
     public ResponseEntity<ApiResponse<PageResponse<AttendanceHistoryDto>>> getMyHistory(
-            @RequestParam Long userId,
+            @RequestParam(required = false) Long userId,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long shiftId) {
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(userId, page, size, startDate, endDate, status, shiftId);
+        Long targetUserId = (principal != null) ? principal.getId() : userId;
+        if (principal != null && userId != null) {
+            boolean isAdmin = principal.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+            if (isAdmin) {
+                targetUserId = userId;
+            }
+        }
+        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(targetUserId, page, size, startDate, endDate, status, shiftId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/records")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "Danh sách chấm công toàn hệ thống", description = "Dành cho Admin/Quản lý theo dõi toàn bộ dữ liệu vào ra của doanh nghiệp")
     public ResponseEntity<ApiResponse<PageResponse<AttendanceHistoryDto>>> getAllRecords(
             @RequestParam(defaultValue = "0") int page,

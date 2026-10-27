@@ -64,14 +64,6 @@ public class AttendanceServiceImpl implements AttendanceService {
         this.entityManager = entityManager;
     }
 
-    public AttendanceServiceImpl(
-            AttendanceRecordRepository attendanceRecordRepository,
-            EmployeeShiftRepository employeeShiftRepository,
-            ShiftRepository shiftRepository,
-            StorageService storageService,
-            EntityManager entityManager) {
-        this(attendanceRecordRepository, employeeShiftRepository, shiftRepository, null, storageService, entityManager);
-    }
 
     @Override
     @Transactional(readOnly = true)

@@ -56,14 +56,24 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
+                        .requestMatchers(
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/refresh-token",
+                                "/api/v1/auth/logout",
+                                "/api/v1/auth/send-otp",
+                                "/api/v1/auth/verify-otp",
+                                "/api/v1/auth/reset-password",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
                                 "/h2-console/**")
                         .permitAll()
-                        .requestMatchers("/api/v1/kiosks/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/kiosks/check-in").permitAll()
+                        .requestMatchers("/api/v1/kiosks/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/v1/shifts/my-schedule").authenticated()
                         // Employees need the shift catalog to filter their attendance history.
                         .requestMatchers(HttpMethod.GET, "/api/v1/shifts").authenticated()
-                        .requestMatchers("/api/v1/employees/**", "/api/v1/shifts/**", "/api/v1/alerts/**")
+                        .requestMatchers("/api/v1/employees/**", "/api/v1/shifts/**", "/api/v1/alerts/**", "/api/v1/dashboard/**")
                         .hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated())
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
