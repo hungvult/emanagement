@@ -1,8 +1,35 @@
+# Environment files & Secrets
 .env
 .env.local
 .env.*.local
 !.env.example
 
-.vscode
-.vs
+# IDEs & Editors
+.vscode/
+.vs/
+.idea/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs & Temporary files
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# AI Agent & Planning local files
 .agents/
+AGENTS.md
+TOOLS.md
+/tasks/
