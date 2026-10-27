@@ -161,7 +161,7 @@ class LivenessDetector:
         except Exception as exc:
             logger.error(f"Lỗi suy luận Anti-Spoofing: {exc}", exc_info=True)
             return (
-                CvStatus.SPOOF_DETECTED,
+                CvStatus.INTERNAL_ERROR,
                 False,
                 0.0,
                 {"liveness_enabled": True, "error": str(exc), "is_real": False},

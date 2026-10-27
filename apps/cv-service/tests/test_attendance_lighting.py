@@ -31,7 +31,7 @@ class AttendanceLightingTests(unittest.TestCase):
             with self.subTest(brightness=brightness):
                 img = np.full((320, 320, 3), brightness, dtype=np.uint8)
                 status, score, details = face_quality_assessor.evaluate_quality(
-                    img, self.bbox, require_lighting=True
+                    img, self.bbox, require_lighting=True, check_blur=False
                 )
                 self.assertEqual(status, expected)
                 self.assertEqual(details["brightness"], brightness)
@@ -40,20 +40,46 @@ class AttendanceLightingTests(unittest.TestCase):
     def test_bright_background_does_not_hide_dark_face(self):
         img = np.full((320, 320, 3), 200, dtype=np.uint8)
         img[80:240, 80:240] = 80
-        status, _, _ = face_quality_assessor.evaluate_quality(img, self.bbox, require_lighting=True)
+        status, _, _ = face_quality_assessor.evaluate_quality(img, self.bbox, require_lighting=True, check_blur=False)
         self.assertEqual(status, CvStatus.IMAGE_TOO_DARK)
 
     def test_dark_background_does_not_reject_well_lit_face(self):
         img = np.zeros((320, 320, 3), dtype=np.uint8)
         img[80:240, 80:240] = 160
-        status, _, _ = face_quality_assessor.evaluate_quality(img, self.bbox, require_lighting=True)
+        status, _, _ = face_quality_assessor.evaluate_quality(img, self.bbox, require_lighting=True, check_blur=False)
         self.assertEqual(status, CvStatus.VALID)
 
     def test_lighting_uses_configured_threshold(self):
         img = np.full((320, 320, 3), 60, dtype=np.uint8)
         with patch.object(settings, "BRIGHTNESS_MIN", 80.0):
-            status, _, _ = face_quality_assessor.evaluate_quality(img, self.bbox, require_lighting=True)
+            status, _, _ = face_quality_assessor.evaluate_quality(img, self.bbox, require_lighting=True, check_blur=False)
         self.assertEqual(status, CvStatus.IMAGE_TOO_DARK)
+
+    def test_lighting_and_blur_coexist(self):
+        # 1. Dark frame is rejected as IMAGE_TOO_DARK before blur check
+        dark_img = np.full((320, 320, 3), 40, dtype=np.uint8)
+        status, _, _ = face_quality_assessor.evaluate_quality(
+            dark_img, self.bbox, require_lighting=True, check_blur=True
+        )
+        self.assertEqual(status, CvStatus.IMAGE_TOO_DARK)
+
+        # 2. Well-lit but blurry frame is rejected as IMAGE_TOO_BLURRY
+        blurry_img = np.full((320, 320, 3), 160, dtype=np.uint8)
+        status, _, details = face_quality_assessor.evaluate_quality(
+            blurry_img, self.bbox, require_lighting=True, check_blur=True
+        )
+        self.assertEqual(status, CvStatus.IMAGE_TOO_BLURRY)
+        self.assertTrue(details["is_blurry"])
+
+        # 3. Well-lit and sharp frame passes both gates
+        sharp_img = np.full((320, 320, 3), 160, dtype=np.uint8)
+        sharp_img[80:240:2, 80:240:2] = 220
+        status, _, details = face_quality_assessor.evaluate_quality(
+            sharp_img, self.bbox, require_lighting=True, check_blur=True
+        )
+        self.assertEqual(status, CvStatus.VALID)
+        self.assertFalse(details["is_blurry"])
+        self.assertEqual(details["quality_score"], 1.0)
 
     def _recognize(self, img, detector_status):
         app = FastAPI()
@@ -102,6 +128,7 @@ class AttendanceLightingTests(unittest.TestCase):
     def test_recognition_continues_when_face_is_well_lit(self):
         img = np.zeros((320, 320, 3), dtype=np.uint8)
         img[80:240, 80:240] = 160
+        img[80:240:2, 80:240:2] = 180
         body, liveness, recognition = self._recognize(img, CvStatus.VALID)
         self.assertTrue(body["success"])
         self.assertEqual(body["data"]["matchedUserId"], 7)
@@ -110,10 +137,19 @@ class AttendanceLightingTests(unittest.TestCase):
 
     def test_normal_indoor_lighting_reaches_liveness_and_recognition(self):
         img = np.full((320, 320, 3), 120, dtype=np.uint8)
+        img[80:240:2, 80:240:2] = 140
         body, liveness, recognition = self._recognize(img, CvStatus.VALID)
         self.assertTrue(body["success"])
         liveness.assert_called_once()
         recognition.assert_called_once()
+
+    def test_recognition_rejects_blurry_face_even_when_well_lit(self):
+        img = np.full((320, 320, 3), 160, dtype=np.uint8)
+        body, liveness, recognition = self._recognize(img, CvStatus.VALID)
+        self.assertFalse(body["success"])
+        self.assertEqual(body["status"], "IMAGE_TOO_BLURRY")
+        liveness.assert_not_called()
+        recognition.assert_not_called()
 
     def test_stricter_configured_threshold_is_still_respected(self):
         img = np.full((320, 320, 3), 120, dtype=np.uint8)

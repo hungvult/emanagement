@@ -1,3 +1,5 @@
+from typing import Any
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -5,6 +7,15 @@ class Settings(BaseSettings):
     APP_NAME: str = "cv-service"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, v: Any) -> bool:
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.strip().lower() in ("true", "1", "yes", "on", "debug", "dev", "development")
+        return bool(v)
 
     # Bảo vệ API: backend phải gửi header X-CV-API-Key trùng giá trị này.
     # Để trống = tắt xác thực (chỉ dùng khi chạy local).

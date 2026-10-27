@@ -35,7 +35,12 @@ class FaceQualityAssessor:
         )
 
     def evaluate_quality(
-        self, img: np.ndarray, bbox: BBox, *, require_lighting: bool = False
+        self,
+        img: np.ndarray,
+        bbox: BBox,
+        *,
+        require_lighting: bool = False,
+        check_blur: bool = True,
     ) -> Tuple[CvStatus, float, Dict[str, Any]]:
         """Đánh giá tổng thể chất lượng khuôn mặt trong bbox."""
         x, y, width, height = bbox
@@ -61,16 +66,18 @@ class FaceQualityAssessor:
         if require_lighting:
             status, score, lighting_details = self.evaluate_lighting(face_crop)
             details.update(lighting_details)
-            return status, score, details
+            if status != CvStatus.VALID:
+                return status, score, details
 
-        gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY) if len(face_crop.shape) == 3 else face_crop
-        laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        is_blurry = laplacian_var < settings.BLUR_THRESHOLD
-        details["laplacian_var"] = round(laplacian_var, 2)
-        details["blur_threshold"] = settings.BLUR_THRESHOLD
-        details["is_blurry"] = is_blurry
-        if is_blurry:
-            return CvStatus.IMAGE_TOO_BLURRY, 0.0, details
+        if check_blur:
+            gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY) if len(face_crop.shape) == 3 else face_crop
+            laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+            is_blurry = laplacian_var < settings.BLUR_THRESHOLD
+            details["laplacian_var"] = round(laplacian_var, 2)
+            details["blur_threshold"] = settings.BLUR_THRESHOLD
+            details["is_blurry"] = is_blurry
+            if is_blurry:
+                return CvStatus.IMAGE_TOO_BLURRY, 0.0, details
 
         details["quality_score"] = 1.0
 
