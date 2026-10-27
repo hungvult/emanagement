@@ -15,10 +15,24 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { Suspense, useState } from "react";
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +41,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const { error } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +56,14 @@ export default function LoginPage() {
 
       if (response.status === "SUCCESS" && response.data) {
         await login(response.data.accessToken, response.data.refreshToken);
-        router.push("/dashboard");
+        const redirectParam = searchParams.get("redirect");
+        const safeRedirect =
+          redirectParam &&
+          redirectParam.startsWith("/") &&
+          !redirectParam.startsWith("//")
+            ? redirectParam
+            : "/dashboard";
+        router.push(safeRedirect);
       } else {
         error(getErrorMessage(response, "Đăng nhập thất bại"));
       }

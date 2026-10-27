@@ -651,3 +651,25 @@ test("dashboard live feed only renders Xem ảnh button when snapshots are prese
   );
   assert.match(content, /Không có ảnh/);
 });
+test("login page respects safe redirect parameter and wraps in Suspense", () => {
+  const content = readFileSync(
+    new URL("../app/login/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(content, /useSearchParams/);
+  assert.match(content, /Suspense/);
+  assert.match(content, /safeRedirect/);
+  assert.match(content, /router\.push\(safeRedirect\)/);
+});
+
+test("alerts page wraps AlertsManagement inside RoleGuard to prevent unprivileged API calls", () => {
+  const content = readFileSync(
+    new URL("../app/(dashboard)/alerts/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(content, /export default function AlertsPage\(\)/);
+  assert.match(content, /<RoleGuard\s+allowedRoles=\{?\["ROLE_ADMIN"\]\}?/);
+  assert.match(content, /<AlertsManagement \/>/);
+  assert.match(content, /function AlertsManagement\(\)/);
+});
+
