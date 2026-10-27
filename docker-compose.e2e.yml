@@ -1,0 +1,20 @@
+services:
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    container_name: emanagement-playwright-e2e
+    working_dir: /app
+    environment:
+      - CI=true
+      - BASE_URL=http://nginx:80
+      - SKIP_WEBSERVER=true
+    volumes:
+      - ./apps/frontend:/app
+    networks:
+      - emanagement-net
+    command: ["npx", "playwright", "test"]
+
+networks:
+  emanagement-net:
+    name: emanagement_emanagement-net
+    external: true
+
