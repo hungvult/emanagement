@@ -135,3 +135,17 @@ def test_pose_fails_closed_on_degenerate_landmarks(face_a):
     assert status == CvStatus.FACE_POSE_INVALID
     assert is_valid is False
     assert data["landmarks_degenerate"] is True
+
+def test_liveness_returns_internal_error_on_inference_exception(face_a):
+    from unittest.mock import patch
+    from app.core.models import model_registry
+    from app.services.liveness_service import liveness_detector
+
+    face = _single_face(face_a)
+    with patch.object(model_registry, "predict_anti_spoof", side_effect=RuntimeError("CUDA out of memory")):
+        status, is_real, score, details = liveness_detector.check_liveness(face_a, face.bbox)
+        assert status == CvStatus.INTERNAL_ERROR
+        assert is_real is False
+        assert score == 0.0
+        assert "CUDA out of memory" in details.get("error", "")
+

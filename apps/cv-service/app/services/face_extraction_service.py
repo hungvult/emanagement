@@ -85,7 +85,7 @@ class FaceExtractionService:
 
         # 2. Đánh giá chất lượng khuôn mặt (kích thước, độ mờ nhòe, độ sáng)
         quality_status, quality_score, quality_details = face_quality_assessor.evaluate_quality(
-            img, face.bbox, require_lighting=require_lighting
+            img, face.bbox, require_lighting=require_lighting, check_blur=check_blur
         )
 
         if quality_status != CvStatus.VALID:
