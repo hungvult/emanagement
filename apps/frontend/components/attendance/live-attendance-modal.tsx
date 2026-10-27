@@ -360,7 +360,12 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-lg overflow-hidden rounded-[32px] bg-white/95 backdrop-blur-xl border border-white shadow-2xl flex flex-col z-10 animate-in zoom-in-95 duration-300">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="attendance-modal-title"
+        className="relative w-full max-w-lg overflow-hidden rounded-[32px] bg-white/95 backdrop-blur-xl border border-white shadow-2xl flex flex-col z-10 animate-in zoom-in-95 duration-300"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/80">
           <div className="flex items-center gap-3">
@@ -368,7 +373,10 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               <Zap className="h-5 w-5 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 tracking-tight">
+              <h3
+                id="attendance-modal-title"
+                className="text-base font-bold text-slate-900 tracking-tight"
+              >
                 Chấm công Face ID
               </h3>
               <p className="text-xs text-slate-500 font-medium">
@@ -379,6 +387,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => {
                 const nextMuted = !isMuted;
                 setIsMuted(nextMuted);
@@ -386,6 +395,7 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               }}
               className="p-2 rounded-full bg-white hover:bg-slate-50 text-slate-600 transition-all border border-slate-200 shadow-sm hover:text-indigo-600"
               title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
+              aria-label={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
             >
               {isMuted ? (
                 <VolumeX className="h-4 w-4 text-rose-500" />
@@ -394,8 +404,11 @@ export const LiveAttendanceModal: React.FC<LiveAttendanceModalProps> = ({
               )}
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="p-2 rounded-full bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-600 transition-all border border-slate-200 shadow-sm"
+              title="Đóng modal chấm công"
+              aria-label="Đóng modal chấm công"
             >
               <X className="h-4 w-4" />
             </button>
