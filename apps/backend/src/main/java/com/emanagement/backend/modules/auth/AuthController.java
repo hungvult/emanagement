@@ -9,6 +9,7 @@ import com.emanagement.backend.common.dto.ApiResponse;
 import com.emanagement.backend.modules.auth.dto.*;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
+    @SecurityRequirements
     @Operation(summary = "Đăng nhập hệ thống", description = "Đăng nhập linh hoạt bằng Mã nhân viên (NV001), Email hoặc Số điện thoại kết hợp Mật khẩu")
     public ResponseEntity<ApiResponse<JwtResponse>> authenticateUser(@Valid @RequestBody LoginRequest request) {
         JwtResponse jwtResponse = authService.authenticateUser(request);
@@ -28,6 +30,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh-token")
+    @SecurityRequirements
     @Operation(summary = "Làm mới Access Token", description = "Sử dụng Refresh Token để cấp phát Access Token mới và xoay vòng Refresh Token (Token Rotation)")
     public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         TokenRefreshResponse response = authService.refreshToken(request);
@@ -35,6 +38,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @SecurityRequirements
     @Operation(summary = "Đăng xuất hệ thống", description = "Thu hồi Refresh Token hiện tại để chấm dứt phiên làm việc")
     public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody(required = false) RefreshTokenRequest request) {
         if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
@@ -44,6 +48,7 @@ public class AuthController {
     }
 
     @PostMapping("/send-otp")
+    @SecurityRequirements
     @Operation(summary = "Gửi mã OTP", description = "Gửi mã OTP 6 số ngẫu nhiên về Email hoặc Số điện thoại (LOGIN_2FA, RESET_PASSWORD, UPDATE_PROFILE)")
     public ResponseEntity<ApiResponse<Void>> sendOtp(@Valid @RequestBody SendOtpRequest request) {
         authService.sendOtp(request);
@@ -51,17 +56,20 @@ public class AuthController {
     }
 
     @PostMapping("/verify-otp")
+    @SecurityRequirements
     @Operation(summary = "Xác thực mã OTP", description = "Kiểm tra tính hợp lệ của mã OTP")
     public ResponseEntity<ApiResponse<Boolean>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
         boolean isValid = authService.verifyOtp(request);
         if (isValid) {
             return ResponseEntity.ok(ApiResponse.success("Mã OTP hợp lệ", true));
         } else {
-            return ResponseEntity.ok(ApiResponse.error("Mã OTP không hợp lệ hoặc đã hết hạn"));
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Mã OTP không hợp lệ hoặc đã hết hạn"));
         }
     }
 
     @PostMapping("/reset-password")
+    @SecurityRequirements
     @Operation(summary = "Đặt lại mật khẩu", description = "Đặt lại mật khẩu mới thông qua mã OTP xác thực")
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);

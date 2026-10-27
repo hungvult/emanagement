@@ -17,12 +17,24 @@ import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 @Configuration
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_NAME = "Bearer Authentication";
+
+    private static final Set<String> PUBLIC_ENDPOINTS = Set.of(
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh-token",
+            "/api/v1/auth/logout",
+            "/api/v1/auth/send-otp",
+            "/api/v1/auth/verify-otp",
+            "/api/v1/auth/reset-password",
+            "/api/v1/kiosks/check-in"
+    );
 
     @Bean
     public OpenAPI customOpenAPI() {
@@ -50,23 +62,15 @@ public class OpenApiConfig {
                 openApi.setComponents(new Components());
             }
 
-            // Đăng ký schema ApiResponseError vào components.schemas
-            if (openApi.getComponents().getSchemas() == null || !openApi.getComponents().getSchemas().containsKey("ApiResponseError")) {
-                Map<String, Schema> schemas = ModelConverters.getInstance().readAll(ApiResponse.class);
-                if (schemas.containsKey("ApiResponse")) {
-                    openApi.getComponents().addSchemas("ApiResponseError", schemas.get("ApiResponse"));
-                } else if (!schemas.isEmpty()) {
-                    openApi.getComponents().addSchemas("ApiResponseError", schemas.values().iterator().next());
-                } else {
-                    Schema<Object> fallbackSchema = new Schema<>()
-                            .type("object")
-                            .addProperty("status", new Schema<>().type("string").example("ERROR"))
-                            .addProperty("message", new Schema<>().type("string").example("Thông báo lỗi chi tiết"))
-                            .addProperty("data", new Schema<>().type("object").nullable(true))
-                            .addProperty("timestamp", new Schema<>().type("string").format("date-time").example("2026-08-24T12:00:00"));
-                    openApi.getComponents().addSchemas("ApiResponseError", fallbackSchema);
-                }
-            }
+            // Đăng ký schema ApiResponseError chuẩn OpenAPI 3.1 hỗ trợ data nullable
+            Schema<Object> errorSchema = new Schema<>()
+                    .type("object")
+                    .description("Đối tượng phản hồi tiêu chuẩn của hệ thống")
+                    .addProperty("status", new Schema<>().type("string").example("ERROR").description("Trạng thái phản hồi"))
+                    .addProperty("message", new Schema<>().type("string").example("Thông báo lỗi chi tiết").description("Thông điệp phản hồi"))
+                    .addProperty("data", new Schema<>().types(Set.of("object", "null")).description("Dữ liệu trả về"))
+                    .addProperty("timestamp", new Schema<>().type("string").format("date-time").example("2026-08-24T12:00:00Z").description("Thời điểm phản hồi"));
+            openApi.getComponents().addSchemas("ApiResponseError", errorSchema);
 
             Content errorContent = new Content().addMediaType(
                     org.springframework.http.MediaType.APPLICATION_JSON_VALUE,
@@ -74,35 +78,42 @@ public class OpenApiConfig {
             );
 
             if (openApi.getPaths() != null) {
-                openApi.getPaths().values().forEach(pathItem -> pathItem.readOperations().forEach(operation -> {
-                    ApiResponses responses = operation.getResponses();
+                openApi.getPaths().forEach((path, pathItem) -> {
+                    boolean isPublic = PUBLIC_ENDPOINTS.contains(path);
+                    pathItem.readOperations().forEach(operation -> {
+                        if (isPublic) {
+                            operation.setSecurity(Collections.emptyList());
+                        }
 
-                    if (!responses.containsKey("400")) {
-                        responses.addApiResponse("400", new io.swagger.v3.oas.models.responses.ApiResponse()
-                                .description("Yêu cầu không hợp lệ hoặc lỗi nghiệp vụ (Bad Request / Business Exception)")
-                                .content(errorContent));
-                    }
-                    if (!responses.containsKey("401")) {
-                        responses.addApiResponse("401", new io.swagger.v3.oas.models.responses.ApiResponse()
-                                .description("Chưa xác thực hoặc Token không hợp lệ (Unauthorized)")
-                                .content(errorContent));
-                    }
-                    if (!responses.containsKey("403")) {
-                        responses.addApiResponse("403", new io.swagger.v3.oas.models.responses.ApiResponse()
-                                .description("Không có quyền truy cập tài nguyên (Forbidden)")
-                                .content(errorContent));
-                    }
-                    if (!responses.containsKey("404")) {
-                        responses.addApiResponse("404", new io.swagger.v3.oas.models.responses.ApiResponse()
-                                .description("Không tìm thấy tài nguyên (Resource Not Found)")
-                                .content(errorContent));
-                    }
-                    if (!responses.containsKey("500")) {
-                        responses.addApiResponse("500", new io.swagger.v3.oas.models.responses.ApiResponse()
-                                .description("Lỗi hệ thống nội bộ (Internal Server Error)")
-                                .content(errorContent));
-                    }
-                }));
+                        ApiResponses responses = operation.getResponses();
+
+                        if (!responses.containsKey("400")) {
+                            responses.addApiResponse("400", new io.swagger.v3.oas.models.responses.ApiResponse()
+                                    .description("Yêu cầu không hợp lệ hoặc lỗi nghiệp vụ (Bad Request / Business Exception)")
+                                    .content(errorContent));
+                        }
+                        if (!responses.containsKey("401") && !isPublic) {
+                            responses.addApiResponse("401", new io.swagger.v3.oas.models.responses.ApiResponse()
+                                    .description("Chưa xác thực hoặc Token không hợp lệ (Unauthorized)")
+                                    .content(errorContent));
+                        }
+                        if (!responses.containsKey("403") && !isPublic) {
+                            responses.addApiResponse("403", new io.swagger.v3.oas.models.responses.ApiResponse()
+                                    .description("Không có quyền truy cập tài nguyên (Forbidden)")
+                                    .content(errorContent));
+                        }
+                        if (!responses.containsKey("404")) {
+                            responses.addApiResponse("404", new io.swagger.v3.oas.models.responses.ApiResponse()
+                                    .description("Không tìm thấy tài nguyên (Resource Not Found)")
+                                    .content(errorContent));
+                        }
+                        if (!responses.containsKey("500")) {
+                            responses.addApiResponse("500", new io.swagger.v3.oas.models.responses.ApiResponse()
+                                    .description("Lỗi hệ thống nội bộ (Internal Server Error)")
+                                    .content(errorContent));
+                        }
+                    });
+                });
             }
         };
     }

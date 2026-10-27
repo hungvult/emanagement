@@ -15,6 +15,7 @@ import com.emanagement.backend.modules.kiosk.dto.KioskCheckInResponseDto;
 import com.emanagement.backend.modules.kiosk.dto.KioskRegisterDto;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class KioskController {
     private final KioskService kioskService;
 
     @PostMapping("/check-in")
+    @SecurityRequirements
     @Operation(summary = "Kiosk AI Check-in / Check-out", description = "Xác thực token trạm và tiếp nhận frame ảnh Base64 từ camera Kiosk để đọ sánh AI chấm công")
     public ResponseEntity<ApiResponse<KioskCheckInResponseDto>> checkIn(
             @RequestHeader("X-Kiosk-Token") String deviceToken,
