@@ -1,4 +1,4 @@
-package com.emanagement.backend.modules.dashboard.controlller;
+package com.emanagement.backend.modules.dashboard.controller;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.emanagement.backend.common.dto.ApiResponse;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/dashboard")
 @RequiredArgsConstructor
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 @Tag(name = "Dashboard", description = "Các API thống kê tổng quan dành cho Quản lý")
 public class DashboardController {
 

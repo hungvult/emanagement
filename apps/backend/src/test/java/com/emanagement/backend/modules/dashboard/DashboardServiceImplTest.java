@@ -24,7 +24,7 @@ import org.springframework.http.ResponseEntity;
 import com.emanagement.backend.common.dto.ApiResponse;
 import com.emanagement.backend.common.exception.BusinessException;
 import com.emanagement.backend.modules.attendance.AttendanceRecordRepository;
-import com.emanagement.backend.modules.dashboard.controlller.DashboardController;
+import com.emanagement.backend.modules.dashboard.controller.DashboardController;
 import com.emanagement.backend.modules.dashboard.dto.DashboardDailyTrendDto;
 import com.emanagement.backend.modules.dashboard.dto.DashboardOverviewResponseDto;
 import com.emanagement.backend.modules.dashboard.service.DashboardService;
