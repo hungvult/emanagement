@@ -1,6 +1,8 @@
 package com.emanagement.backend.common.dto;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -21,19 +23,20 @@ public class ApiResponse<T> {
     @Schema(description = "Thông điệp phản hồi", example = "Thao tác thành công")
     private String message;
 
-    @Schema(description = "Dữ liệu trả về")
+    @Schema(description = "Dữ liệu trả về", nullable = true)
     private T data;
 
-    @Schema(description = "Thời điểm phản hồi", example = "2026-08-24T12:00:00")
+    @Schema(description = "Thời điểm phản hồi", example = "2026-08-24T12:00:00Z")
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     @Builder.Default
-    private LocalDateTime timestamp = LocalDateTime.now();
+    private OffsetDateTime timestamp = OffsetDateTime.now();
 
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
                 .status("SUCCESS")
                 .message("Thao tác thành công")
                 .data(data)
-                .timestamp(LocalDateTime.now())
+                .timestamp(OffsetDateTime.now())
                 .build();
     }
 
@@ -42,7 +45,7 @@ public class ApiResponse<T> {
                 .status("SUCCESS")
                 .message(message)
                 .data(data)
-                .timestamp(LocalDateTime.now())
+                .timestamp(OffsetDateTime.now())
                 .build();
     }
 
@@ -51,7 +54,7 @@ public class ApiResponse<T> {
                 .status("ERROR")
                 .message(message)
                 .data(null)
-                .timestamp(LocalDateTime.now())
+                .timestamp(OffsetDateTime.now())
                 .build();
     }
 }

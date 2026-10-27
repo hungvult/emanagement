@@ -21,7 +21,7 @@ import com.emanagement.backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@Profile({"dev", "prod"})
+@Profile({"dev", "prod", "test"})
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
     private final RoleRepository roleRepository;
