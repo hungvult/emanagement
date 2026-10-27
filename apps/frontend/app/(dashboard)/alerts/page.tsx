@@ -36,6 +36,17 @@ import {
 import { useCallback, useEffect, useState } from "react";
 
 export default function AlertsPage() {
+  return (
+    <RoleGuard
+      allowedRoles={["ROLE_ADMIN"]}
+      fallback={<p>Không có quyền truy cập</p>}
+    >
+      <AlertsManagement />
+    </RoleGuard>
+  );
+}
+
+function AlertsManagement() {
   const beginRequest = useLatestRequest();
   const { user } = useAuth();
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
@@ -165,11 +176,7 @@ export default function AlertsPage() {
   };
 
   return (
-    <RoleGuard
-      allowedRoles={["ROLE_ADMIN"]}
-      fallback={<p>Không có quyền truy cập</p>}
-    >
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-rose-50/80 via-white to-white p-6 rounded-[32px] border border-rose-100/50 shadow-sm">
           <div>
@@ -592,6 +599,5 @@ export default function AlertsPage() {
           </>
         )}
       </div>
-    </RoleGuard>
   );
 }

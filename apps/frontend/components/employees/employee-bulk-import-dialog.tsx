@@ -10,7 +10,6 @@ import {
   Loader2,
   RefreshCw,
   UploadCloud,
-  X,
   XCircle,
 } from "lucide-react";
 
@@ -43,22 +42,31 @@ export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess }: Props) 
       if (res.data) {
         setCurrentJob(res.data);
       }
-    } catch (err) {
+    } catch {
       // Ignored
     }
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      checkActiveJob();
-    } else {
-      // Reset khi đóng nếu job đã kết thúc
-      if (currentJob?.status === "COMPLETED" || currentJob?.status === "FAILED") {
-        setCurrentJob(null);
-        setSelectedFile(null);
-      }
+  const handleClose = useCallback(() => {
+    if (currentJob?.status === "COMPLETED" || currentJob?.status === "FAILED") {
+      setCurrentJob(null);
+      setSelectedFile(null);
     }
-  }, [isOpen, checkActiveJob, currentJob?.status]);
+    onClose();
+  }, [currentJob?.status, onClose]);
+
+  useEffect(() => {
+    let active = true;
+    if (isOpen) {
+      queueMicrotask(() => {
+        if (!active) return;
+        void checkActiveJob();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [isOpen, checkActiveJob]);
 
   // Polling tiến độ theo thời gian thực (1.5 giây / lần)
   useEffect(() => {
@@ -156,7 +164,7 @@ export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess }: Props) 
     try {
       await employeeService.downloadBulkImportTemplate();
       success("Đã tải tệp mẫu CSV thành công.");
-    } catch (err) {
+    } catch {
       error("Không thể tải tệp mẫu CSV.");
     } finally {
       setIsDownloadingTemplate(false);
@@ -209,7 +217,7 @@ export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess }: Props) 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={isJobActive ? () => {} : onClose}
+      onClose={isJobActive ? () => {} : handleClose}
       title="Nhập nhân viên hàng loạt (Bulk Import)"
       className="max-w-2xl"
     >
@@ -311,7 +319,7 @@ export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess }: Props) 
               <Button
                 type="button"
                 variant="outline"
-                onClick={onClose}
+                onClick={handleClose}
                 className="rounded-xl font-semibold"
               >
                 Đóng
@@ -428,7 +436,7 @@ export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess }: Props) 
                 </Button>
                 <Button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold"
                 >
                   Đóng
