@@ -33,3 +33,7 @@ yarn-error.log*
 AGENTS.md
 TOOLS.md
 /tasks/
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/

@@ -82,7 +82,7 @@ export const employeeService = {
     const baseUrl =
       process.env.NEXT_PUBLIC_API_URL ||
       process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://localhost:8080/api/v1";
+      "/api/v1";
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
     const response = await fetch(`${baseUrl}/employees/bulk-import/template`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
