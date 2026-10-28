@@ -12,6 +12,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
+    @Query("""
+        select distinct u from User u join u.roles r
+        where r.name in ('ROLE_USER', 'ROLE_EMPLOYEE')
+          and not exists (select a.id from User a join a.roles ar where a.id = u.id and ar.name = 'ROLE_ADMIN')
+        order by u.employeeCode
+    """)
+    List<User> findEmployeesForReport();
+
     Optional<User> findByEmail(String email);
 
     Optional<User> findByPhone(String phone);

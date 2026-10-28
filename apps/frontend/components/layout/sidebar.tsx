@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
+  BarChart3,
   Briefcase,
   Calendar,
   Clock,
@@ -25,6 +26,12 @@ export const Sidebar = ({ isMobile }: { isMobile?: boolean }) => {
       icon: LayoutDashboard,
       href: "/dashboard",
       show: true, // Cả ADMIN và USER đều thấy
+    },
+    {
+      title: "Thống kê báo cáo",
+      icon: BarChart3,
+      href: "/reports",
+      show: hasRole("ROLE_ADMIN"),
     },
     {
       title: "Nhân viên",
