@@ -15,7 +15,7 @@ export type Employee = EmployeeResponse;
 
 export interface EmployeeCreate {
   fullName: string;
-  email?: string;
+  email: string;
   phone?: string;
   password: string;
 }

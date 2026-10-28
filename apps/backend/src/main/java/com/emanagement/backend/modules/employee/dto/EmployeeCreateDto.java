@@ -21,8 +21,9 @@ public class EmployeeCreateDto {
     @Schema(description = "Họ và tên đầy đủ", example = "Nguyễn Văn C")
     private String fullName;
 
+    @NotBlank(message = "Email không được để trống")
     @Pattern(regexp = ValidationPatterns.EMAIL_REGEX, message = "Định dạng email không hợp lệ (Ví dụ: user@emanagement.com)")
-    @Schema(description = "Email (Tùy chọn, nhân viên có thể tự cập nhật sau)", example = "nguyenvanc@gmail.com", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "Email bắt buộc của nhân viên", example = "nguyenvanc@gmail.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
 
     @Pattern(regexp = ValidationPatterns.PHONE_REGEX, message = "Số điện thoại không hợp lệ (Định dạng 10 số Việt Nam: 0912345678 hoặc +84912345678)")
