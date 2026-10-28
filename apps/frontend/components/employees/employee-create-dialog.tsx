@@ -43,10 +43,11 @@ export function EmployeeCreateDialog({
               className="bg-slate-50 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl transition-all"
             />
             <Input
-              label="Email (Tùy chọn)"
+              label="Email *"
               type="email"
               placeholder="VD: nhanvien@congty.com"
               value={createForm.email || ""}
+              required
               onChange={(e) =>
                 setCreateForm({ ...createForm, email: e.target.value })
               }

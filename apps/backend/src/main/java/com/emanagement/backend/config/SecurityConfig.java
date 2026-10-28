@@ -73,7 +73,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/shifts/my-schedule").authenticated()
                         // Employees need the shift catalog to filter their attendance history.
                         .requestMatchers(HttpMethod.GET, "/api/v1/shifts").authenticated()
-                        .requestMatchers("/api/v1/employees/**", "/api/v1/shifts/**", "/api/v1/alerts/**", "/api/v1/dashboard/**")
+                        .requestMatchers("/api/v1/employees/**", "/api/v1/shifts/**", "/api/v1/alerts/**",
+                                "/api/v1/dashboard/**", "/api/v1/reports/**")
                         .hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated())
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));

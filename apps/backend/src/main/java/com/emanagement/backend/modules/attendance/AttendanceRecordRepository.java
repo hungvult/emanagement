@@ -10,6 +10,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface AttendanceRecordRepository extends JpaRepository<AttendanceRecord, Long> {
+    @Query("""
+        select a from AttendanceRecord a join fetch a.user left join fetch a.shift
+        where a.checkInTime < :end
+          and (a.checkOutTime > :start or (a.checkOutTime is null and a.checkInTime >= :start))
+        order by a.checkInTime
+    """)
+    List<AttendanceRecord> findForMonthlyReport(@Param("start") LocalDateTime start,
+                                               @Param("end") LocalDateTime end);
+
     List<AttendanceRecord> findByUserIdAndCheckInTimeBetween(Long userId, LocalDateTime start, LocalDateTime and);
 
     boolean existsByUserIdAndCheckInTimeBetween(Long userId, LocalDateTime start, LocalDateTime end);

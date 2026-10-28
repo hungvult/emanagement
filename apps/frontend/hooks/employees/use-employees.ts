@@ -144,11 +144,19 @@ export function useEmployees() {
       return;
     }
 
+    if (!createForm.email.trim()) {
+      error("Email không được để trống");
+      return;
+    }
+
     setIsCreating(true);
     try {
       const defaultPassword = "DefaultPassword@123";
       const payload: EmployeeCreate = {
         ...createForm,
+        fullName: createForm.fullName.trim(),
+        email: createForm.email.trim(),
+        phone: createForm.phone.trim() || undefined,
         password: defaultPassword,
       };
       const res = await employeeService.create(payload);
