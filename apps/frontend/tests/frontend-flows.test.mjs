@@ -44,6 +44,24 @@ const bulkAssignmentGlobals = {
   MAX_BULK_EMPLOYEES: callback("hooks/shifts/use-bulk-assignment.ts", "MAX_BULK_EMPLOYEES", {}),
 };
 
+test("report export selects all employees or the complete filtered list instead of the current page", () => {
+  const employees = Array.from({ length: 45 }, (_, id) => ({ userId: id }));
+  const filtered = employees.slice(25, 28);
+  const calls = [];
+  const data = { employees };
+  const run = callback("app/(dashboard)/reports/page.tsx", "exportCsv", {
+    data, loading: false, rows: filtered,
+    downloadMonthlyReport: (...args) => calls.push(args),
+    showError: assert.fail,
+  });
+  run(false);
+  run(true);
+  assert.equal(calls[0][1], employees);
+  assert.equal(calls[1][1], filtered);
+  assert.equal(calls[0][2], false);
+  assert.equal(calls[1][2], true);
+});
+
 test("approved leave blocks opening and submitting a single assignment", async () => {
   let opened = 0;
   const globals = {
