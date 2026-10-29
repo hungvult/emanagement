@@ -11,11 +11,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.LongStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +39,7 @@ import com.emanagement.backend.modules.employee.dto.EmployeeResponseDto;
 import com.emanagement.backend.modules.leave.LeaveRequestRepository;
 import com.emanagement.backend.modules.notification.NotificationService;
 import com.emanagement.backend.modules.shift.dto.EmployeeShiftResponseDto;
+import com.emanagement.backend.modules.shift.dto.BulkAssignDto;
 import com.emanagement.backend.modules.shift.dto.ShiftCreateDto;
 import com.emanagement.backend.modules.shift.dto.ShiftResponseDto;
 import com.emanagement.backend.modules.shift.dto.ShiftUpdateDto;
@@ -69,6 +73,67 @@ class ShiftServiceImplTest {
     private ShiftServiceImpl shiftService;
 
     private Shift existingShift;
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void bulkAssign_RejectsMoreThan100ExplicitEmployeesBeforeLoadingData(boolean dryRun) {
+        BulkAssignDto dto = new BulkAssignDto();
+        dto.setUserIds(LongStream.rangeClosed(1, 101).boxed().toList());
+        dto.setDryRun(dryRun);
+
+        BusinessException error = assertThrows(BusinessException.class, () -> shiftService.bulkAssign(dto));
+
+        assertTrue(error.getMessage().contains("100"));
+        verifyNoInteractions(userRepository, shiftRepository, employeeShiftRepository, notificationService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void bulkAssign_RejectsAllModeWhenMoreThan100Employees(boolean dryRun) {
+        LocalDate day = LocalDate.now().plusDays(1);
+        BulkAssignDto dto = new BulkAssignDto(List.of(), 1L, day, day,
+                Set.of(day.getDayOfWeek()), false, dryRun);
+        List<User> users = bulkUsers(101);
+        when(shiftRepository.findById(1L)).thenReturn(Optional.of(existingShift));
+        when(userRepository.findActiveEmployees()).thenReturn(users);
+
+        BusinessException error = assertThrows(BusinessException.class, () -> shiftService.bulkAssign(dto));
+
+        assertTrue(error.getMessage().contains("101"));
+        verifyNoInteractions(employeeShiftRepository, leaveRequestRepository,
+                attendanceRecordRepository, notificationService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void bulkAssign_AllowsExactly100Employees(boolean dryRun) {
+        LocalDate day = LocalDate.now().plusDays(1);
+        List<User> users = bulkUsers(100);
+        BulkAssignDto dto = new BulkAssignDto(users.stream().map(User::getId).toList(), 1L,
+                day, day, Set.of(day.getDayOfWeek()), false, dryRun);
+        when(shiftRepository.findById(1L)).thenReturn(Optional.of(existingShift));
+        when(userRepository.findAllById(any())).thenReturn(users);
+
+        assertEquals(100, shiftService.bulkAssign(dto).getCreated());
+        if (dryRun) {
+            verify(employeeShiftRepository, never()).saveAll(any());
+            verifyNoInteractions(notificationService);
+        } else {
+            verify(employeeShiftRepository).saveAll(argThat(items -> ((List<?>) items).size() == 100));
+            verify(notificationService, times(100)).notifyUser(any(), any(), anyString(), anyString(), any());
+        }
+    }
+
+    private List<User> bulkUsers(int count) {
+        return LongStream.rangeClosed(1, count).mapToObj(id -> {
+            User user = new User();
+            user.setId(id);
+            user.setEmployeeCode("EMP-" + id);
+            user.setFullName("Employee " + id);
+            user.setStatus("ACTIVE");
+            return user;
+        }).toList();
+    }
 
     @BeforeEach
     void setUp() {

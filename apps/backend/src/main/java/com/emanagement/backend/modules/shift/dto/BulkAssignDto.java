@@ -19,9 +19,10 @@ import lombok.Setter;
 @AllArgsConstructor
 @Schema(description = "Phân ca hàng loạt: nhiều nhân viên x một khoảng ngày x các thứ trong tuần")
 public class BulkAssignDto {
+    public static final int MAX_EMPLOYEES = 100;
 
-    @Schema(description = "Danh sách nhân viên. Bỏ trống = tất cả nhân viên đang ACTIVE")
-    @Size(max = 500, message = "Tối đa 500 nhân viên mỗi lần")
+    @Schema(description = "Tối đa 100 nhân viên. Bỏ trống = tất cả nhân viên đang ACTIVE, vẫn áp dụng giới hạn 100 người")
+    @Size(max = MAX_EMPLOYEES, message = "Tối đa 100 nhân viên mỗi lần")
     private List<Long> userIds;
 
     @NotNull(message = "ID ca làm việc không được để trống")

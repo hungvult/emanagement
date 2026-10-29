@@ -43,6 +43,7 @@ import com.emanagement.backend.modules.shift.EmployeeShift;
 import com.emanagement.backend.modules.shift.EmployeeShiftRepository;
 import com.emanagement.backend.modules.shift.Shift;
 import com.emanagement.backend.modules.shift.ShiftRepository;
+import com.emanagement.backend.security.UserPrincipal;
 
 import jakarta.persistence.EntityManager;
 
@@ -75,6 +76,51 @@ class AttendanceServiceImplTest {
     private Shift standardShift;
     private Shift overnightShift;
     private Kiosk kiosk;
+
+    @Test
+    void recordedHistoryFiltersMonthBeforePagingAndCapsPageSize() {
+        LocalDate start = LocalDate.of(2024, 2, 1);
+        LocalDate end = LocalDate.of(2024, 2, 29);
+        AttendanceRecord record = AttendanceRecord.builder().id(900L).user(user1).shift(standardShift)
+                .checkInTime(start.atTime(8, 0)).checkOutTime(start.atTime(17, 0)).status("ON_TIME").build();
+        PageRequest expectedPage = PageRequest.of(1, 100);
+        when(attendanceRecordRepository.findByUserIdWithFilters(
+                eq(1L), eq(true), eq(start.atStartOfDay()), eq(true), eq(end.plusDays(1).atStartOfDay()),
+                eq(false), isNull(), eq(false), isNull(), eq(expectedPage)))
+                .thenReturn(new PageImpl<>(List.of(record), expectedPage, 101));
+
+        PageResponse<AttendanceHistoryDto> result = attendanceService.getUserRecordedHistory(1L, 1, 500, start, end);
+
+        assertEquals(900L, result.getContent().get(0).getId());
+        assertEquals(2, result.getTotalPages());
+        verify(attendanceRecordRepository, never()).findByUserIdOrderByCheckInTimeDesc(anyLong(), any());
+        verifyNoInteractions(employeeShiftRepository);
+    }
+
+    @Test
+    void recordedHistoryRejectsMissingUserAndInvalidRanges() {
+        LocalDate start = LocalDate.of(2026, 10, 1);
+        assertThrows(BusinessException.class, () -> attendanceService.getUserRecordedHistory(null, 0, 100, start, start));
+        assertThrows(BusinessException.class, () -> attendanceService.getUserRecordedHistory(1L, 0, 100, null, start));
+        assertThrows(BusinessException.class, () -> attendanceService.getUserRecordedHistory(1L, 0, 100, start, start.minusDays(1)));
+        assertThrows(BusinessException.class, () -> attendanceService.getUserRecordedHistory(1L, 0, 100, start, start.plusDays(93)));
+        verifyNoInteractions(attendanceRecordRepository);
+    }
+
+    @Test
+    void recordedHistoryControllerUsesAuthenticatedEmployeeInsteadOfRequestedUser() {
+        AttendanceService service = mock(AttendanceService.class);
+        AttendanceController controller = new AttendanceController(service);
+        UserPrincipal principal = mock(UserPrincipal.class);
+        when(principal.getId()).thenReturn(1L);
+        when(principal.getAuthorities()).thenReturn(Collections.emptyList());
+        LocalDate start = LocalDate.of(2026, 10, 1);
+
+        controller.getMyHistory(99L, principal, 0, 100, start, start.plusDays(30), null, null, true);
+
+        verify(service).getUserRecordedHistory(1L, 0, 100, start, start.plusDays(30));
+        verifyNoMoreInteractions(service);
+    }
 
     @BeforeEach
     void setUp() {

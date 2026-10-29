@@ -10,6 +10,8 @@ import {
 } from "@/types/shift.types";
 import { useState } from "react";
 
+export const MAX_BULK_EMPLOYEES = 100;
+
 export function useBulkAssignment({
   shifts,
   weekStart,
@@ -70,6 +72,13 @@ export function useBulkAssignment({
   };
 
   const toggleBulkUser = (userId: number) => {
+    if (
+      !bulkForm.selectedUserIds.includes(userId) &&
+      bulkForm.selectedUserIds.length >= MAX_BULK_EMPLOYEES
+    ) {
+      error(`Mỗi lượt chỉ được chọn tối đa ${MAX_BULK_EMPLOYEES} nhân viên`);
+      return;
+    }
     setBulkForm((prev) => {
       const exists = prev.selectedUserIds.includes(userId);
       const nextUsers = exists
@@ -81,6 +90,13 @@ export function useBulkAssignment({
   };
 
   const executeBulkAssign = async (dryRun: boolean) => {
+    if (
+      bulkForm.targetMode === "CUSTOM" &&
+      bulkForm.selectedUserIds.length > MAX_BULK_EMPLOYEES
+    ) {
+      error(`Mỗi lượt chỉ được chọn tối đa ${MAX_BULK_EMPLOYEES} nhân viên`);
+      return;
+    }
     if (!bulkForm.shiftId) {
       error("Vui lòng chọn ca làm việc");
       return;

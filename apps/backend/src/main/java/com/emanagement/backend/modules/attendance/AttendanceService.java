@@ -9,6 +9,9 @@ import com.emanagement.backend.modules.attendance.dto.AttendanceHistoryDto;
 import com.emanagement.backend.modules.attendance.dto.ManualAttendanceRequestDto;
 
 public interface AttendanceService {
+    PageResponse<AttendanceHistoryDto> getUserRecordedHistory(Long userId, int page, int size,
+            LocalDate startDate, LocalDate endDate);
+
     PageResponse<AttendanceHistoryDto> getUserHistory(Long userId, int page, int size,
             LocalDate startDate, LocalDate endDate, String status, Long shiftId);
 

@@ -4,12 +4,11 @@ import { RoleGuard } from "@/components/shared/role-guard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { useToast } from "@/components/ui/toast";
-import { useLatestRequest } from "@/hooks/use-latest-request";
-import { shiftService } from "@/services/shift.service";
-import { EmployeeShiftResponse } from "@/types/shift.types";
-import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMySchedule } from "@/hooks/shifts/use-my-schedule";
+import { MonthlyAttendanceSummary } from "@/components/shifts/monthly-attendance-summary";
+import { getUpcomingShift, hasApprovedLeave } from "@/lib/my-schedule";
+import { Calendar, ChevronLeft, ChevronRight, Clock, RefreshCw } from "lucide-react";
+import { useMemo, useState } from "react";
 
 // --- Helpers ---
 function getMondayOfWeek(d: Date): Date {
@@ -78,11 +77,6 @@ const SHIFT_COLORS = [
 ];
 
 export default function MySchedulePage() {
-  const beginRequest = useLatestRequest();
-  const [schedule, setSchedule] = useState<EmployeeShiftResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { error } = useToast();
-
   const [viewMode, setViewMode] = useState<"WEEK" | "MONTH">("WEEK");
   const [weekStart, setWeekStart] = useState<Date>(() =>
     getMondayOfWeek(new Date()),
@@ -106,56 +100,17 @@ export default function MySchedulePage() {
     return Array.from({ length: 42 }, (_, i) => addDays(monthGridStart, i));
   }, [monthCursor]);
 
-  const fetchMySchedule = useCallback(async () => {
-    const isCurrent = beginRequest();
-    setIsLoading(true);
-    try {
-      let start: string;
-      let end: string;
-      if (viewMode === "WEEK") {
-        start = toISODate(weekStart);
-        end = toISODate(addDays(weekStart, 6));
-      } else {
-        const first = new Date(
-          monthCursor.getFullYear(),
-          monthCursor.getMonth(),
-          1,
-        );
-        const gridStart = getMondayOfWeek(first);
-        const gridDays = Array.from({ length: 42 }, (_, i) =>
-          addDays(gridStart, i),
-        );
-        start = toISODate(gridDays[0]);
-        end = toISODate(gridDays[41]);
-      }
-      const res = await shiftService.getMySchedule(start, end);
-      if (!isCurrent()) return;
-      if (res.status === "SUCCESS" && res.data) {
-        setSchedule(res.data);
-      } else {
-        setSchedule([]);
-      }
-    } catch {
-      if (!isCurrent()) return;
-      error("Lỗi khi tải lịch làm việc của bạn");
-      setSchedule([]);
-    } finally {
-      if (isCurrent()) setIsLoading(false);
-    }
-  }, [viewMode, weekStart, monthCursor, beginRequest, error]);
-
-  useEffect(() => {
-    // Synchronize this screen with an external request or camera session.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchMySchedule();
-  }, [fetchMySchedule]);
-
-  const scheduleMap = new Map<string, EmployeeShiftResponse>();
-  schedule.forEach((s) => {
-    scheduleMap.set(s.assignedDate, s);
-  });
+  const days = viewMode === "WEEK" ? weekDays : monthGridDays;
+  const { data, isLoading, loadError, refresh } = useMySchedule(
+    toISODate(days[0]), toISODate(days[days.length - 1]),
+  );
+  const scheduleMap = new Map((data?.schedule ?? []).map((shift) => [shift.assignedDate, shift]));
+  const leaves = data?.leaves ?? [];
 
   const today = toISODate(new Date());
+  const todayShift = data?.upcoming.find((shift) => shift.assignedDate === today);
+  const nextShift = data ? getUpcomingShift(data.upcoming, leaves, new Date()) : undefined;
+  const onLeaveToday = hasApprovedLeave(leaves, today);
   const weekLabel = `${weekDays[0].toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })} – ${weekDays[6].toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
   const monthLabel = `Tháng ${String(monthCursor.getMonth() + 1).padStart(2, "0")}/${monthCursor.getFullYear()}`;
 
@@ -178,6 +133,10 @@ export default function MySchedulePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" onClick={() => void refresh()} disabled={isLoading}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              {isLoading ? "Đang cập nhật" : "Làm mới"}
+            </Button>
             {/* View Mode Switcher */}
             <div className="inline-flex rounded-[20px] bg-slate-100/80 p-1 border border-slate-200/60 shadow-inner">
               <button
@@ -283,10 +242,50 @@ export default function MySchedulePage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500" aria-live="polite">
+          <span>Lịch tự cập nhật khi bạn quay lại tab.</span>
+          {data && <span>Cập nhật lúc {data.loadedAt.toLocaleTimeString("vi-VN")}{loadError ? " · Chưa cập nhật được dữ liệu mới" : ""}</span>}
+        </div>
+        {loadError && (
+          <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
+            <p>{loadError}</p>
+            <Button variant="outline" className="mt-3" onClick={() => void refresh()} disabled={isLoading}>
+              Thử lại
+            </Button>
+          </div>
+        )}
+        {!loadError && (
+          <div className="grid gap-4 md:grid-cols-2" aria-busy={isLoading}>
+            <Card>
+              <CardHeader><h2 className="font-bold">Ca hôm nay</h2></CardHeader>
+              <CardContent>
+                {isLoading || !data ? <p>Đang tải lịch…</p> : onLeaveToday ? (
+                  <Badge variant="outline">Nghỉ phép đã duyệt</Badge>
+                ) : todayShift ? (
+                  <><p className="font-semibold">{todayShift.shiftName}</p>
+                    <p>{todayShift.startTime.slice(0, 5)} – {todayShift.endTime.slice(0, 5)}</p>
+                    <p className="text-sm text-muted-foreground">Cho phép trễ: {todayShift.gracePeriodMinutes ?? 0} phút</p></>
+                ) : <p>Hôm nay chưa được phân ca.</p>}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><h2 className="font-bold">Ca sắp tới</h2></CardHeader>
+              <CardContent>
+                {isLoading || !data ? <p>Đang tải lịch…</p> : nextShift ? (
+                  <><p className="font-semibold">{nextShift.shiftName}</p>
+                    <p>{nextShift.assignedDate.split("-").reverse().join("/")} · {nextShift.startTime.slice(0, 5)} – {nextShift.endTime.slice(0, 5)}</p></>
+                ) : <p>Không có ca sắp tới trong 30 ngày tiếp theo.</p>}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Schedule Display */}
-        {viewMode === "WEEK" ? (
+        <MonthlyAttendanceSummary refreshToken={data?.loadedAt.getTime()} />
+
+        {loadError ? null : viewMode === "WEEK" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {isLoading
+            {isLoading || !data
               ? Array.from({ length: 7 }).map((_, i) => (
                   <Card key={i} className="animate-pulse">
                     <CardHeader className="pb-2 pt-4">
@@ -333,7 +332,11 @@ export default function MySchedulePage() {
                         </div>
                       </CardHeader>
                       <CardContent className="p-5">
-                        {entry && color ? (
+                        {hasApprovedLeave(leaves, dateStr) ? (
+                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+                            Nghỉ phép đã duyệt
+                          </div>
+                        ) : entry && color ? (
                           <div
                             className={`p-4 rounded-2xl border-2 shadow-sm ${color.bg} ${color.border}`}
                           >
@@ -371,7 +374,7 @@ export default function MySchedulePage() {
                         ) : (
                           <div className="flex flex-col items-center justify-center h-[88px] rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
                             <span className="text-sm font-semibold text-slate-400">
-                              Không có ca làm việc
+                              Chưa được phân ca
                             </span>
                           </div>
                         )}
@@ -446,8 +449,12 @@ export default function MySchedulePage() {
                         </div>
 
                         <div className="flex-1 flex flex-col justify-end">
-                          {isLoading ? (
+                          {isLoading || !data ? (
                             <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
+                          ) : hasApprovedLeave(leaves, dateStr) ? (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-xs font-semibold text-emerald-700">
+                              Nghỉ phép đã duyệt
+                            </div>
                           ) : entry && color ? (
                             <div
                               className={`p-2 rounded-xl border text-left shadow-xs ${color.bg} ${color.border} transition-transform hover:scale-[1.01]`}
@@ -477,7 +484,7 @@ export default function MySchedulePage() {
                               </div>
                             </div>
                           ) : (
-                            <div className="h-6" />
+                            <div className="text-[11px] text-slate-400">Chưa được phân ca</div>
                           )}
                         </div>
                       </div>

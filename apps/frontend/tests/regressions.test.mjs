@@ -9,6 +9,216 @@ import axios from "axios";
 
 const require = createRequire(import.meta.url);
 
+test("monthly attendance counts completed shifts separately from open sessions and scheduled hours", () => {
+  const { monthlyAttendance, formatMinutes, monthBounds } = loadTs("lib/monthly-attendance.ts");
+  assert.equal(monthBounds("2024-02").end, "2024-02-29");
+  assert.equal(monthBounds("2026-02").end, "2026-02-28");
+  assert.throws(() => monthBounds("2026-13"));
+  assert.throws(() => monthBounds("bad"));
+  const schedule = [29, 30, 31].map((day) => ({
+    id: day, shiftId: 1, assignedDate: `2026-10-${day}`, startTime: "08:00:00", endTime: "17:00:00",
+  }));
+  schedule.push({ ...schedule[0], assignedDate: "2026-11-01" });
+  const record = (id, day, checkIn, checkOut, status) => ({
+    id, shiftId: 1, workDate: `2026-10-${day}`, checkInTime: checkIn ? `2026-10-${day}T${checkIn}:00` : null,
+    checkOutTime: checkOut ? `2026-10-${day}T${checkOut}:00` : null, status,
+  });
+  const records = [
+    record(1, 29, "07:45", "17:00", "ON_TIME"),
+    record(2, 30, "08:10", "16:00", "ON_TIME"), // grace: not officially late
+    record(3, 31, "08:20", null, "LATE"),
+    record(-1, 28, null, null, "NO_DATA"),
+    record(4, 31, "10:00", "09:00", "LATE"), // invalid, never negative hours
+  ];
+  const result = monthlyAttendance("2026-10", schedule, records);
+  assert.equal(result.planned, 3);
+  assert.equal(result.plannedMinutes, 27 * 60);
+  assert.equal(result.attended, 3);
+  assert.equal(result.completed, 2);
+  assert.equal(result.workedMinutes, 555 + 470);
+  assert.equal(result.early, 1);
+  assert.equal(result.earlyLeave, 1);
+  assert.equal(result.late, 2);
+  assert.equal(result.missingCheckout, 1);
+  assert.equal(result.invalidTime, 1);
+  assert.equal(result.rows.find((row) => row.record.id === 3).lateMinutes, 20);
+  assert.equal(formatMinutes(125.9), "2 giờ 5 phút");
+});
+
+test("monthly attendance merges overlaps, deduplicates IDs, and handles overnight and unmatched shifts", () => {
+  const { monthlyAttendance } = loadTs("lib/monthly-attendance.ts");
+  const schedule = [{ shiftId: 1, assignedDate: "2026-10-31", startTime: "22:00:00", endTime: "06:00:00" }];
+  const overnight = { id: 1, shiftId: 1, workDate: "2026-10-31", checkInTime: "2026-10-31T22:00:00", checkOutTime: "2026-11-01T06:00:00", status: "ON_TIME" };
+  const overlap = { ...overnight, id: 2, checkInTime: "2026-10-31T23:00:00", status: "LATE" };
+  const unmatched = { ...overnight, id: 3, shiftId: 2, workDate: "2026-10-30", checkInTime: "2026-10-30T08:00:00", checkOutTime: "2026-10-30T10:00:00", status: "EARLY_LEAVE" };
+  const outside = { ...overnight, id: 4, workDate: "2026-11-01" };
+  const result = monthlyAttendance("2026-10", schedule, [overnight, overnight, overlap, unmatched, outside]);
+  assert.equal(result.rows.length, 3);
+  assert.equal(result.workedMinutes, 10 * 60);
+  assert.equal(result.plannedMinutes, 8 * 60);
+  assert.equal(result.completed, 2);
+  assert.equal(result.unmatched, 1);
+  assert.equal(result.earlyLeave, 1);
+  assert.equal(monthlyAttendance("2026-12", [], []).workedMinutes, 0);
+});
+
+test("monthly attendance loads every page and retains previous data on partial failure", async () => {
+  const state = [];
+  let version = 0;
+  let fail = false;
+  const pages = [];
+  const react = {
+    useCallback: (fn) => fn,
+    useRef: (value) => ({ current: value }),
+    useEffect: () => {},
+    useState: (value) => {
+      const index = state.length;
+      state.push(value);
+      return [value, (next) => { state[index] = next; }];
+    },
+  };
+  const { useMonthlyAttendance } = loadTs("hooks/shifts/use-monthly-attendance.ts", {}, {
+    react,
+    "@/hooks/use-latest-request": { useLatestRequest: () => () => {
+      const current = ++version;
+      return () => current === version;
+    } },
+    "@/lib/monthly-attendance": loadTs("lib/monthly-attendance.ts"),
+    "@/services/shift.service": { shiftService: { getMySchedule: async () => ({ status: "SUCCESS", data: [] }) } },
+    "@/services/attendance.service": { attendanceService: { getMyHistory: async (userId, page, size, filters) => {
+      assert.equal(userId, undefined);
+      assert.equal(filters.startDate, "2026-10-01");
+      assert.equal(filters.endDate, "2026-10-31");
+      assert.equal(filters.recordedOnly, true);
+      pages.push(page);
+      if (fail && page === 1) throw new Error("network");
+      return { status: "SUCCESS", data: { totalPages: 2, content: [
+        { id: page, shiftId: 1, workDate: `2026-10-0${page + 1}`, checkInTime: `2026-10-0${page + 1}T08:00:00`, checkOutTime: `2026-10-0${page + 1}T17:00:00`, status: "ON_TIME" },
+      ] } };
+    } } },
+  });
+  const { refresh } = useMonthlyAttendance("2026-10");
+  await refresh();
+  assert.deepEqual(pages, [0, 1]);
+  assert.equal(state[0].summary.completed, 2);
+  assert.equal(state[0].summary.workedMinutes, 18 * 60);
+  const previous = state[0];
+  fail = true;
+  await refresh();
+  assert.match(state[2], /Không tải được/);
+  assert.equal(state[0], previous);
+  assert.equal(state[1], false);
+});
+
+test("monthly attendance request uses authenticated identity and recorded-only filtering", async () => {
+  const urls = [];
+  const { attendanceService } = loadTs("services/attendance.service.ts", { URLSearchParams }, {
+    "@/lib/api-client": { apiClient: { get: async (url) => { urls.push(url); return {}; } } },
+  });
+  await attendanceService.getMyHistory(undefined, 0, 100,
+    { startDate: "2026-10-01", endDate: "2026-10-31", recordedOnly: true });
+  const params = new URL(urls[0], "http://localhost").searchParams;
+  assert.equal(params.has("userId"), false);
+  assert.equal(params.get("recordedOnly"), "true");
+  assert.equal(params.get("startDate"), "2026-10-01");
+  await attendanceService.getMyHistory(42);
+  assert.equal(new URL(urls[1], "http://localhost").searchParams.get("userId"), "42");
+});
+
+test("personal schedule distinguishes approved leave with inclusive dates", () => {
+  const { hasApprovedLeave } = loadTs("lib/my-schedule.ts");
+  const leaves = [
+    { status: "APPROVED", startDate: "2026-10-29", endDate: "2026-10-31" },
+    { status: "PENDING", startDate: "2026-11-01", endDate: "2026-11-01" },
+    { status: "REJECTED", startDate: "2026-11-02", endDate: "2026-11-02" },
+  ];
+  for (const day of ["2026-10-29", "2026-10-30", "2026-10-31"]) {
+    assert.equal(hasApprovedLeave(leaves, day), true);
+  }
+  for (const day of ["2026-10-28", "2026-11-01", "2026-11-02"]) {
+    assert.equal(hasApprovedLeave(leaves, day), false);
+  }
+});
+
+test("upcoming shift excludes started shifts and approved leave and sorts by start", () => {
+  const { getUpcomingShift } = loadTs("lib/my-schedule.ts");
+  const shifts = [
+    { id: 4, assignedDate: "2026-11-01", startTime: "08:00:00" },
+    { id: 3, assignedDate: "2026-10-31", startTime: "08:00:00" },
+    { id: 1, assignedDate: "2026-10-29", startTime: "08:00:00" },
+    { id: 2, assignedDate: "2026-10-30", startTime: "08:00:00" },
+  ];
+  const leaves = [{ status: "APPROVED", startDate: "2026-10-30", endDate: "2026-10-30" }];
+  assert.equal(getUpcomingShift(shifts, leaves, new Date("2026-10-29T08:00:00")).id, 3);
+  assert.equal(getUpcomingShift(shifts, leaves, new Date("2026-10-29T07:00:00")).id, 1);
+  assert.equal(getUpcomingShift(shifts, leaves, new Date("2026-11-02T08:00:00")), undefined);
+  assert.equal(getUpcomingShift([], [], new Date()), undefined);
+  assert.equal(shifts[0].id, 4);
+});
+
+test("personal leave fetch uses the authenticated employee when no ID is supplied", async () => {
+  const urls = [];
+  const { leaveService } = loadTs("services/leave.service.ts", {}, {
+    "@/lib/api-client": { apiClient: { get: async (url) => { urls.push(url); return {}; } } },
+  });
+  await leaveService.getMyRequests();
+  await leaveService.getMyRequests(42);
+  assert.deepEqual(urls, ["/leave-requests/my-requests", "/leave-requests/my-requests?userId=42"]);
+});
+
+test("personal schedule refresh reports failures, retries, and discards stale responses", async () => {
+  const state = [];
+  let version = 0;
+  let fail = false;
+  let pause;
+  const react = {
+    useCallback: (fn) => fn,
+    useRef: (value) => ({ current: value }),
+    useEffect: () => {},
+    useState: (value) => {
+      const index = state.length;
+      state.push(value);
+      return [value, (next) => { state[index] = next; }];
+    },
+  };
+  const { useMySchedule } = loadTs("hooks/shifts/use-my-schedule.ts", {}, {
+    react,
+    "@/hooks/use-latest-request": { useLatestRequest: () => () => {
+      const current = ++version;
+      return () => current === version;
+    } },
+    "@/lib/shifts-helpers": loadTs("lib/shifts-helpers.ts"),
+    "@/services/shift.service": { shiftService: { getMySchedule: async () => {
+      const pending = pause;
+      if (pending) await pending;
+      if (fail) throw new Error("network");
+      return { status: "SUCCESS", data: [] };
+    } } },
+    "@/services/leave.service": { leaveService: { getMyRequests: async () => ({ status: "SUCCESS", data: [] }) } },
+  });
+  const { refresh } = useMySchedule("2026-10-26", "2026-11-01");
+  await refresh();
+  assert.equal(state[0].range, "2026-10-26/2026-11-01");
+  const previousData = state[0];
+  fail = true;
+  await refresh();
+  assert.equal(state[0], previousData);
+  assert.match(state[2], /Không thể cập nhật/);
+  assert.equal(state[1], false);
+  fail = false;
+  await refresh();
+  assert.equal(state[2], null);
+  let release;
+  pause = new Promise((resolve) => { release = resolve; });
+  const old = refresh();
+  pause = undefined;
+  await refresh();
+  const latestData = state[0];
+  release();
+  await old;
+  assert.equal(state[0], latestData);
+});
+
 test("date inputs reject impossible dates and enforce inclusive bounds", () => {
   const { parseDateInput, isDateWithinBounds } = loadTs("lib/date-input.ts");
   assert.equal(parseDateInput("29/02/2024"), "2024-02-29");

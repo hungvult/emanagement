@@ -67,6 +67,21 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<AttendanceHistoryDto> getUserRecordedHistory(Long userId, int page, int size,
+            LocalDate startDate, LocalDate endDate) {
+        if (userId == null || startDate == null || endDate == null || endDate.isBefore(startDate)
+                || java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) > 92) {
+            throw new BusinessException("Cần nhân viên và khoảng ngày hợp lệ, tối đa 93 ngày");
+        }
+        // Filter before pagination: old months must not depend on the latest 1,000 records.
+        Page<AttendanceRecord> records = attendanceRecordRepository.findByUserIdWithFilters(
+                userId, true, startDate.atStartOfDay(), true, endDate.plusDays(1).atStartOfDay(),
+                false, null, false, null, PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size))));
+        return PageResponse.from(records.map(this::mapToDto));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PageResponse<AttendanceHistoryDto> getUserHistory(Long userId, int page, int size,
             LocalDate startDate, LocalDate endDate, String status, Long shiftId) {
         return getRecordsInternal(userId, page, size, startDate, endDate, status, shiftId, null);
