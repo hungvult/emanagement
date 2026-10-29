@@ -68,6 +68,9 @@ class AttendanceExportTest {
     @Mock
     private jakarta.persistence.EntityManager entityManager;
 
+    @Mock
+    private com.emanagement.backend.modules.notification.NotificationService notificationService;
+
     @InjectMocks
     private AttendanceServiceImpl attendanceService;
 

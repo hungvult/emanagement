@@ -14,6 +14,8 @@ import com.emanagement.backend.modules.leave.dto.LeaveAprrovalDto;
 import com.emanagement.backend.modules.leave.dto.LeaveRequestCreateDto;
 import com.emanagement.backend.modules.leave.dto.LeaveRequestResponseDto;
 import com.emanagement.backend.modules.shift.ShiftService;
+import com.emanagement.backend.modules.notification.NotificationService;
+import com.emanagement.backend.modules.notification.NotificationType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +30,16 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final UserRepository userRepository;
     private final ShiftService shiftService;
+    private final NotificationService notificationService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public LeaveRequestResponseDto getById(Long id, Long viewerId, boolean admin) {
+        LeaveRequest request = leaveRequestRepository.findById(id)
+                .filter(r -> admin || r.getUser().getId().equals(viewerId))
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn nghỉ phép"));
+        return mapToDto(request);
+    }
 
     @Override
     @Transactional
@@ -39,6 +51,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy quản lý với ID: " + dto.getApprovedByUserId()));
 
+        String previousStatus = leaveRequest.getStatus();
         leaveRequest.setStatus(dto.getStatus());
         leaveRequest.setApprovedBy(user);
         leaveRequest.setReviewNote(dto.getReviewNote() != null ? dto.getReviewNote().trim() : null);
@@ -49,6 +62,15 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         if ("APPROVED".equals(dto.getStatus())) {
             shiftService.cancelShiftsForLeave(leaveRequest.getUser(), leaveRequest.getStartDate(),
                     leaveRequest.getEndDate());
+        }
+        if (!java.util.Objects.equals(previousStatus, dto.getStatus())) {
+            boolean approved = "APPROVED".equals(dto.getStatus());
+            notificationService.notifyUser(updated.getUser(),
+                    approved ? NotificationType.LEAVE_APPROVED : NotificationType.LEAVE_REJECTED,
+                    approved ? "Đơn nghỉ phép đã được duyệt" : "Đơn nghỉ phép bị từ chối",
+                    "Đơn nghỉ từ " + updated.getStartDate() + " đến " + updated.getEndDate()
+                            + (updated.getReviewNote() == null || updated.getReviewNote().isBlank()
+                            ? "." : ". Ghi chú: " + updated.getReviewNote()), updated.getId());
         }
         return mapToDto(updated);
     }
@@ -72,6 +94,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .status("PENDING")
                 .build();
         LeaveRequest created = leaveRequestRepository.save(leaveRequest);
+        notificationService.notifyAdmins(NotificationType.LEAVE_REQUESTED, "Có đơn xin nghỉ mới",
+                user.getFullName() + " (" + user.getEmployeeCode() + ") xin nghỉ từ " + created.getStartDate()
+                        + " đến " + created.getEndDate() + ".", created.getId(),
+                "/leave-requests?requestId=" + created.getId());
         return mapToDto(created);
     }
 

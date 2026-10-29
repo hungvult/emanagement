@@ -2,6 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { notificationDate, notificationLink } from "@/lib/notification-utils";
+import { useRouter } from "next/navigation";
 import { alertService } from "@/services/alert.service";
 import { notificationService } from "@/services/notification.service";
 import { NotificationResponse } from "@/types/notification.types";
@@ -12,20 +14,11 @@ import Link from "next/link";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 function parseDate(raw: unknown): Date {
-  if (Array.isArray(raw)) {
-    return new Date(
-      raw[0],
-      raw[1] - 1,
-      raw[2],
-      raw[3] || 0,
-      raw[4] || 0,
-      raw[5] || 0,
-    );
-  }
-  return new Date((raw as string) || Date.now());
+  return notificationDate(raw);
 }
 
 export const NotificationBell = () => {
+  const router = useRouter();
   const { hasRole, user } = useAuth();
   const isAdmin =
     typeof hasRole === "function"
@@ -43,6 +36,7 @@ export const NotificationBell = () => {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
+    if (!user?.id) return;
     if (mutationPendingRef.current) return;
     const version = ++requestVersionRef.current;
     try {
@@ -72,14 +66,17 @@ export const NotificationBell = () => {
     } catch (err) {
       console.error("Failed to fetch notifications", err);
     }
-  }, [isAdmin]);
+  }, [isAdmin, user?.id]);
 
   useEffect(() => {
     // Synchronize this screen with an external request or camera session.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 60000);
+    const refresh = () => { void fetchNotifications(); };
+    window.addEventListener("notifications-changed", refresh);
     return () => {
+      window.removeEventListener("notifications-changed", refresh);
       clearInterval(interval);
       requestVersionRef.current += 1;
     };
@@ -172,13 +169,21 @@ export const NotificationBell = () => {
 
   const totalBadgeCount = unreadCount + (isAdmin ? unresolvedAlertCount : 0);
 
+  const handleOpenNotification = async (notification: NotificationResponse) => {
+    if (isUpdating) return;
+    if (!notification.read) await handleMarkAsRead(notification.id);
+    setIsOpen(false);
+    router.push(notificationLink(notification));
+  };
+
   return (
     <div className="relative" ref={bellRef}>
       {/* Nút chuông */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => { if (!isOpen) void fetchNotifications(); setIsOpen(!isOpen); }}
         className="relative rounded-full p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200 focus:outline-none"
         aria-label="Thông báo"
+        aria-expanded={isOpen}
       >
         <Bell className="h-5 w-5" />
         {totalBadgeCount > 0 && (
@@ -190,7 +195,7 @@ export const NotificationBell = () => {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[360px] bg-white rounded-[24px] shadow-2xl ring-1 ring-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-2 w-[min(360px,calc(100vw-2rem))] bg-white rounded-[24px] shadow-2xl ring-1 ring-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 bg-white">
             <div className="flex items-center gap-2">
@@ -249,9 +254,6 @@ export const NotificationBell = () => {
                         : "hover:bg-slate-50"
                     }`}
                     aria-disabled={isUpdating}
-                    onClick={() =>
-                      !isUpdating && !notif.read && handleMarkAsRead(notif.id)
-                    }
                   >
                     {/* Chấm chưa đọc */}
                     <div className="mt-2 shrink-0">
@@ -263,7 +265,10 @@ export const NotificationBell = () => {
                     </div>
 
                     {/* Nội dung */}
-                    <div className="flex-1 min-w-0 pr-6">
+                    <Link href={notificationLink(notif)} onClick={(event) => {
+                      event.preventDefault();
+                      void handleOpenNotification(notif);
+                    }} className="flex-1 min-w-0 pr-6 rounded-lg focus-visible:outline-2 focus-visible:outline-indigo-500">
                       <p
                         className={`text-sm leading-snug ${!notif.read ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}
                       >
@@ -280,13 +285,13 @@ export const NotificationBell = () => {
                           locale: vi,
                         })}
                       </p>
-                    </div>
+                    </Link>
 
                     {/* Nút xóa – hiện khi hover */}
                     <button
                       onClick={(e) => handleDelete(e, notif.id)}
                       disabled={isUpdating}
-                      className="absolute top-3 right-3 h-7 w-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100"
+                      className="absolute top-3 right-3 h-7 w-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition-all sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
                       title="Xóa thông báo"
                     >
                       <X className="h-4 w-4" />
@@ -296,6 +301,9 @@ export const NotificationBell = () => {
               })
             )}
           </div>
+          <Link href="/notifications" onClick={() => setIsOpen(false)} className="block border-t border-slate-100 px-5 py-3 text-center text-sm font-semibold text-indigo-600 hover:bg-indigo-50">
+            Xem tất cả thông báo
+          </Link>
         </div>
       )}
     </div>

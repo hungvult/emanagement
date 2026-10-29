@@ -36,6 +36,14 @@ import lombok.RequiredArgsConstructor;
 public class LeaveRequestController {
     private final LeaveRequestService leaveRequestService;
 
+    @GetMapping("/{id}")
+    public ApiResponse<LeaveRequestResponseDto> getById(@PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) throw new org.springframework.security.access.AccessDeniedException("Chưa đăng nhập");
+        boolean admin = principal.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        return ApiResponse.success(leaveRequestService.getById(id, principal.getId(), admin));
+    }
+
     @PostMapping
     @Operation(summary = "Tạo đơn xin nghỉ phép", description = "Nhân viên gửi đơn xin nghỉ phép với lý do và thời gian cụ thể")
     public ResponseEntity<ApiResponse<LeaveRequestResponseDto>> createLeaveRequest(

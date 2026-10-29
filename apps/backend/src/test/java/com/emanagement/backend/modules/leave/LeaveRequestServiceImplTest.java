@@ -1,7 +1,7 @@
 package com.emanagement.backend.modules.leave;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
@@ -42,6 +42,9 @@ class LeaveRequestServiceImplTest {
 
     @Mock
     private ShiftService shiftService;
+
+    @Mock
+    private com.emanagement.backend.modules.notification.NotificationService notificationService;
 
     @InjectMocks
     private LeaveRequestServiceImpl leaveRequestService;
@@ -91,6 +94,9 @@ class LeaveRequestServiceImplTest {
 
         assertNotNull(result);
         assertEquals("APPROVED", result.getStatus());
+        verify(notificationService).notifyUser(eq(employee),
+                eq(com.emanagement.backend.modules.notification.NotificationType.LEAVE_APPROVED), anyString(),
+                contains(dto.getReviewNote()), eq(10L));
         assertEquals("Tran Thi Quan Ly", result.getApprovedByName());
         assertEquals("Đã phê duyệt nghỉ 3 ngày.", result.getReviewNote());
         verify(shiftService).cancelShiftsForLeave(employee, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 3));
@@ -110,6 +116,9 @@ class LeaveRequestServiceImplTest {
 
         assertNotNull(result);
         assertEquals("REJECTED", result.getStatus());
+        verify(notificationService).notifyUser(eq(employee),
+                eq(com.emanagement.backend.modules.notification.NotificationType.LEAVE_REJECTED), anyString(),
+                contains(dto.getReviewNote()), eq(10L));
         assertEquals("Tran Thi Quan Ly", result.getApprovedByName());
         assertEquals("Dự án đang gấp, đề nghị dời ngày.", result.getReviewNote());
         verify(shiftService, never()).cancelShiftsForLeave(any(), any(), any());
@@ -147,6 +156,21 @@ class LeaveRequestServiceImplTest {
         assertEquals("PENDING", result.getStatus());
         assertEquals("EMP001", result.getEmployeeCode());
         assertNull(result.getReviewNote());
+        verify(notificationService).notifyAdmins(
+                eq(com.emanagement.backend.modules.notification.NotificationType.LEAVE_REQUESTED), anyString(),
+                contains(employee.getEmployeeCode()), eq(100L), eq("/leave-requests?requestId=100"));
+    }
+
+    @Test
+    void repeatedApprovalDoesNotSendTheSameResultAgainAndOtherEmployeesCannotOpenTheRequest() {
+        leaveRequest.setStatus("APPROVED");
+        when(leaveRequestRepository.findById(10L)).thenReturn(Optional.of(leaveRequest));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(manager));
+        when(leaveRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        leaveRequestService.approveLeaveRequest(10L, new LeaveAprrovalDto(2L, "APPROVED", "OK"));
+        verifyNoInteractions(notificationService);
+        assertThrows(ResourceNotFoundException.class, () -> leaveRequestService.getById(10L, 999L, false));
+        assertEquals(10L, leaveRequestService.getById(10L, employee.getId(), false).getId());
     }
 
     @Test

@@ -69,6 +69,7 @@ public class BulkImportServiceImpl implements BulkImportService {
     private final ZipSecurityValidator zipSecurityValidator;
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
+    private final com.emanagement.backend.modules.notification.ImportNotificationService importNotifications;
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(6);
 
@@ -132,8 +133,14 @@ public class BulkImportServiceImpl implements BulkImportService {
             zipSecurityValidator.validateZipMagicBytes(zipPath);
         } catch (Exception e) {
             savedJob.setStatus(BulkImportStatus.FAILED);
+            savedJob.setFinishedAt(OffsetDateTime.now());
             savedJob.setErrorLog("Lỗi lưu trữ hoặc kiểm tra tệp ZIP: " + e.getMessage());
             jobRepository.save(savedJob);
+            try {
+                importNotifications.notifyResult(savedJob);
+            } catch (Exception notificationError) {
+                log.warn("Không thể gửi thông báo lỗi tiếp nhận import #{}", jobId, notificationError);
+            }
             zipSecurityValidator.cleanupSandbox(zipPath);
             throw new BusinessException("Không thể tiếp nhận tệp ZIP: " + e.getMessage());
         }
@@ -227,6 +234,11 @@ public class BulkImportServiceImpl implements BulkImportService {
             job.setFinishedAt(OffsetDateTime.now());
             jobRepository.save(job);
         } finally {
+            try {
+                importNotifications.notifyResult(job);
+            } catch (Exception notificationError) {
+                log.warn("Không thể gửi thông báo kết quả import #{}", jobId, notificationError);
+            }
             // Dọn dẹp sandbox
             zipSecurityValidator.cleanupSandbox(targetDir);
             try {

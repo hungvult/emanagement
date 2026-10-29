@@ -19,6 +19,7 @@ public class NotificationResponseDto {
     private String title;
     private String message;
     private Long referenceId;
+    private String targetUrl;
     private boolean read;
     private LocalDateTime createdAt;
 }

@@ -12,6 +12,7 @@ public interface AttendanceService {
     PageResponse<AttendanceHistoryDto> getUserRecordedHistory(Long userId, int page, int size,
             LocalDate startDate, LocalDate endDate);
 
+    AttendanceHistoryDto getById(Long id, Long viewerId, boolean admin);
     PageResponse<AttendanceHistoryDto> getUserHistory(Long userId, int page, int size,
             LocalDate startDate, LocalDate endDate, String status, Long shiftId);
 

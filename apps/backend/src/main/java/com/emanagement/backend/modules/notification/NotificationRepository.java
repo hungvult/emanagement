@@ -11,9 +11,25 @@ import org.springframework.data.repository.query.Param;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    Page<Notification> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    @Query("select n from Notification n where n.user.id = :userId and n.deleted = false "
+            + "and (n.expiresAt is null or n.expiresAt > :now) order by n.createdAt desc, n.id desc")
+    Page<Notification> findVisible(@Param("userId") Long userId, @Param("now") java.time.LocalDateTime now, Pageable pageable);
 
-    long countByUserIdAndIsReadFalse(Long userId);
+    @Query("select count(n) from Notification n where n.user.id = :userId and n.isRead = false and n.deleted = false "
+            + "and (n.expiresAt is null or n.expiresAt > :now)")
+    long countUnread(@Param("userId") Long userId, @Param("now") java.time.LocalDateTime now);
+
+    boolean existsByDeduplicationKey(String key);
+
+    @Modifying
+    @Query("update Notification n set n.deleted = true where n.deleted = false and n.type in :types "
+            + "and n.referenceId not in :assignmentIds")
+    int dismissUnassigned(@Param("types") java.util.Collection<NotificationType> types,
+                          @Param("assignmentIds") java.util.Collection<Long> assignmentIds);
+
+    @Modifying
+    @Query("update Notification n set n.deleted = true where n.deduplicationKey in :keys")
+    int dismissKeys(@Param("keys") java.util.Collection<String> keys);
 
     Optional<Notification> findByIdAndUserId(Long id, Long userId);
 
