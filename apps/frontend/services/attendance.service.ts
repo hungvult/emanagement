@@ -6,6 +6,7 @@ import {
 import { ApiResponse, PageResponse } from "@/types/common.types";
 
 export interface AttendanceFilters {
+  recordedOnly?: boolean;
   startDate?: string; // YYYY-MM-DD
   endDate?: string; // YYYY-MM-DD
   status?: string; // ON_TIME | LATE | EARLY_LEAVE | NO_DATA
@@ -15,16 +16,17 @@ export interface AttendanceFilters {
 
 export const attendanceService = {
   getMyHistory: (
-    userId: number,
+    userId: number | undefined,
     page: number = 0,
     size: number = 10,
     filters?: AttendanceFilters,
   ): Promise<ApiResponse<PageResponse<AttendanceHistory>>> => {
     const params = new URLSearchParams({
-      userId: String(userId),
       page: String(page),
       size: String(size),
     });
+    if (userId !== undefined) params.set("userId", String(userId));
+    if (filters?.recordedOnly) params.set("recordedOnly", "true");
     if (filters?.startDate) params.append("startDate", filters.startDate);
     if (filters?.endDate) params.append("endDate", filters.endDate);
     if (filters?.status) params.append("status", filters.status);

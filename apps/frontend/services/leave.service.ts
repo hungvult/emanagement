@@ -8,10 +8,12 @@ import {
 
 export const leaveService = {
   getMyRequests: (
-    userId: number,
+    userId?: number,
   ): Promise<ApiResponse<LeaveRequestResponse[]>> => {
     return apiClient.get<LeaveRequestResponse[]>(
-      `/leave-requests/my-requests?userId=${userId}`,
+      userId === undefined
+        ? "/leave-requests/my-requests"
+        : `/leave-requests/my-requests?userId=${userId}`,
     );
   },
 

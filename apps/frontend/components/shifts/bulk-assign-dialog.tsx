@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { DAY_OF_WEEK_OPTIONS } from "@/lib/shifts-helpers";
+import { MAX_BULK_EMPLOYEES } from "@/hooks/shifts/use-bulk-assignment";
 import { Info, Search } from "lucide-react";
 
 import type { useShifts } from "@/hooks/shifts/use-shifts";
@@ -40,6 +41,10 @@ export function BulkAssignDialog({
   executeBulkAssign,
   isBulkSubmitting,
 }: Props) {
+  const selectedCount = bulkForm.targetMode === "ALL"
+    ? activeEmployees.length
+    : bulkForm.selectedUserIds.length;
+  const exceedsLimit = selectedCount > MAX_BULK_EMPLOYEES;
   return (
     <>
       <Modal
@@ -169,6 +174,15 @@ export function BulkAssignDialog({
             <label className="text-sm font-medium text-slate-700">
               Nhân viên áp dụng
             </label>
+            <p className="text-xs text-slate-500">
+              Mỗi lượt tối đa {MAX_BULK_EMPLOYEES} nhân viên. Vui lòng chia nhỏ danh sách nếu vượt giới hạn.
+            </p>
+            {exceedsLimit && (
+              <p role="alert" className="text-sm text-amber-700">
+                Đã chọn {selectedCount} nhân viên, vượt giới hạn {MAX_BULK_EMPLOYEES} người.
+                Vui lòng chọn nhân viên cụ thể và chia thành nhiều lượt.
+              </p>
+            )}
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
                 <input
@@ -220,6 +234,7 @@ export function BulkAssignDialog({
                   <div className="flex gap-2">
                     <button
                       type="button"
+                      disabled={activeEmployees.length > MAX_BULK_EMPLOYEES}
                       onClick={() => {
                         setBulkForm((p) => ({
                           ...p,
@@ -227,7 +242,7 @@ export function BulkAssignDialog({
                         }));
                         setBulkResult(null);
                       }}
-                      className="text-xs font-bold text-indigo-600 hover:underline"
+                      className="text-xs font-bold text-indigo-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Chọn hết
                     </button>
@@ -382,6 +397,7 @@ export function BulkAssignDialog({
               type="button"
               variant="outline"
               isLoading={isBulkPreviewing}
+              disabled={exceedsLimit || isBulkSubmitting}
               onClick={() => executeBulkAssign(true)}
               className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold"
             >
@@ -390,6 +406,7 @@ export function BulkAssignDialog({
             <Button
               type="button"
               isLoading={isBulkSubmitting}
+              disabled={exceedsLimit || isBulkPreviewing}
               onClick={() => executeBulkAssign(false)}
               className="bg-indigo-600 hover:bg-indigo-700 font-bold"
             >

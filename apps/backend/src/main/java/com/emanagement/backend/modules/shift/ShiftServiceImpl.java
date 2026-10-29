@@ -248,6 +248,9 @@ public class ShiftServiceImpl implements ShiftService {
     @Override
     @Transactional
     public BulkAssignResultDto bulkAssign(BulkAssignDto dto) {
+        if (dto.getUserIds() != null && dto.getUserIds().size() > BulkAssignDto.MAX_EMPLOYEES) {
+            throw new BusinessException("Mỗi lượt chỉ được phân ca tối đa 100 nhân viên. Vui lòng chia nhỏ danh sách.");
+        }
         LocalDate start = dto.getStartDate();
         LocalDate end = dto.getEndDate();
         if (end.isBefore(start)) {
@@ -269,6 +272,11 @@ public class ShiftServiceImpl implements ShiftService {
                 .collect(Collectors.toList());
 
         List<User> users = resolveUsers(dto.getUserIds());
+        if (users.size() > BulkAssignDto.MAX_EMPLOYEES) {
+            throw new BusinessException("Có " + users.size()
+                    + " nhân viên được chọn. Mỗi lượt chỉ được phân ca tối đa 100 nhân viên. "
+                    + "Vui lòng chọn nhân viên cụ thể và chia nhỏ danh sách.");
+        }
 
         List<PlanItem> plan = new ArrayList<>();
         for (User u : users) {

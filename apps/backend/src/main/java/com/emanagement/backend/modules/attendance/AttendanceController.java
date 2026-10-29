@@ -48,7 +48,8 @@ public class AttendanceController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long shiftId) {
+            @RequestParam(required = false) Long shiftId,
+            @RequestParam(defaultValue = "false") boolean recordedOnly) {
         Long targetUserId = (principal != null) ? principal.getId() : userId;
         if (principal != null && userId != null) {
             boolean isAdmin = principal.getAuthorities().stream()
@@ -57,7 +58,9 @@ public class AttendanceController {
                 targetUserId = userId;
             }
         }
-        PageResponse<AttendanceHistoryDto> response = attendanceService.getUserHistory(targetUserId, page, size, startDate, endDate, status, shiftId);
+        PageResponse<AttendanceHistoryDto> response = recordedOnly
+                ? attendanceService.getUserRecordedHistory(targetUserId, page, size, startDate, endDate)
+                : attendanceService.getUserHistory(targetUserId, page, size, startDate, endDate, status, shiftId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
