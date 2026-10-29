@@ -21,7 +21,6 @@ export function MonthlyAttendanceSummary({ refreshToken }: { refreshToken?: numb
     { label: "Ca đã chấm công", value: summary.attended, detail: `${summary.completed} ca có giờ vào và ra` },
     { label: "Giờ đã ghi nhận", value: formatMinutes(summary.workedMinutes), detail: "Từ các lượt có đủ giờ vào và ra hợp lệ" },
     { label: "Đi muộn", value: `${summary.late} lượt`, detail: "Theo trạng thái chấm công của hệ thống" },
-    { label: "Đến sớm", value: `${summary.early} lượt`, detail: "Vào trước giờ bắt đầu ca" },
     { label: "Về sớm", value: `${summary.earlyLeave} lượt`, detail: "Ra trước giờ kết thúc ca" },
   ] : [];
 
@@ -71,14 +70,9 @@ export function MonthlyAttendanceSummary({ refreshToken }: { refreshToken?: numb
               {summary.invalidTime > 0 && <p>Có {summary.invalidTime} lượt có giờ vào/ra không hợp lệ, chưa được cộng giờ. Vui lòng liên hệ quản lý để kiểm tra.</p>}
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            Giờ đã ghi nhận là khoảng thời gian giữa vào và ra, chưa trừ nghỉ giữa ca và chưa quy đổi thành giờ tính lương.
-            Ca đủ giờ vào/ra vẫn có thể đi muộn hoặc về sớm. Đến sớm là thông tin tham khảo.
-            Muộn được xác định theo trạng thái hệ thống sau khi áp dụng thời gian cho phép trễ;
-            số phút muộn chi tiết được tính từ giờ bắt đầu ca.
-          </p>
+          
           {summary.unmatched > 0 && <p className="text-xs text-muted-foreground">
-            {summary.unmatched} lượt không có lịch ca tương ứng để đối chiếu giờ đến sớm/về sớm; trạng thái chấm công vẫn được giữ nguyên.
+            {summary.unmatched} lượt không có lịch ca tương ứng để đối chiếu thời gian đi muộn/về sớm; trạng thái chấm công vẫn được giữ nguyên.
           </p>}
           <details className="rounded-2xl border bg-card">
             <summary className="cursor-pointer px-4 py-3 font-semibold">Chi tiết vào/ra ({summary.rows.length} lượt)</summary>
@@ -101,7 +95,6 @@ export function MonthlyAttendanceSummary({ refreshToken }: { refreshToken?: numb
                       <td className="px-4 py-3">{row.valid ? formatMinutes(row.minutes) : "Chưa tính"}</td>
                       <td className="px-4 py-3"><div className="flex flex-wrap gap-1">
                         {row.late && <Badge variant="outline" className="text-amber-700">Muộn{row.lateMinutes !== null ? ` ${Math.ceil(row.lateMinutes)} phút` : ""}</Badge>}
-                        {row.earlyMinutes > 0 && <Badge variant="outline" className="text-blue-700">Đến sớm {Math.ceil(row.earlyMinutes)} phút</Badge>}
                         {row.earlyLeave && <Badge variant="outline" className="text-amber-700">Về sớm</Badge>}
                         {row.record.status === "ON_TIME" && <Badge variant="outline">Vào đúng giờ</Badge>}
                         {row.missingCheckout && <Badge variant="outline">Chưa có giờ ra</Badge>}

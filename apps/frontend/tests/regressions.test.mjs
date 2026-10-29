@@ -36,7 +36,6 @@ test("monthly attendance counts completed shifts separately from open sessions a
   assert.equal(result.attended, 3);
   assert.equal(result.completed, 2);
   assert.equal(result.workedMinutes, 555 + 470);
-  assert.equal(result.early, 1);
   assert.equal(result.earlyLeave, 1);
   assert.equal(result.late, 2);
   assert.equal(result.missingCheckout, 1);

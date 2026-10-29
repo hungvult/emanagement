@@ -40,14 +40,13 @@ export function monthlyAttendance(
     const start = shift ? new Date(`${date}T${shift.startTime}`).getTime() : NaN;
     const endDate = new Date(`${date}T${shift?.endTime ?? "00:00:00"}`);
     if (shift && shift.endTime < shift.startTime) endDate.setDate(endDate.getDate() + 1);
-    const earlyMinutes = Number.isFinite(start) && checkIn < start ? (start - checkIn) / 60000 : 0;
     // Official lateness comes from attendance status; grace has already been applied by the server.
     const late = record.status === "LATE";
     const lateMinutes = late && Number.isFinite(start) ? Math.max(0, (checkIn - start) / 60000) : null;
     const earlyLeave = record.status === "EARLY_LEAVE" ||
       (valid && !!shift && checkOut < endDate.getTime());
     return { record, date, shift, valid, minutes: valid ? (checkOut - checkIn) / 60000 : 0,
-      earlyMinutes, late, lateMinutes, earlyLeave,
+      late, lateMinutes, earlyLeave,
       missingCheckout: !record.checkOutTime,
       invalidTime: !!record.checkOutTime && !valid };
   }).sort((a, b) => b.date.localeCompare(a.date) || b.record.id - a.record.id);
@@ -70,7 +69,6 @@ export function monthlyAttendance(
     rows, planned: shifts.length, plannedMinutes, attended: attended.size, completed: completed.size,
     workedMinutes: merged.reduce((sum, [start, end]) => sum + (end - start) / 60000, 0),
     late: rows.filter((row) => row.late).length,
-    early: rows.filter((row) => row.earlyMinutes > 0).length,
     earlyLeave: rows.filter((row) => row.earlyLeave).length,
     missingCheckout: rows.filter((row) => row.missingCheckout).length,
     invalidTime: rows.filter((row) => row.invalidTime).length,

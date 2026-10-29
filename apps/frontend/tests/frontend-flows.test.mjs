@@ -40,6 +40,9 @@ function callback(path, name, globals) {
   return exports.handler;
 }
 const noop = () => {};
+const bulkAssignmentGlobals = {
+  MAX_BULK_EMPLOYEES: callback("hooks/shifts/use-bulk-assignment.ts", "MAX_BULK_EMPLOYEES", {}),
+};
 
 test("approved leave blocks opening and submitting a single assignment", async () => {
   let opened = 0;
@@ -81,6 +84,7 @@ for (const dryRun of [true, false]) {
     let closes = 0;
     let payload;
     const run = callback("hooks/shifts/use-bulk-assignment.ts", "executeBulkAssign", {
+      ...bulkAssignmentGlobals,
       bulkForm: { shiftId: "7", startDate: "2026-10-05", endDate: "2026-10-09", daysOfWeek: ["MONDAY"], targetMode: "CUSTOM", selectedUserIds: [42], overwrite: false },
       setIsBulkPreviewing: noop, setIsBulkSubmitting: noop, setBulkResult: noop,
       setIsBulkOpen: () => { closes++; }, fetchSchedule: () => { reloads++; },
@@ -100,6 +104,7 @@ test("bulk assignment rejects reversed dates before calling the API", async () =
   let requests = 0;
   let errors = 0;
   const run = callback("hooks/shifts/use-bulk-assignment.ts", "executeBulkAssign", {
+    ...bulkAssignmentGlobals,
     bulkForm: { shiftId: "7", startDate: "2026-10-09", endDate: "2026-10-05" },
     error: () => { errors++; }, shiftService: { bulkAssign: async () => { requests++; } },
   });
@@ -107,6 +112,36 @@ test("bulk assignment rejects reversed dates before calling the API", async () =
   assert.equal(errors, 1);
   assert.equal(requests, 0);
 });
+
+for (const dryRun of [true, false]) {
+  for (const count of [100, 101]) {
+    test(`bulk assignment ${dryRun ? "preview" : "commit"} ${count === 100 ? "accepts 100" : "rejects 101"} employees`, async () => {
+      let requests = 0;
+      const errors = [];
+      const run = callback("hooks/shifts/use-bulk-assignment.ts", "executeBulkAssign", {
+        ...bulkAssignmentGlobals,
+        bulkForm: {
+          shiftId: "7", startDate: "2026-10-05", endDate: "2026-10-09",
+          daysOfWeek: ["MONDAY"], targetMode: "CUSTOM",
+          selectedUserIds: Array.from({ length: count }, (_, index) => index + 1), overwrite: false,
+        },
+        setIsBulkPreviewing: noop, setIsBulkSubmitting: noop, setBulkResult: noop,
+        setIsBulkOpen: noop, fetchSchedule: noop, success: noop,
+        error: (message) => { errors.push(message); },
+        shiftService: { bulkAssign: async (payload) => {
+          requests++;
+          assert.equal(payload.userIds.length, count);
+          assert.equal(payload.dryRun, dryRun);
+          return { status: "SUCCESS", data: { created: count, updated: 0 } };
+        } },
+      });
+      await run(dryRun);
+      assert.equal(requests, count === 100 ? 1 : 0);
+      assert.equal(errors.length, count === 100 ? 0 : 1);
+      if (count === 101) assert.match(errors[0], /100/);
+    });
+  }
+}
 
 test("copy-week preview never closes the dialog or reloads the saved schedule", async () => {
   let reloads = 0;
