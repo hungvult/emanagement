@@ -17,6 +17,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLatestRequest } from "@/hooks/use-latest-request";
+import { getErrorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
   AttendanceFilters,
@@ -40,7 +41,8 @@ import {
   Search,
   X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 function extractTime(dt?: string | null): string {
   if (!dt) return "";
@@ -58,6 +60,12 @@ function getTodayString(): string {
 }
 
 export default function AttendancePage() {
+  return <Suspense fallback={<p>Đang tải chấm công…</p>}><AttendanceContent /></Suspense>;
+}
+
+function AttendanceContent() {
+  const params = useSearchParams();
+  const recordId = params.get("recordId");
   const beginRequest = useLatestRequest();
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole("ROLE_ADMIN");
@@ -73,6 +81,14 @@ export default function AttendancePage() {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedRecord, setSelectedRecord] =
     useState<AttendanceHistory | null>(null);
+  useEffect(() => {
+    if (!user?.id || !recordId || !/^\d+$/.test(recordId)) return;
+    let active = true;
+    void attendanceService.getById(Number(recordId)).then(response => {
+      if (active && response.data) setSelectedRecord(response.data);
+    }).catch(err => { if (active) error(getErrorMessage(err, "Không thể mở bản ghi chấm công")); });
+    return () => { active = false; };
+  }, [recordId, user?.id, error]);
 
   // --- Filter state ---
   const [searchFilter, setSearchFilter] = useState("");
@@ -81,6 +97,18 @@ export default function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [shiftFilter, setShiftFilter] = useState("");
   const [appliedFilters, setAppliedFilters] = useState<AttendanceFilters>({});
+  const linkedStart = params.get("startDate");
+  const linkedEnd = params.get("endDate");
+  const linkedSearch = params.get("search") || "";
+  useEffect(() => {
+    if (!linkedStart || !linkedEnd || !/^\d{4}-\d{2}-\d{2}$/.test(linkedStart) || !/^\d{4}-\d{2}-\d{2}$/.test(linkedEnd)) return;
+    // Apply the date and employee context carried by a notification link.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStartDate(linkedStart);
+    setEndDate(linkedEnd);
+    setSearchFilter(linkedSearch);
+    setAppliedFilters({ startDate: linkedStart, endDate: linkedEnd, search: linkedSearch || undefined });
+  }, [linkedStart, linkedEnd, linkedSearch]);
 
   // --- Manual Attendance Modal State (ST5-05) ---
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);

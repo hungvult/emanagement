@@ -20,12 +20,13 @@ import { employeeService } from "@/services/employee.service";
 import { BulkImportJob, BulkImportStatus } from "@/types/employee.types";
 
 interface Props {
+  initialJobId?: number;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess }: Props) {
+export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess, initialJobId }: Props) {
   const { error, success } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,14 +39,14 @@ export function EmployeeBulkImportDialog({ isOpen, onClose, onSuccess }: Props) 
   // Kiểm tra job đang chạy dở dang khi mở Modal (Reconnect on F5/mount)
   const checkActiveJob = useCallback(async () => {
     try {
-      const res = await employeeService.getActiveBulkImportJob();
+      const res = initialJobId ? await employeeService.getBulkImportJob(initialJobId) : await employeeService.getActiveBulkImportJob();
       if (res.data) {
         setCurrentJob(res.data);
       }
     } catch {
-      // Ignored
+      if (initialJobId) error("Không thể tải kết quả import. Vui lòng thử lại.");
     }
-  }, []);
+  }, [initialJobId, error]);
 
   const handleClose = useCallback(() => {
     if (currentJob?.status === "COMPLETED" || currentJob?.status === "FAILED") {

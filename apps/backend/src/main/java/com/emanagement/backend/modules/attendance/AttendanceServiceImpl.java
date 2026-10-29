@@ -47,6 +47,16 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final EntityManager entityManager;
+    private final com.emanagement.backend.modules.notification.NotificationService notificationService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public AttendanceHistoryDto getById(Long id, Long viewerId, boolean admin) {
+        AttendanceRecord record = attendanceRecordRepository.findById(id)
+                .filter(a -> admin || a.getUser().getId().equals(viewerId))
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản ghi chấm công"));
+        return mapToDto(record);
+    }
 
     @Autowired
     public AttendanceServiceImpl(
@@ -55,13 +65,15 @@ public class AttendanceServiceImpl implements AttendanceService {
             ShiftRepository shiftRepository,
             UserRepository userRepository,
             StorageService storageService,
-            EntityManager entityManager) {
+            EntityManager entityManager,
+            com.emanagement.backend.modules.notification.NotificationService notificationService) {
         this.attendanceRecordRepository = attendanceRecordRepository;
         this.employeeShiftRepository = employeeShiftRepository;
         this.shiftRepository = shiftRepository;
         this.userRepository = userRepository;
         this.storageService = storageService;
         this.entityManager = entityManager;
+        this.notificationService = notificationService;
     }
 
 
@@ -308,12 +320,17 @@ public class AttendanceServiceImpl implements AttendanceService {
             recordToSave.setUser(user);
         }
 
+        boolean changed = recordToSave.getId() == null || !java.util.Objects.equals(recordToSave.getCheckInTime(), dto.getCheckInTime())
+                || !java.util.Objects.equals(recordToSave.getCheckOutTime(), dto.getCheckOutTime())
+                || !java.util.Objects.equals(recordToSave.getStatus(), status)
+                || !java.util.Objects.equals(recordToSave.getShift() == null ? null : recordToSave.getShift().getId(), shift == null ? null : shift.getId());
         recordToSave.setShift(shift);
         recordToSave.setCheckInTime(dto.getCheckInTime());
         recordToSave.setCheckOutTime(dto.getCheckOutTime());
         recordToSave.setStatus(status);
 
         AttendanceRecord saved = attendanceRecordRepository.save(recordToSave);
+        if (changed) notifyAdjustment(saved, dto.getNote());
         return mapToDto(saved);
     }
 
@@ -371,13 +388,28 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalDate targetDate = dto.getWorkDate() != null ? dto.getWorkDate() : dto.getCheckInTime().toLocalDate();
         String status = resolveStatus(dto.getStatus(), shift, targetDate, dto.getCheckInTime(), dto.getCheckOutTime());
 
+        boolean changed = !java.util.Objects.equals(record.getCheckInTime(), dto.getCheckInTime())
+                || !java.util.Objects.equals(record.getCheckOutTime(), dto.getCheckOutTime())
+                || !java.util.Objects.equals(record.getStatus(), status)
+                || !java.util.Objects.equals(record.getShift() == null ? null : record.getShift().getId(), shift == null ? null : shift.getId());
         record.setShift(shift);
         record.setCheckInTime(dto.getCheckInTime());
         record.setCheckOutTime(dto.getCheckOutTime());
         record.setStatus(status);
 
         AttendanceRecord saved = attendanceRecordRepository.save(record);
+        if (changed) notifyAdjustment(saved, dto.getNote());
         return mapToDto(saved);
+    }
+
+    private void notifyAdjustment(AttendanceRecord record, String note) {
+        notificationService.notifyUser(record.getUser(),
+                com.emanagement.backend.modules.notification.NotificationType.ATTENDANCE_ADJUSTED,
+                "Chấm công đã được điều chỉnh",
+                "Quản trị viên đã cập nhật chấm công ngày " + record.getCheckInTime().toLocalDate()
+                        + ". Giờ vào: " + record.getCheckInTime().toLocalTime()
+                        + "; giờ ra: " + (record.getCheckOutTime() == null ? "chưa có" : record.getCheckOutTime().toLocalTime())
+                        + (note == null || note.isBlank() ? "." : ". Lý do: " + note.trim()), record.getId());
     }
 
     private String resolveStatus(String requestedStatus, Shift shift, LocalDate workDate, LocalDateTime checkInTime, LocalDateTime checkOutTime) {

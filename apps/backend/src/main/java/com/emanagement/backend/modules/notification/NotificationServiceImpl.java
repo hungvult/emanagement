@@ -20,18 +20,73 @@ import lombok.RequiredArgsConstructor;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final com.emanagement.backend.modules.employee.UserRepository userRepository;
+
+    private java.time.LocalDateTime now() {
+        return java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+    }
+
+    @Override
+    @Transactional
+    public void notifyAdmins(NotificationType type, String title, String message, Long referenceId, String targetUrl) {
+        for (User admin : userRepository.findActiveAdmins()) {
+            save(admin, type, title, message, referenceId, targetUrl, null, null);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void notifyOnce(User user, NotificationType type, String title, String message, Long referenceId,
+                           String targetUrl, String key, java.time.LocalDateTime expiresAt) {
+        // Serialize delivery for this recipient; the key survives deletion from the inbox.
+        User recipient = userRepository.lockForNotification(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người nhận thông báo"));
+        if (!notificationRepository.existsByDeduplicationKey(key)) {
+            save(recipient, type, title, message, referenceId, targetUrl, key, expiresAt);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void notifyAdminsOnce(NotificationType type, String title, String message, Long referenceId,
+                                 String targetUrl, String key, java.time.LocalDateTime expiresAt) {
+        for (User admin : userRepository.findActiveAdmins()) {
+            notifyOnce(admin, type, title, message, referenceId, targetUrl, key + ":" + admin.getId(), expiresAt);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void dismiss(java.util.Collection<String> keys) {
+        if (!keys.isEmpty()) notificationRepository.dismissKeys(keys);
+    }
+
+    @Override
+    @Transactional
+    public void dismissUnassignedReminders(java.util.Collection<Long> assignmentIds) {
+        notificationRepository.dismissUnassigned(List.of(NotificationType.SHIFT_REMINDER,
+                NotificationType.MISSING_CHECK_IN, NotificationType.MISSING_CHECK_OUT),
+                assignmentIds.isEmpty() ? List.of(-1L) : assignmentIds);
+    }
+
+    private void save(User user, NotificationType type, String title, String message, Long referenceId,
+                      String targetUrl, String key, java.time.LocalDateTime expiresAt) {
+        notificationRepository.save(Notification.builder().user(user).type(type).title(title).message(message)
+                .referenceId(referenceId).targetUrl(targetUrl).deduplicationKey(key).expiresAt(expiresAt)
+                .createdAt(now()).build());
+    }
 
     @Override
     @Transactional
     public void notifyUser(User user, NotificationType type, String title, String message, Long referenceId) {
-        Notification notification = Notification.builder()
-                .user(user)
-                .type(type)
-                .title(title)
-                .message(message)
-                .referenceId(referenceId)
-                .build();
-        notificationRepository.save(notification);
+        String target = switch (type) {
+            case LEAVE_REQUESTED, LEAVE_APPROVED, LEAVE_REJECTED -> "/leave-requests?requestId=" + referenceId;
+            case ATTENDANCE_ADJUSTED -> "/attendance?recordId=" + referenceId;
+            case MISSING_CHECK_IN, MISSING_CHECK_OUT -> "/attendance";
+            case FACE_REGISTRATION_REQUIRED -> "/profile";
+            default -> "/my-schedule";
+        };
+        save(user, type, title, message, referenceId, target, null, null);
     }
 
     @Override
@@ -40,14 +95,14 @@ public class NotificationServiceImpl implements NotificationService {
         int safeSize = Math.min(Math.max(size, 1), 50);
         return PageResponse.from(
                 notificationRepository
-                        .findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(Math.max(page, 0), safeSize))
+                        .findVisible(userId, now(), PageRequest.of(Math.max(page, 0), safeSize))
                         .map(this::mapToDto));
     }
 
     @Override
     @Transactional(readOnly = true)
     public long countUnread(Long userId) {
-        return notificationRepository.countByUserIdAndIsReadFalse(userId);
+        return notificationRepository.countUnread(userId, now());
     }
 
     @Override
@@ -70,7 +125,8 @@ public class NotificationServiceImpl implements NotificationService {
     public void deleteNotification(Long userId, Long notificationId) {
         Notification n = notificationRepository.findByIdAndUserId(notificationId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo với ID: " + notificationId));
-        notificationRepository.delete(n);
+        n.setDeleted(true);
+        notificationRepository.save(n);
     }
 
     private NotificationResponseDto mapToDto(Notification n) {
@@ -80,6 +136,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .title(n.getTitle())
                 .message(n.getMessage())
                 .referenceId(n.getReferenceId())
+                .targetUrl(n.getTargetUrl() != null ? n.getTargetUrl() : "/my-schedule")
                 .read(Boolean.TRUE.equals(n.getIsRead()))
                 .createdAt(n.getCreatedAt())
                 .build();

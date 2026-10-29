@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BulkImportJobRepository extends JpaRepository<BulkImportJob, Long> {
+    java.util.List<BulkImportJob> findByStatusInAndFinishedAtAfter(
+            Collection<BulkImportStatus> statuses, java.time.OffsetDateTime since);
 
     boolean existsByStatusIn(Collection<BulkImportStatus> statuses);
 

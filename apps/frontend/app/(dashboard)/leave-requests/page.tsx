@@ -22,7 +22,8 @@ import { leaveService } from "@/services/leave.service";
 import { Employee } from "@/types/employee.types";
 import { LeaveRequestCreate, LeaveRequestResponse } from "@/types/leave.types";
 import { CalendarRange, Check, Eye, Plus, RotateCcw, Search, X } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 const getTodayISO = () => {
   const d = new Date();
@@ -51,6 +52,12 @@ const getInDaysISO = (days: number) => {
 };
 
 export default function LeaveRequestsPage() {
+  return <Suspense fallback={<p>Đang tải đơn nghỉ phép…</p>}><LeaveRequestsContent /></Suspense>;
+}
+
+function LeaveRequestsContent() {
+  const params = useSearchParams();
+  const requestId = params.get("requestId");
   const beginRequest = useLatestRequest();
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole("ROLE_ADMIN");
@@ -75,6 +82,14 @@ export default function LeaveRequestsPage() {
 
   // Detail Modal State (ST5-01 / Issue 2)
   const [detailRequest, setDetailRequest] = useState<LeaveRequestResponse | null>(null);
+  useEffect(() => {
+    if (!user?.id || !requestId || !/^\d+$/.test(requestId)) return;
+    let active = true;
+    void leaveService.getById(Number(requestId)).then(response => {
+      if (active && response.data) setDetailRequest(response.data);
+    }).catch(err => { if (active) error(getErrorMessage(err, "Không thể mở đơn nghỉ phép")); });
+    return () => { active = false; };
+  }, [requestId, user?.id, error]);
 
   // Create Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);

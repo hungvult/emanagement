@@ -15,6 +15,8 @@ export interface AttendanceFilters {
 }
 
 export const attendanceService = {
+  getById: (id: number): Promise<ApiResponse<AttendanceHistory>> =>
+    apiClient.get<AttendanceHistory>(`/attendances/detail/${id}`),
   getMyHistory: (
     userId: number | undefined,
     page: number = 0,

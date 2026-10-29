@@ -48,6 +48,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmailService emailService;
     private final StorageService storageService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final com.emanagement.backend.modules.notification.NotificationService notificationService;
 
     @Override
     @Transactional
@@ -87,6 +88,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .roles(Set.of(role))
                 .build();
         User created = userRepository.save(user);
+        notificationService.notifyOnce(created,
+                com.emanagement.backend.modules.notification.NotificationType.FACE_REGISTRATION_REQUIRED,
+                "Hoàn tất đăng ký khuôn mặt", "Vui lòng liên hệ quản trị viên để đăng ký khuôn mặt trước khi chấm công.",
+                created.getId(), "/profile", "face-registration:" + created.getId(), null);
 
         // 4. Nếu có email, tự động gửi thông báo chào mừng
         if (created.getEmail() != null && !created.getEmail().isBlank()) {
@@ -249,6 +254,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         faceDataRepository.save(newFace);
+        notificationService.dismiss(java.util.List.of("face-registration:" + user.getId()));
 
         return LiveEkycEnrollResponseDto.builder()
                 .userId(user.getId())

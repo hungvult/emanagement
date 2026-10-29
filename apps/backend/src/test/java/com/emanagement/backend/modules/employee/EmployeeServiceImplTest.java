@@ -53,6 +53,9 @@ class EmployeeServiceImplTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private com.emanagement.backend.modules.notification.NotificationService notificationService;
+
     @InjectMocks
     private EmployeeServiceImpl employeeService;
 

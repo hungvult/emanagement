@@ -9,6 +9,7 @@ import com.emanagement.backend.modules.leave.dto.LeaveRequestCreateDto;
 import com.emanagement.backend.modules.leave.dto.LeaveRequestResponseDto;
 
 public interface LeaveRequestService {
+    LeaveRequestResponseDto getById(Long id, Long viewerId, boolean admin);
     LeaveRequestResponseDto createLeaveRequest(LeaveRequestCreateDto dto);
 
     List<LeaveRequestResponseDto> getMyLeaveRequests(Long userId);

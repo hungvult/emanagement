@@ -38,6 +38,14 @@ import lombok.RequiredArgsConstructor;
 public class AttendanceController {
     private final AttendanceService attendanceService;
 
+    @GetMapping("/detail/{id}")
+    public ApiResponse<AttendanceHistoryDto> getById(@PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) throw new org.springframework.security.access.AccessDeniedException("Chưa đăng nhập");
+        boolean admin = principal.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        return ApiResponse.success(attendanceService.getById(id, principal.getId(), admin));
+    }
+
     @GetMapping("/my-history")
     @Operation(summary = "Lịch sử chấm công cá nhân", description = "Tra cứu danh sách các lượt chấm công của nhân viên theo userId")
     public ResponseEntity<ApiResponse<PageResponse<AttendanceHistoryDto>>> getMyHistory(

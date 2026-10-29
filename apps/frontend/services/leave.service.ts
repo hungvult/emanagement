@@ -7,6 +7,8 @@ import {
 } from "@/types/leave.types";
 
 export const leaveService = {
+  getById: (id: number): Promise<ApiResponse<LeaveRequestResponse>> =>
+    apiClient.get<LeaveRequestResponse>(`/leave-requests/${id}`),
   getMyRequests: (
     userId?: number,
   ): Promise<ApiResponse<LeaveRequestResponse[]>> => {

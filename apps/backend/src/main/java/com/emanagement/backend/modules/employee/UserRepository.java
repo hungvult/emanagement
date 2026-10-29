@@ -12,6 +12,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
+    @Query("select distinct u from User u join u.roles r where u.status = 'ACTIVE' and r.name = 'ROLE_ADMIN'")
+    List<User> findActiveAdmins();
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id = :id")
+    Optional<User> lockForNotification(@Param("id") Long id);
     @Query("""
         select distinct u from User u join u.roles r
         where r.name in ('ROLE_USER', 'ROLE_EMPLOYEE')

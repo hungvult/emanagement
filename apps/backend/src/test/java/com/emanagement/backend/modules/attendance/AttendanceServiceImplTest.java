@@ -68,6 +68,9 @@ class AttendanceServiceImplTest {
     @Mock
     private EntityManager entityManager;
 
+    @Mock
+    private com.emanagement.backend.modules.notification.NotificationService notificationService;
+
     @InjectMocks
     private AttendanceServiceImpl attendanceService;
 
@@ -157,6 +160,25 @@ class AttendanceServiceImplTest {
         kiosk = new Kiosk();
         kiosk.setId(100L);
         kiosk.setName("Trạm Kiosk Cổng 1");
+    }
+
+    @Test
+    void manualAdjustmentNotifiesEmployeeWithReasonAndDetailRemainsPrivate() {
+        AttendanceRecord record = AttendanceRecord.builder().id(100L).user(user1).shift(standardShift)
+                .checkInTime(LocalDateTime.of(2026, 10, 29, 8, 0))
+                .checkOutTime(LocalDateTime.of(2026, 10, 29, 17, 0)).status("ON_TIME").build();
+        when(attendanceRecordRepository.findById(100L)).thenReturn(Optional.of(record));
+        when(attendanceRecordRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        ManualAttendanceRequestDto dto = ManualAttendanceRequestDto.builder()
+                .checkInTime(LocalDateTime.of(2026, 10, 29, 8, 0))
+                .checkOutTime(LocalDateTime.of(2026, 10, 29, 16, 0))
+                .note("Bo sung cham cong").build();
+        attendanceService.updateManualRecord(100L, dto);
+        verify(notificationService).notifyUser(eq(user1),
+                eq(com.emanagement.backend.modules.notification.NotificationType.ATTENDANCE_ADJUSTED),
+                anyString(), contains("Bo sung cham cong"), eq(100L));
+        assertThrows(ResourceNotFoundException.class, () -> attendanceService.getById(100L, user2.getId(), false));
+        assertEquals(100L, attendanceService.getById(100L, user1.getId(), false).getId());
     }
 
     // =========================================================================

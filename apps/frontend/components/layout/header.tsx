@@ -15,6 +15,7 @@ import { LogOut, Menu, User as UserIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const PAGE_TITLES: Record<string, string> = {
+  "/notifications": "Thông báo",
   "/reports": "Thống kê báo cáo",
   "/dashboard": "Tổng quan",
   "/employees": "Nhân viên",

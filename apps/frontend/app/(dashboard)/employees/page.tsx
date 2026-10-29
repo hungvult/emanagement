@@ -9,6 +9,8 @@ import { EmployeeFilters } from "@/components/employees/employee-filters";
 import { EmployeeTable } from "@/components/employees/employee-table";
 import { RoleGuard } from "@/components/shared/role-guard";
 import { useEmployees } from "@/hooks/employees/use-employees";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function EmployeesPage() {
   return (
@@ -16,13 +18,24 @@ export default function EmployeesPage() {
       allowedRoles={["ROLE_ADMIN"]}
       fallback={<p>Không có quyền truy cập</p>}
     >
-      <EmployeeManagement />
+      <Suspense fallback={<p>Đang tải nhân viên…</p>}><EmployeeManagement /></Suspense>
     </RoleGuard>
   );
 }
 
 function EmployeeManagement() {
   const model = useEmployees();
+  const params = useSearchParams();
+  const router = useRouter();
+  const rawJobId = params.get("importJobId");
+  const initialJobId = rawJobId && /^\d+$/.test(rawJobId) ? Number(rawJobId) : undefined;
+  const { setIsBulkImportOpen } = model;
+  useEffect(() => {
+    if (initialJobId) {
+      // Synchronize a linked import result with its dialog.
+      setIsBulkImportOpen(true);
+    }
+  }, [initialJobId, setIsBulkImportOpen]);
   return (
     <div className="space-y-6">
       <EmployeeFilters
@@ -95,8 +108,9 @@ function EmployeeManagement() {
         handleEnrollComplete={model.handleEnrollComplete}
       />
       <EmployeeBulkImportDialog
+        initialJobId={initialJobId}
         isOpen={model.isBulkImportOpen}
-        onClose={() => model.setIsBulkImportOpen(false)}
+        onClose={() => { model.setIsBulkImportOpen(false); if (initialJobId) router.replace("/employees"); }}
         onSuccess={() => model.fetchEmployees(0)}
       />
     </div>
