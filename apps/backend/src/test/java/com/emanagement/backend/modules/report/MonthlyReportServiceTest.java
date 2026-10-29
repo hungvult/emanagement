@@ -52,8 +52,8 @@ class MonthlyReportServiceTest {
                 record(27, 8, 0, LocalDateTime.of(2026, 10, 27, 17, 0)),
                 record(28, 8, 0, null)));
         var row = service.generate(2026, 10, now).employees().getFirst();
-        assertEquals(27 * 60, row.assignedMinutes());
-        assertEquals(13 * 60 + 30, row.actualMinutes());
+        assertEquals(24 * 60, row.assignedMinutes());
+        assertEquals(12 * 60, row.actualMinutes());
         assertEquals(0, row.missingCheckoutCount());
         assertEquals(0, row.earlyCount());
     }
@@ -87,7 +87,7 @@ class MonthlyReportServiceTest {
                 .checkOutTime(LocalDateTime.of(2026, 10, 1, 1, 0)).build();
         when(attendance.findForMonthlyReport(any(), any())).thenReturn(List.of(previousMonth,
                 record(28, 12, 0, LocalDateTime.of(2026, 10, 28, 20, 0))));
-        assertEquals(90, service.generate(2026, 10, now).employees().getFirst().actualMinutes());
+        assertEquals(60, service.generate(2026, 10, now).employees().getFirst().actualMinutes());
         verify(attendance).findForMonthlyReport(LocalDateTime.of(2026, 10, 1, 0, 0), LocalDateTime.of(2026, 11, 1, 0, 0));
     }
 
@@ -107,6 +107,60 @@ class MonthlyReportServiceTest {
         assertEquals(user.getId(), row.userId());
         assertEquals(0, row.assignedMinutes());
         assertEquals(0, row.actualMinutes());
+    }
+
+    @Test
+    void liveHoursExcludeOnlyTheElapsedPartOfLunch() {
+        when(attendance.findForMonthlyReport(any(), any())).thenReturn(List.of(record(28, 8, 0, null)));
+        LocalTime[] checkpoints = { LocalTime.of(11, 30), LocalTime.of(12, 30),
+                LocalTime.of(13, 0), LocalTime.of(14, 0), LocalTime.of(17, 0) };
+        long[] expectedMinutes = { 210, 240, 240, 300, 480 };
+        for (int i = 0; i < checkpoints.length; i++) {
+            var report = service.generate(2026, 10, now.toLocalDate().atTime(checkpoints[i]));
+            assertEquals(expectedMinutes[i], report.employees().getFirst().actualMinutes(), checkpoints[i].toString());
+        }
+    }
+
+    @Test
+    void morningAndAfternoonShiftsAreNotDeductedAnExtraHour() {
+        EmployeeShift morning = assignment(26);
+        morning.setEndTime(LocalTime.NOON);
+        EmployeeShift afternoon = assignment(27);
+        afternoon.setStartTime(LocalTime.of(13, 0));
+        when(assignments.findByAssignedDateBetweenOrderByAssignedDateAsc(any(), any()))
+                .thenReturn(List.of(morning, afternoon));
+        when(attendance.findForMonthlyReport(any(), any())).thenReturn(List.of(
+                record(26, 8, 0, LocalDateTime.of(2026, 10, 26, 12, 0)),
+                record(27, 13, 0, LocalDateTime.of(2026, 10, 27, 17, 0))));
+        var row = service.generate(2026, 10, now).employees().getFirst();
+        assertEquals(480, row.assignedMinutes());
+        assertEquals(480, row.actualMinutes());
+    }
+
+    @Test
+    void partialLunchOverlapIsDeductedWithoutProducingNegativeHours() {
+        when(attendance.findForMonthlyReport(any(), any())).thenReturn(List.of(
+                record(26, 11, 45, LocalDateTime.of(2026, 10, 26, 12, 15)),
+                record(27, 12, 30, LocalDateTime.of(2026, 10, 27, 13, 30)),
+                record(28, 12, 15, LocalDateTime.of(2026, 10, 28, 12, 25))));
+        assertEquals(45, service.generate(2026, 10, now).employees().getFirst().actualMinutes());
+    }
+
+    @Test
+    void assignedHoursAlsoDeductOnlyTheOverlappingPartOfLunch() {
+        EmployeeShift partial = assignment(27);
+        partial.setStartTime(LocalTime.of(11, 30));
+        partial.setEndTime(LocalTime.of(12, 30));
+        when(assignments.findByAssignedDateBetweenOrderByAssignedDateAsc(any(), any())).thenReturn(List.of(partial));
+        assertEquals(30, service.generate(2026, 10, now).employees().getFirst().assignedMinutes());
+    }
+
+    @Test
+    void separateMorningAndAfternoonCheckinsDoNotDeductLunchTwice() {
+        when(attendance.findForMonthlyReport(any(), any())).thenReturn(List.of(
+                record(27, 8, 0, LocalDateTime.of(2026, 10, 27, 12, 0)),
+                record(27, 13, 0, LocalDateTime.of(2026, 10, 27, 17, 0))));
+        assertEquals(480, service.generate(2026, 10, now).employees().getFirst().actualMinutes());
     }
 
     @Test

@@ -4,6 +4,7 @@ import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import com.emanagement.backend.common.exception.BusinessException;
 import com.emanagement.backend.modules.attendance.*;
@@ -17,6 +18,12 @@ public class MonthlyReportService {
     private final UserRepository users;
     private final EmployeeShiftRepository assignments;
     private final AttendanceRecordRepository attendance;
+
+    @Value("${report.lunch-start:12:00}")
+    private LocalTime lunchStart = LocalTime.NOON;
+
+    @Value("${report.lunch-end:13:00}")
+    private LocalTime lunchEnd = LocalTime.of(13, 0);
 
     @Transactional(readOnly = true)
     public MonthlyReportDto getMonthlyReport(int year, int month) {
@@ -40,7 +47,8 @@ public class MonthlyReportService {
         for (User user : users.findEmployeesForReport()) {
             List<EmployeeShift> personalShifts = shiftsByUser.getOrDefault(user.getId(), List.of());
             long assignedMinutes = personalShifts.stream()
-                    .mapToLong(s -> Math.max(0, Duration.between(s.getStartTime(), s.getEndTime()).toMinutes())).sum();
+                    .mapToLong(s -> workingSeconds(s.getAssignedDate().atTime(s.getStartTime()),
+                            s.getAssignedDate().atTime(s.getEndTime())) / 60).sum();
             Map<LocalDate, EmployeeShift> byDate = personalShifts.stream()
                     .collect(Collectors.toMap(EmployeeShift::getAssignedDate, s -> s, (a, b) -> a));
             long seconds = 0;
@@ -57,7 +65,7 @@ public class MonthlyReportService {
                     LocalDateTime from = in.isBefore(start) ? start : in;
                     LocalDateTime to = out.isAfter(now) ? now : out;
                     if (to.isAfter(end)) to = end;
-                    seconds += Math.max(0, Duration.between(from, to).getSeconds());
+                    seconds += workingSeconds(from, to);
                 }
                 if (in.isBefore(start) || !in.isBefore(end)) continue;
                 EmployeeShift assigned = byDate.get(in.toLocalDate());
@@ -76,5 +84,24 @@ public class MonthlyReportService {
                     assignedMinutes, seconds / 60, early, late, missing));
         }
         return new MonthlyReportDto(year, month, now, rows);
+    }
+
+    /** Subtract only the part of the lunch break that overlaps the measured interval. */
+    private long workingSeconds(LocalDateTime from, LocalDateTime to) {
+        if (!to.isAfter(from)) return 0;
+        if (!lunchEnd.isAfter(lunchStart)) {
+            throw new BusinessException("Giờ kết thúc nghỉ trưa phải sau giờ bắt đầu nghỉ trưa");
+        }
+        long seconds = Duration.between(from, to).getSeconds();
+        for (LocalDate date = from.toLocalDate(); !date.isAfter(to.toLocalDate()); date = date.plusDays(1)) {
+            LocalDateTime breakStart = date.atTime(lunchStart);
+            LocalDateTime breakEnd = date.atTime(lunchEnd);
+            LocalDateTime overlapStart = from.isAfter(breakStart) ? from : breakStart;
+            LocalDateTime overlapEnd = to.isBefore(breakEnd) ? to : breakEnd;
+            if (overlapEnd.isAfter(overlapStart)) {
+                seconds -= Duration.between(overlapStart, overlapEnd).getSeconds();
+            }
+        }
+        return seconds;
     }
 }
